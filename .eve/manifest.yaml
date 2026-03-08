@@ -1,0 +1,6 @@
+name: pm-expert-panel
+description: "Slack-native expert panel for document review"
+
+x-eve:
+  packs:
+    - source: ./
