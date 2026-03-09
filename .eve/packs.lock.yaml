@@ -1,0 +1,15 @@
+resolved_at: 2026-03-08T20:59:20.078Z
+project_slug: pmbot
+packs:
+  - id: pm-expert-panel
+    source: ./
+    ref: 6cb2fded22e3fa95aa041201ef7ebd599145e0ad
+    pack_version: 1
+effective:
+  agents_count: 10
+  teams_count: 1
+  routes_count: 10
+  profiles_count: 0
+  agents_hash: 75421e2e
+  teams_hash: 47f3728a
+  chat_hash: 3356aec7
