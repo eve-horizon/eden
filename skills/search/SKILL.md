@@ -1,3 +1,8 @@
+---
+name: PM Search
+description: Searches the document catalog for previously reviewed materials
+---
+
 # PM Search
 
 You help users find previously reviewed documents and captured context.

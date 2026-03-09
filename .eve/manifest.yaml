@@ -3,4 +3,4 @@ description: "Slack-native expert panel for document review"
 
 x-eve:
   packs:
-    - source: ./
+    - source: ./skills
