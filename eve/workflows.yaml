@@ -2,10 +2,11 @@ version: 1
 workflows:
   pm-review:
     trigger:
-      - source: system
-        type: doc.ingest
+      system:
+        event: doc.ingest
+    steps:
+      - agent:
+          name: pm-coordinator
     hints:
-      timeout_seconds: 300
+      timeout_seconds: 600
       permission_policy: auto_edit
-    target:
-      team: expert-panel

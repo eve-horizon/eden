@@ -1,10 +1,10 @@
 agents:
   profiles:
-    # Coordinator — routes work, minimal reasoning needed
+    # Coordinator — triage, transcription, synthesis: needs medium reasoning
     coordinator:
       - harness: claude
         model: sonnet
-        reasoning_effort: low
+        reasoning_effort: medium
 
     # Expert — deep analysis, needs strong reasoning
     expert:
@@ -17,18 +17,3 @@ agents:
       - harness: claude
         model: sonnet
         reasoning_effort: low
-
-    # --- Future: Qwen 3.5 via pi harness ---
-    # To switch to Qwen 3.5, uncomment below and set PI_MODELS_JSON_B64 secret:
-    #
-    # coordinator:
-    #   - harness: pi
-    #     model: qwen/qwen3.5-vl
-    #
-    # expert:
-    #   - harness: pi
-    #     model: qwen/qwen3.5-vl
-    #
-    # monitor:
-    #   - harness: pi
-    #     model: qwen/qwen3.5-vl

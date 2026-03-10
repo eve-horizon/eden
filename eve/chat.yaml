@@ -1,42 +1,5 @@
 version: 1
-default_route: route_coordinator
 routes:
-  - id: route_search
-    match: "^(search|find|catalog|list docs)"
-    target: agent:pm-search
-
-  - id: route_monitor
-    match: "^(note|decision|action|off the record)"
-    target: agent:chat-monitor
-
-  - id: route_tech_lead
-    match: "^@?tech.?lead"
-    target: agent:tech-lead
-
-  - id: route_ux
-    match: "^@?ux"
-    target: agent:ux-advocate
-
-  - id: route_biz
-    match: "^@?biz"
-    target: agent:biz-analyst
-
-  - id: route_gtm
-    match: "^@?gtm"
-    target: agent:gtm-advocate
-
-  - id: route_risk
-    match: "^@?risk"
-    target: agent:risk-assessor
-
-  - id: route_qa
-    match: "^@?qa"
-    target: agent:qa-strategist
-
-  - id: route_devils
-    match: "^@?devil"
-    target: agent:devils-advocate
-
-  - id: route_coordinator
+  - id: route_default
     match: ".*"
     target: team:expert-panel

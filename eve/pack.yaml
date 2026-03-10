@@ -7,4 +7,4 @@ imports:
   chat: eve/chat.yaml
   x_eve: eve/x-eve.yaml
 gateway:
-  default_policy: routable
+  default_policy: internal

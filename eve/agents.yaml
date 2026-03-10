@@ -1,83 +1,101 @@
 version: 1
 agents:
-  # Coordinator — receives messages, fans out to expert panel
+  # Coordinator — triages requests, processes files, dispatches expert panel when needed, synthesizes results
   pm-coordinator:
     slug: pm
+    alias: pm
     name: "PM Coordinator"
-    description: "Receives documents and dispatches to expert panel for multi-perspective review"
+    description: "PM coordinator — triages requests, processes files, dispatches expert panel when needed, synthesizes results"
     skill: coordinator
     harness_profile: coordinator
     workflow: coordinator
     gateway:
       policy: routable
       clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
-  # Expert Panel Agents
+  # Expert Panel Agents — internal only, invoked by staged council dispatch
   tech-lead:
     slug: tech-lead
     name: "Tech Lead"
-    description: "Reviews for technical feasibility, architecture, cost, and engineering risk"
+    description: "Technical feasibility, architecture, cost, engineering risk"
     skill: tech-lead
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   ux-advocate:
     slug: ux-advocate
     name: "UX Advocate"
-    description: "Reviews for user experience, research gaps, accessibility, and i18n readiness"
+    description: "User experience, accessibility, research gaps, i18n readiness"
     skill: ux-advocate
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   biz-analyst:
     slug: biz-analyst
     name: "Business Analyst"
-    description: "Reviews for process flows, user journeys, data landscape, and success criteria"
+    description: "Process flows, user journeys, data landscape, success criteria"
     skill: biz-analyst
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   gtm-advocate:
     slug: gtm-advocate
     name: "GTM Advocate"
-    description: "Reviews for revenue impact, competitive positioning, market timing, and go-to-market readiness"
+    description: "Revenue impact, competitive positioning, market timing, go-to-market readiness"
     skill: gtm-advocate
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   risk-assessor:
     slug: risk-assessor
     name: "Risk Assessor"
-    description: "Reviews for timeline, dependency, resource, commercial, and regulatory risks"
+    description: "Timeline, dependency, resource, commercial, regulatory risks"
     skill: risk-assessor
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   qa-strategist:
     slug: qa-strategist
     name: "QA Strategist"
-    description: "Reviews for testing strategy, edge cases, acceptance criteria, and regression risk"
+    description: "Testing strategy, edge cases, acceptance criteria, regression risk"
     skill: qa-strategist
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never
 
   devils-advocate:
     slug: devils-advocate
@@ -86,30 +104,8 @@ agents:
     skill: devils-advocate
     harness_profile: expert
     workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
-
-  # Chat monitor — listens to channel messages
-  chat-monitor:
-    slug: pm-monitor
-    name: "Chat Monitor"
-    description: "Monitors channel chat for decisions, action items, and context"
-    skill: chat-monitor
-    harness_profile: monitor
-    workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
-
-  # Search agent — handles search queries
-  pm-search:
-    slug: pm-search
-    name: "PM Search"
-    description: "Searches the document catalog for previously reviewed materials"
-    skill: search
-    harness_profile: monitor
-    workflow: assistant
-    gateway:
-      policy: routable
-      clients: [slack]
+    policies:
+      permission_policy: auto_edit
+      git:
+        commit: never
+        push: never

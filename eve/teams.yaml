@@ -11,6 +11,8 @@ teams:
       - qa-strategist
       - devils-advocate
     dispatch:
-      mode: fanout
+      mode: council
+      staged: true
       max_parallel: 7
-      member_timeout: 120
+      lead_timeout: 3600
+      member_timeout: 300
