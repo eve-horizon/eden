@@ -1,3 +1,4 @@
+version: 1
 agents:
   profiles:
     # Coordinator — triage, transcription, synthesis: needs medium reasoning
