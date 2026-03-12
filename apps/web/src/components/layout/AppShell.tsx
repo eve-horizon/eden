@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useEveAuth } from '@eve-horizon/auth-react';
 
 interface EveUser {
   id: string;
@@ -29,8 +30,8 @@ export function AppShell({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const orgs = user.organizations ?? [];
-  const currentOrgId = user.orgId;
+  const { orgs, activeOrg, switchOrg } = useEveAuth();
+  const currentOrgId = activeOrg?.id ?? user.orgId;
 
   // Build nav items based on whether we have a project context
   const navItems = projectId
@@ -107,7 +108,7 @@ export function AppShell({
                     <button
                       key={org.id}
                       onClick={() => {
-                        // switchOrg would be called here via useEveAuth
+                        switchOrg(org.id);
                         setOrgOpen(false);
                       }}
                       className={`w-full text-left px-3 py-2 text-sm hover:bg-eden-bg transition-colors
