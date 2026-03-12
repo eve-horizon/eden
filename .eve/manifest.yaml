@@ -33,7 +33,7 @@ services:
       ingress:
         public: true
         port: 80
-        alias: eden
+        alias: eden-app
 
   migrate:
     image: public.ecr.aws/w7c4v0w3/eve-horizon/migrate:latest
