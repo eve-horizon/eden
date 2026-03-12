@@ -2,6 +2,7 @@
 # scripts/smoke-test.sh — runs as a pipeline step after migrate
 set -euo pipefail
 BASE="https://web.${ORG_SLUG:-incept5}-eden-sandbox.eh1.incept5.dev"
+TOKEN="${TOKEN:-}"
 
 echo "=== Phase 1 Smoke Tests ==="
 
@@ -10,6 +11,12 @@ curl -sf "$BASE/health" > /dev/null
 echo "✓ Web healthy"
 curl -sf "$BASE/api/health" | jq .status
 echo "✓ API healthy"
+
+if [ -z "$TOKEN" ]; then
+  echo "⚠ TOKEN not set — skipping authenticated tests"
+  echo "=== Phase 1 smoke tests passed (health only) ==="
+  exit 0
+fi
 
 # Auth (requires valid token)
 curl -sf -H "Authorization: Bearer $TOKEN" "$BASE/api/projects" | jq length
