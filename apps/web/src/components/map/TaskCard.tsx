@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import type { Task } from './types';
+import type { DeduplicatedTask } from './types';
 import { TaskCardExpanded } from './TaskCardExpanded';
 
 // ---------------------------------------------------------------------------
-// TaskCard — compact card for a single task within a step column
+// TaskCard — compact card for a single deduplicated task
 //
 // Matches prototype layout: title-first (large, bold), then a metadata row
-// below with display_id, persona role badges (small colored rectangles),
-// source badge, device badge, and question count.
-// Card has a 4px left border colored by persona. Expandable via chevron.
+// below with display_id, multiple persona role badges (small colored
+// rectangles), source badge, device badge, and question count.
+// Card has a 4px left border colored by first persona. Expandable via chevron.
 // ---------------------------------------------------------------------------
 
 interface TaskCardProps {
-  task: Task;
+  task: DeduplicatedTask;
   dimmed: boolean;
   aiStatus?: 'modified' | 'added' | null;
   onQuestionClick?: (questionId: string) => void;
@@ -37,9 +37,12 @@ const DEVICE_STYLES: Record<string, { bg: string; color: string }> = {
 export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const personaColor = task.persona?.color ?? '#9ca3af';
+  const firstPersona = task.personas[0]?.persona ?? null;
+  const personaColor = firstPersona?.color ?? '#9ca3af';
   const lifecycle = task.lifecycle ?? 'current';
-  const roleInJourney = task.role_in_journey ?? 'owner';
+
+  // Check if any placement is a handoff
+  const hasHandoff = task.personas.some((p) => p.role_in_journey === 'handoff');
 
   // --- Border color logic ---
   let borderColor = aiStatus === 'modified' ? '#8b5cf6'
@@ -62,7 +65,7 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
     overflow: 'hidden',
     cursor: 'pointer',
     borderLeft: `4px solid ${borderColor}`,
-    borderLeftStyle: roleInJourney === 'handoff' ? 'dashed' : 'solid',
+    borderLeftStyle: hasHandoff ? 'dashed' : 'solid',
     transition: 'all 0.2s',
   };
 
@@ -75,7 +78,7 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
     cardStyle.background = '#f9fafb';
   } else if (lifecycle === 'proposed') {
     cardStyle.background = 'linear-gradient(135deg, #f0fdf4, #fff)';
-  } else if (roleInJourney === 'handoff') {
+  } else if (hasHandoff) {
     cardStyle.opacity = 0.85;
     cardStyle.background = '#fafafa';
     cardStyle.border = '2px dashed #d1d5db';
@@ -122,7 +125,7 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
           </button>
         </div>
 
-        {/* Metadata row: ID + persona badges + lifecycle/handoff + source + device + questions */}
+        {/* Metadata row: ID + persona badges + lifecycle + source + device + questions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
           {/* Display ID */}
           <span
@@ -137,9 +140,10 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
             {task.display_id}
           </span>
 
-          {/* Persona role badge */}
-          {task.persona && (
+          {/* Persona role badges — one per unique persona */}
+          {task.personas.map((p, i) => (
             <span
+              key={`${p.persona.id}-${i}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -152,12 +156,13 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
                 color: '#fff',
                 padding: '1px 6px',
                 borderRadius: '3px',
-                backgroundColor: task.persona.color,
+                backgroundColor: p.persona.color,
               }}
+              title={`${p.persona.name} (${p.role})`}
             >
-              {task.persona.code}
+              {p.persona.code}
             </span>
-          )}
+          ))}
 
           {/* Lifecycle badges */}
           {lifecycle === 'proposed' && (
@@ -191,43 +196,6 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
               }}
             >
               DISCONTINUED
-            </span>
-          )}
-
-          {/* Handoff / Shared badges */}
-          {roleInJourney === 'handoff' && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '3px',
-                fontSize: '7px',
-                fontWeight: 800,
-                padding: '2px 6px',
-                borderRadius: '4px',
-                background: '#fef3c7',
-                color: '#92400e',
-                letterSpacing: '0.3px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {task.handoff_label ?? 'HANDOFF'}
-            </span>
-          )}
-          {roleInJourney === 'shared' && (
-            <span
-              style={{
-                fontSize: '7px',
-                fontWeight: 800,
-                padding: '2px 6px',
-                borderRadius: '3px',
-                background: 'rgba(37,99,235,0.1)',
-                color: '#2563eb',
-                border: '1px solid #2563eb',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              SHARED
             </span>
           )}
 

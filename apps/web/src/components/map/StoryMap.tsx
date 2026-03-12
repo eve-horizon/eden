@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { MapResponse, Activity, Persona } from './types';
+import type { MapResponse, Activity, Persona, Task, DeduplicatedTask } from './types';
 import { PersonaTabs } from './PersonaTabs';
 import { RoleFilterPills } from './RoleFilterPills';
 import { ActivityFilterBar } from './ActivityFilterBar';
@@ -239,16 +239,19 @@ export function StoryMap({
               });
             })}
 
-            {/* ROW 3: Task cells — one per column */}
+            {/* ROW 3: Task cells — one per column, tasks deduplicated */}
             {data.activities.map((activity) => {
               const isDimmed =
                 selectedActivities.size > 0 &&
                 !selectedActivities.has(activity.id);
 
               return activity.steps.map((step) => {
-                const visibleTasks = hideProposed
+                const filteredTasks = hideProposed
                   ? step.tasks.filter((t) => (t.lifecycle ?? 'current') !== 'proposed')
                   : step.tasks;
+
+                // Deduplicate: group placements of the same task into one card
+                const deduped = deduplicateTasks(filteredTasks);
 
                 return (
                   <div
@@ -267,18 +270,18 @@ export function StoryMap({
                       pointerEvents: isDimmed ? 'none' : undefined,
                     }}
                   >
-                    {visibleTasks.length === 0 ? (
+                    {deduped.length === 0 ? (
                       <div className="rounded-lg border border-dashed border-gray-200 px-3 py-4 text-center">
                         <p className="text-xs text-eden-text-2 italic">No tasks</p>
                       </div>
                     ) : (
-                      visibleTasks.map((task) => (
+                      deduped.map((task) => (
                         <TaskCard
                           key={task.id}
                           task={task}
                           dimmed={
                             roleHighlight !== null &&
-                            task.persona?.code !== roleHighlight
+                            !task.personas.some((p) => p.persona.code === roleHighlight)
                           }
                           aiStatus={
                             aiAddedEntities?.has(task.display_id) ? 'added'
@@ -313,6 +316,42 @@ export function StoryMap({
       />
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// deduplicateTasks — merge multiple placements of the same task into one
+// ---------------------------------------------------------------------------
+
+function deduplicateTasks(tasks: Task[]): DeduplicatedTask[] {
+  const map = new Map<string, DeduplicatedTask>();
+
+  for (const task of tasks) {
+    const existing = map.get(task.id);
+    if (existing) {
+      // Add this persona to the existing deduplicated task
+      if (task.persona) {
+        existing.personas.push({
+          persona: task.persona,
+          role: task.role,
+          role_in_journey: task.role_in_journey,
+          handoff_label: task.handoff_label,
+        });
+      }
+    } else {
+      // First occurrence — create deduplicated entry
+      const { persona, role, role_in_journey, handoff_label, ...rest } = task;
+      map.set(task.id, {
+        ...rest,
+        role_in_journey: role_in_journey ?? 'primary',
+        handoff_label: null,
+        personas: persona
+          ? [{ persona, role, role_in_journey, handoff_label }]
+          : [],
+      });
+    }
+  }
+
+  return Array.from(map.values());
 }
 
 // ---------------------------------------------------------------------------

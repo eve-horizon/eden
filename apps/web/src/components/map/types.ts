@@ -45,6 +45,12 @@ export interface Task {
   handoff_label: string | null;
 }
 
+/** A task deduplicated across placements — collects all persona roles. */
+export interface DeduplicatedTask extends Omit<Task, 'persona' | 'role'> {
+  /** All personas assigned to this task within a step (may include duplicates from roles). */
+  personas: { persona: Persona; role: string; role_in_journey: string; handoff_label: string | null }[];
+}
+
 export interface Step {
   id: string;
   display_id: string;
