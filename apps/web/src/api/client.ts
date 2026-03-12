@@ -6,6 +6,8 @@
  * server proxy handles the forwarding. No VITE_API_BASE needed.
  */
 
+import { getStoredToken } from '@eve-horizon/auth-react';
+
 const API_PREFIX = '/api';
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
@@ -23,18 +25,6 @@ class ApiError extends Error {
   }
 }
 
-function getAuthToken(): string | null {
-  // The Eve auth SDK stores the token — this reads it from the standard
-  // location. In production, useEveAuth() handles token lifecycle; this
-  // function bridges the gap for standalone API calls outside React context.
-  try {
-    const stored = localStorage.getItem('eve_auth_token');
-    return stored;
-  } catch {
-    return null;
-  }
-}
-
 async function request<T>(
   path: string,
   options: RequestOptions = {},
@@ -46,7 +36,7 @@ async function request<T>(
     ...(customHeaders as Record<string, string>),
   };
 
-  const token = getAuthToken();
+  const token = getStoredToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
