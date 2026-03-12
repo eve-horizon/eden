@@ -260,7 +260,7 @@ export class ExportService {
         priority: row.priority,
         status: row.status,
         device: row.device,
-        lifecycle: row.lifecycle ?? 'active',
+        lifecycle: row.lifecycle ?? 'current',
         source_type: row.source_type,
         persona_code: row.persona_code,
         role: row.st_role,

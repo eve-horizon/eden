@@ -212,7 +212,7 @@ export class MapService {
           status: row.task_status,
           device: row.task_device,
           release_id: row.task_release_id,
-          lifecycle: row.task_lifecycle ?? 'active',
+          lifecycle: row.task_lifecycle ?? 'current',
           source_type: row.task_source_type,
           source_excerpt: row.task_source_excerpt,
           source_id: row.task_source_id,

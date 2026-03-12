@@ -160,7 +160,7 @@ export class TasksService {
           data.priority ?? 'medium',
           data.status ?? 'draft',
           data.device ?? null,
-          data.lifecycle ?? 'active',
+          data.lifecycle ?? 'current',
           data.source_type ?? null,
           data.source_excerpt ?? null,
         ],
