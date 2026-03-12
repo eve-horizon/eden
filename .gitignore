@@ -7,3 +7,11 @@
 .pi/
 
 *.env
+
+# Dependencies & build output
+node_modules/
+dist/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

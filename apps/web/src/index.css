@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Eden design tokens as CSS custom properties */
+    --bg: #f0f2f5;
+    --surface: #ffffff;
+    --border: #e2e5e9;
+    --text: #1a1a2e;
+    --text-2: #6b7280;
+
+    --accent: #e65100;
+    --accent-light: #fff3e0;
+    --accent-dark: #bf360c;
+
+    --activity-bg: #1a1a2e;
+    --step-bg: #e65100;
+
+    --q-bg: #fffbeb;
+    --q-border: #f59e0b;
+    --q-text: #92400e;
+    --cq-bg: #fef2f2;
+    --cq-border: #ef4444;
+    --cq-text: #991b1b;
+
+    --green: #10b981;
+
+    --col-w: 320px;
+    --radius: 10px;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  /* Scrollbar styling for the map grid */
+  .eden-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .eden-scroll::-webkit-scrollbar-track {
+    background: var(--bg);
+    border-radius: 4px;
+  }
+
+  .eden-scroll::-webkit-scrollbar-thumb {
+    background: #c4c8ce;
+    border-radius: 4px;
+  }
+
+  .eden-scroll::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+}
+
+@layer components {
+  .eden-card {
+    @apply rounded-eden bg-eden-surface shadow-card border border-eden-border
+           transition-all duration-150 ease-out;
+  }
+
+  .eden-card:hover {
+    @apply shadow-card-hover border-eden-accent;
+  }
+
+  .eden-btn {
+    @apply inline-flex items-center justify-center gap-2
+           rounded-lg px-4 py-2 text-sm font-semibold
+           transition-colors duration-150;
+  }
+
+  .eden-btn-primary {
+    @apply eden-btn bg-eden-accent text-white hover:bg-eden-accent-dark;
+  }
+
+  .eden-btn-secondary {
+    @apply eden-btn bg-eden-surface text-eden-text border border-eden-border
+           hover:bg-eden-bg;
+  }
+}

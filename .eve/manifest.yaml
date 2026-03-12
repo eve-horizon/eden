@@ -1,6 +1,81 @@
 name: eden
 description: "AI-first requirements platform — expert panel engine + living story map"
+schema: eve/compose/v2
 
 x-eve:
   packs:
     - source: ./
+
+registry: "eve"
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: ./apps/api/Dockerfile
+    ports: [3000]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${managed.db.url}
+      CORS_ORIGIN: "https://eden.eh1.incept5.dev,https://web.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: ./apps/web/Dockerfile
+    ports: [80]
+    environment:
+      API_SERVICE_HOST: ${ENV_NAME}-api
+    depends_on:
+      api:
+        condition: service_healthy
+    x-eve:
+      ingress:
+        public: true
+        port: 80
+        alias: eden
+
+  migrate:
+    image: public.ecr.aws/w7c4v0w3/eve-horizon/migrate:latest
+    environment:
+      DATABASE_URL: ${managed.db.url}
+      MIGRATIONS_DIR: /migrations
+    x-eve:
+      role: job
+      files:
+        - source: db/migrations
+          target: /migrations
+
+  db:
+    x-eve:
+      role: managed_db
+      managed:
+        class: db.p1
+        engine: postgres
+        engine_version: "16"
+
+environments:
+  sandbox:
+    pipeline: deploy
+
+pipelines:
+  deploy:
+    steps:
+      - name: build
+        action: { type: build }
+      - name: release
+        depends_on: [build]
+        action: { type: release }
+      - name: deploy
+        depends_on: [release]
+        action: { type: deploy }
+      - name: migrate
+        depends_on: [deploy]
+        action:
+          type: job
+          service: migrate
+      - name: smoke-test
+        depends_on: [migrate]
+        script:
+          run: ./scripts/smoke-test.sh
+          timeout: 300

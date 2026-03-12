@@ -1,0 +1,18 @@
+time=2026-03-12T10:41:06.462Z level=INFO msg="Daemon started" interval=5s auto_commit=false auto_push=false
+time=2026-03-12T10:41:06.463Z level=INFO msg="using database" path=/Users/adam/dev/eve-horizon/eden/.beads/beads.db
+time=2026-03-12T10:41:06.480Z level=INFO msg="database opened" path=/Users/adam/dev/eve-horizon/eden/.beads/beads.db backend=sqlite freshness_checking=true
+time=2026-03-12T10:41:06.480Z level=INFO msg="upgrading .beads/.gitignore"
+time=2026-03-12T10:41:06.480Z level=WARN msg="failed to upgrade .gitignore" error="open .beads/.gitignore: no such file or directory"
+time=2026-03-12T10:41:06.490Z level=INFO msg="Repository fingerprint validated" repo_id=b54fd873
+time=2026-03-12T10:41:06.490Z level=INFO msg="starting RPC server" socket=/Users/adam/dev/eve-horizon/eden/.beads/bd.sock
+time=2026-03-12T10:41:06.491Z level=INFO msg="RPC server ready (socket listening)"
+time=2026-03-12T10:41:06.497Z level=INFO msg="registered in global registry"
+time=2026-03-12T10:41:06.497Z level=WARN msg="initial import failed (continuing anyway)" error="failed to open JSONL: open /Users/adam/dev/eve-horizon/eden/.beads/issues.jsonl: no such file or directory"
+time=2026-03-12T10:41:06.497Z level=INFO msg="Starting sync cycle" mode="sync cycle"
+time=2026-03-12T10:41:06.498Z level=INFO msg="Exported to JSONL"
+time=2026-03-12T10:41:07.711Z level=INFO msg="Pulled from remote"
+time=2026-03-12T10:41:07.737Z level=INFO msg="Imported from JSONL"
+time=2026-03-12T10:41:07.756Z level=INFO msg="Sync cycle complete"
+time=2026-03-12T10:41:07.756Z level=INFO msg="monitoring parent process" pid=0
+time=2026-03-12T10:41:07.756Z level=INFO msg="using event-driven mode"
+time=2026-03-12T10:41:07.756Z level=INFO msg="Auto-pull disabled: use 'git pull' manually to sync remote changes"
