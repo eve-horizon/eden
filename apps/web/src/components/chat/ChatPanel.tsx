@@ -43,12 +43,17 @@ interface ChatPanelProps {
   onReviewChangeset?: (changesetId: string) => void;
 }
 
+/** Strip the "@eve pm " routing prefix the gateway prepends */
+function stripRoutePrefix(body: string): string {
+  return body.replace(/^@eve\s+\w+\s+/i, '');
+}
+
 /** Convert Eve messages to our display format */
 function toMessages(msgs: EveMessage[]): Message[] {
   return msgs.map((m) => ({
     id: m.id,
     role: m.direction === 'inbound' ? 'user' as const : 'assistant' as const,
-    content: m.body,
+    content: m.direction === 'inbound' ? stripRoutePrefix(m.body) : m.body,
     created_at: m.created_at,
   }));
 }
