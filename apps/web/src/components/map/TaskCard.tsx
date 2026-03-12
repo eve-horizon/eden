@@ -36,6 +36,7 @@ const DEVICE_STYLES: Record<string, { bg: string; color: string }> = {
 
 export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const firstPersona = task.personas[0]?.persona ?? null;
   const personaColor = firstPersona?.color ?? '#9ca3af';
@@ -69,6 +70,11 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
     transition: 'all 0.2s',
   };
 
+  if (hovered && !dimmed) {
+    cardStyle.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+    cardStyle.transform = 'translateY(-1px)';
+  }
+
   if (dimmed) {
     cardStyle.opacity = 0.12;
     cardStyle.transform = 'scale(0.97)';
@@ -86,7 +92,12 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick }: TaskCardPr
   }
 
   return (
-    <div style={cardStyle} data-display-id={task.display_id}>
+    <div
+      style={cardStyle}
+      data-display-id={task.display_id}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <div style={{ padding: '10px 14px 8px' }}>
         {/* Title row — title first, large and clear */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '6px' }}>

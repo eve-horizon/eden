@@ -171,7 +171,7 @@ export function MiniMap({
                     opacity: isDimmed ? 0.15 : 1,
                   }}
                 >
-                  {activity.display_id}
+                  {activity.display_id.replace('ACT-', '')}. {activity.name}
                 </div>
               );
             })}
