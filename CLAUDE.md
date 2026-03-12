@@ -1,8 +1,8 @@
-# PM Expert Panel — Eve Agent Pack
+# Eden — AI-First Requirements Platform
 
 ## What This Is
 
-An Eve Horizon AgentPack — not a deployable service. This repo defines 8 agents, 1 team, and chat routing config that get synced into an Eve project via `eve agents sync`. There is no application code, no Dockerfile, no build pipeline.
+An Eve Horizon AgentPack that powers Eden — an AI-first requirements platform built on an expert panel engine and a living story map. This repo defines agents, teams, and chat routing config that get synced into an Eve project via `eve agents sync`. There is no application code, no Dockerfile, no build pipeline.
 
 ## Architecture: Intelligent Coordinator
 
@@ -17,7 +17,7 @@ The team uses **staged council dispatch**: coordinator runs first, experts fan o
 ```
 .eve/manifest.yaml        # Project manifest (pack self-reference)
 .eve/packs.lock.yaml      # Resolved pack state
-eve/pack.yaml             # Pack descriptor (id: pm-expert-panel)
+eve/pack.yaml             # Pack descriptor (id: eden)
 eve/agents.yaml           # 8 agent definitions (1 routable + 7 internal)
 eve/teams.yaml            # expert-panel team (staged council, 7 members)
 eve/chat.yaml             # Single catch-all route → team:expert-panel

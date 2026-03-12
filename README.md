@@ -1,6 +1,6 @@
-# PM Expert Panel — Eve Agent Pack
+# Eden — AI-First Requirements Platform
 
-A Slack-native expert panel that automatically reviews documents from multiple perspectives.
+An Eve Horizon AgentPack — expert panel engine + living story map for AI-first requirements management.
 
 ## What It Does
 
@@ -25,7 +25,7 @@ Add to your `.eve/manifest.yaml`:
 ```yaml
 x-eve:
   packs:
-    - source: github:eve-horizon/pm-expert-panel
+    - source: github:eve-horizon/eden
       ref: <commit-sha>
 ```
 

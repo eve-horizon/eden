@@ -715,7 +715,7 @@ Add to `.eve/manifest.yaml`:
 
 ```yaml
 schema: eve/compose/v2
-project: pm-expert-panel
+project: eden
 
 services:
   dashboard:

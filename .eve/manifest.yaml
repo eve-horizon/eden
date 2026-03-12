@@ -1,5 +1,5 @@
-name: pm-expert-panel
-description: "Slack-native expert panel for document review"
+name: eden
+description: "AI-first requirements platform — expert panel engine + living story map"
 
 x-eve:
   packs:

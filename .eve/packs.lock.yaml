@@ -1,7 +1,7 @@
 resolved_at: 2026-03-11T14:32:15.878Z
 project_slug: pmbot
 packs:
-  - id: pm-expert-panel
+  - id: eden
     source: ./
     ref: cedc5691ed593048e4d0caf1b3439e3f37662807
     pack_version: 1

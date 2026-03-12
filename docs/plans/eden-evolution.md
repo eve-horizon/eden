@@ -2059,7 +2059,7 @@ docs/
 
 ```yaml
 schema: eve/compose/v2
-project: pm-expert-panel
+project: eden
 
 services:
   dashboard:
