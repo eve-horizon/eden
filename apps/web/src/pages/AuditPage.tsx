@@ -58,17 +58,18 @@ export function AuditPage() {
         if (entityFilter !== 'all') params.set('entity_type', entityFilter);
         if (actionFilter !== 'all') params.set('action', actionFilter);
 
-        const data = await api.get<AuditEntry[]>(
+        const data = await api.get<{ entries: AuditEntry[] }>(
           `/projects/${projectId}/audit?${params}`,
         );
+        const list = data.entries ?? [];
 
         if (append) {
-          setEntries((prev) => [...prev, ...data]);
+          setEntries((prev) => [...prev, ...list]);
         } else {
-          setEntries(data);
+          setEntries(list);
         }
-        setHasMore(data.length === LIMIT);
-        setOffset(startOffset + data.length);
+        setHasMore(list.length === LIMIT);
+        setOffset(startOffset + list.length);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load audit log');
       } finally {
