@@ -7,9 +7,10 @@ H_JSON="Content-Type: application/json"
 
 echo "=== Phase 3 Staging: Intelligence Loop ==="
 
-# 0. Scaffold — create project + minimal map
+# 0. Scaffold — create project + minimal map (unique slug per run)
+SLUG="p3-smoke-$(date +%s)"
 PROJECT=$(curl -sf -X POST -H "$H_AUTH" -H "$H_JSON" \
-  -d '{"name":"P3 Smoke","slug":"p3-smoke"}' \
+  -d "{\"name\":\"P3 Smoke\",\"slug\":\"$SLUG\"}" \
   "$BASE/api/projects" | jq -r .id)
 
 ACT=$(curl -sf -X POST -H "$H_AUTH" -H "$H_JSON" \
