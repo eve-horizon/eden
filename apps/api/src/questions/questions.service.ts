@@ -342,7 +342,7 @@ export class QuestionsService {
     });
 
     // Emit event outside the transaction (fire-and-forget)
-    this.events.emit('app.question.answered', {
+    this.events.emit('question.answered', {
       question_id: result.id,
       project_id: result.project_id,
       display_id: result.display_id,

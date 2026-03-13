@@ -256,7 +256,7 @@ export class ChangesetsService {
       const result = { ...updatedRows[0], items: allItems };
 
       // Emit event outside the transaction (fire-and-forget)
-      this.events.emit('app.changeset.accepted', {
+      this.events.emit('changeset.accepted', {
         changeset_id: result.id,
         project_id: result.project_id,
         title: result.title,
