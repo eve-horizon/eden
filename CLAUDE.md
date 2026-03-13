@@ -121,6 +121,31 @@ Every query runs in a transaction with `SET LOCAL app.org_id`. RLS policies enfo
 - **Dual auth** — Eve SSO (users) + Eve job tokens (agents), normalized to `req.user`
 - **Display IDs** — Human-readable refs (TSK-1.2.1, ACT-3, Q-5) used across agents and UI
 
+## CRITICAL: Deploying to Staging
+
+**Every deploy MUST sync the manifest first.** The platform stores the manifest server-side and uses the latest version for routing decisions (pipeline vs direct deploy). If the manifest is stale, deploys will fail with "Manifest missing services" or route incorrectly.
+
+```bash
+# 1. ALWAYS sync manifest before deploying (from the eden repo root)
+eve project sync
+
+# 2. Deploy using --repo-dir to auto-sync and deploy in one step
+eve env deploy sandbox --ref <sha> --repo-dir .
+
+# 3. Or deploy HEAD (sync resolves the ref)
+eve env deploy sandbox --ref HEAD --repo-dir .
+```
+
+**Why `--repo-dir .` matters:** Without it, the CLI fetches the latest manifest hash from the server — which may be stale or from a different sync. With `--repo-dir .`, the CLI reads your local `.eve/manifest.yaml`, syncs it to the server, and uses the fresh hash. This prevents the manifest/commit mismatch that causes deploy failures.
+
+**The deploy pipeline does:** build → release → deploy → migrate → smoke-test → smoke-test-p2
+
+**After deploy, verify:**
+```bash
+curl -sI https://eden.eh1.incept5.dev  # Alias URL (should be 200)
+curl -sI https://web.incept5-eden-sandbox.eh1.incept5.dev  # Standard URL
+```
+
 ## Key Commands
 
 ```bash
@@ -129,11 +154,12 @@ docker-compose up -d              # Postgres + migrations
 cd apps/api && npm run start:dev  # API on :3000
 cd apps/web && npm run dev        # Web on :5175, proxy /api → :3000
 
-# Eve agent sync
-eve agents sync --project <id> --local --allow-dirty
+# Eve agent sync (after changing agents/teams/chat config)
+eve project sync                  # Sync manifest to platform
+eve agents sync --local --allow-dirty  # Sync agent configs
 
-# Staging deploy
-eve deploy --env sandbox
+# Staging deploy (ALWAYS use --repo-dir .)
+eve env deploy sandbox --ref HEAD --repo-dir .
 
 # Smoke tests
 ./scripts/smoke-test-local-p2.sh  # Local

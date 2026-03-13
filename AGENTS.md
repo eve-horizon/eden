@@ -10,6 +10,32 @@ Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + Po
 - **Database**: `db/migrations/` — 15 tables, never edit existing migrations
 - **Config**: `.eve/manifest.yaml` — deployment, pipelines, managed Postgres
 
+## CRITICAL: Staging Deployment
+
+**You MUST sync the manifest before every deploy.** Failure to do so causes "Manifest missing services" errors because the platform uses a stale server-side manifest for routing.
+
+**Deploy checklist:**
+```bash
+# 1. Commit and push your code changes
+git add <files> && git commit -m "..." && git push
+
+# 2. Deploy (--repo-dir . syncs the manifest automatically)
+eve env deploy sandbox --ref HEAD --repo-dir .
+```
+
+**NEVER run `eve env deploy` without `--repo-dir .`** — without it, the CLI uses whatever manifest was last synced to the server, which may be stale, corrupted, or from a different session. This is the #1 cause of deploy failures in this project.
+
+**If deploy fails:**
+1. Run `eve project sync` to force-sync the manifest
+2. Retry: `eve env deploy sandbox --ref HEAD --repo-dir .`
+3. If still failing, check `eve build diagnose <build_id>` for the specific error
+
+**Verify after deploy:**
+```bash
+curl -sI https://eden.eh1.incept5.dev       # Should return 200
+curl -sI https://api.incept5-eden-sandbox.eh1.incept5.dev/health  # API health
+```
+
 ## Issue Tracking
 
 This project uses **bd** (beads) for ALL issue tracking. Run `bd onboard` to get started.
