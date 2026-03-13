@@ -158,7 +158,7 @@ agents:
     gateway:
       policy: none
     policies:
-      permission_policy: auto_edit
+      permission_policy: yolo
       git:
         commit: never
         push: never
@@ -179,7 +179,7 @@ agents:
     gateway:
       policy: none
     policies:
-      permission_policy: auto_edit
+      permission_policy: yolo
       git:
         commit: never
         push: never
@@ -199,7 +199,7 @@ agents:
     gateway:
       policy: none
     policies:
-      permission_policy: auto_edit
+      permission_policy: yolo
       git:
         commit: never
         push: never
@@ -214,7 +214,7 @@ agents:
     gateway:
       policy: none
     policies:
-      permission_policy: auto_edit
+      permission_policy: yolo
       git:
         commit: never
         push: never
