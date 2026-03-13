@@ -43,12 +43,10 @@ node --input-type=module -e "
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
-| POST | `/projects/:id/personas` | Create persona `{code, name, color}` |
-| POST | `/projects/:id/activities` | Create activity `{name, display_id, sort_order}` |
-| POST | `/activities/:activityId/steps` | Create step `{name, display_id, sort_order}` |
-| POST | `/projects/:id/tasks` | Create task `{title, display_id, user_story, acceptance_criteria, priority}` |
-| PUT | `/tasks/:id/place` | Place task on step `{step_id, persona_id, role}` |
+| GET | `/projects/:id/questions` | List questions |
 | POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
+
+**You have exactly TWO write operations: create changesets and read map/questions. No other write endpoints exist for you.**
 
 ## Operations
 

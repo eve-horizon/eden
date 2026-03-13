@@ -135,11 +135,13 @@ const creds = JSON.parse(readFileSync(process.env.HOME + '/.eve/credentials.json
 const TOKEN = Object.values(creds.tokens)[0].access_token;
 ```
 
-### Finding the project ID
+### Finding the Eden project ID
 
-Chat messages include the Eden project UUID in a prefix: `[eden-project:UUID]`. Extract this from the user's message. Example: `[eden-project:794bcca5-9b92-4554-86e8-8445260bc8d3] Add a new persona...` → project ID is `794bcca5-9b92-4554-86e8-8445260bc8d3`.
+Chat messages may include the Eden project UUID in a prefix: `[eden-project:UUID]`. Extract this from the user's message. Example: `[eden-project:794bcca5-9b92-4554-86e8-8445260bc8d3] Add a new persona...` → project ID is `794bcca5-9b92-4554-86e8-8445260bc8d3`.
 
-If no project prefix is present, list all projects: `GET /projects` and use the first/only one.
+**IMPORTANT:** The Eden project ID is a UUID (e.g. `d56fdeba-3bc3-4853-86c6-ffbc48488e00`), NOT an Eve project ID (e.g. `proj_01kkh30080e00rw62jqhkchwbk`). Never use Eve project IDs with the Eden API.
+
+If no project prefix is present, list all projects via `GET /projects` and use the first/only one. The project `id` field in the response is the UUID you need.
 
 ### Making API calls
 
@@ -167,15 +169,13 @@ node --input-type=module -e "
 |--------|------|---------|
 | GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
 | GET | `/projects/:id/personas` | List personas |
-| POST | `/projects/:id/personas` | Create persona `{code, name, color}` |
 | GET | `/projects/:id/activities` | List activities |
-| POST | `/projects/:id/activities` | Create activity `{name, display_id, sort_order}` |
-| POST | `/activities/:activityId/steps` | Create step `{name, display_id, sort_order}` |
 | GET | `/projects/:id/tasks` | List tasks |
-| POST | `/projects/:id/tasks` | Create task `{title, display_id, user_story, acceptance_criteria, priority}` |
-| PUT | `/tasks/:id/place` | Place task on step `{step_id, persona_id, role}` |
+| GET | `/projects/:id/questions` | List questions |
 | POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
 | GET | `/projects/:id/changesets` | List changesets |
+
+**Do NOT use entity creation endpoints directly.** There are no POST endpoints for personas, tasks, activities, or steps in your API access. All entity creation goes through changesets.
 
 ### Map Edit via Changeset
 
