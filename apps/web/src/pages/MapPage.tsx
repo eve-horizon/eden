@@ -187,7 +187,7 @@ export function MapPage() {
   if (!projectId) return null;
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col relative">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-eden-border bg-eden-surface">
         <div className="flex items-center gap-3">

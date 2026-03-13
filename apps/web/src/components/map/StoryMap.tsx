@@ -151,7 +151,7 @@ export function StoryMap({
   }
 
   return (
-    <div className="flex flex-col h-full" data-testid="story-map">
+    <div className="flex flex-col" data-testid="story-map">
       {/* Persona tabs (server-side filter) */}
       <PersonaTabs
         personas={data.personas}
@@ -188,7 +188,7 @@ export function StoryMap({
       )}
 
       {/* Scrollable grid area */}
-      <div ref={gridContainerRef} className="flex-1 overflow-auto eden-scroll p-6 pb-32" style={{ backgroundColor: '#f0f2f5' }}>
+      <div ref={gridContainerRef} className="overflow-x-auto eden-scroll p-6 pb-32" style={{ backgroundColor: '#f0f2f5' }}>
         {data.activities.length === 0 ? (
           <EmptyMap />
         ) : (
@@ -200,7 +200,7 @@ export function StoryMap({
               gridTemplateRows: 'auto auto 1fr',
               gap: 0,
               minWidth: 'fit-content',
-              minHeight: '100%',
+              minHeight: 0,
             }}
           >
             {/* ROW 1: Activity headers — each spans its own steps' columns */}
@@ -587,7 +587,7 @@ function EmptyMap() {
 
 function MapSkeleton() {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Tab skeleton */}
       <div className="border-b border-eden-border px-4 py-2">
         <div className="flex gap-2">
