@@ -2,95 +2,168 @@
 
 ## What This Is
 
-An Eve Horizon AgentPack that powers Eden — an AI-first requirements platform built on an expert panel engine and a living story map. This repo defines agents, teams, and chat routing config that get synced into an Eve project via `eve agents sync`. There is no application code, no Dockerfile, no build pipeline.
+A full-stack Eve Horizon application: NestJS API + React SPA + PostgreSQL database + 14 AI agents. Users interact via Slack (`@eve pm`) or the web UI. The expert panel reviews documents, the intelligence layer keeps the story map alive, and the web app renders it all as an interactive grid.
 
-## Architecture: Intelligent Coordinator
+## Architecture Overview
 
-**One agent. One conversation. The coordinator decides everything.**
-
-Users talk to `@eve pm`. The coordinator reads the message and any attachments, decides what's needed, and either handles it directly (solo path → `success`) or calls in the 7-expert panel (panel path → `prepared` → experts → synthesis).
-
-The team uses **staged council dispatch**: coordinator runs first, experts fan out in parallel only when needed, coordinator wakes to synthesize.
+```
+Slack / Web UI
+      │
+      ▼
+Eve Horizon Platform
+  ├── PM Coordinator (triage: solo or panel)
+  ├── Expert Panel (7 agents, staged council)
+  └── Intelligence Layer (ingestion, alignment, question-evolution)
+      │
+      ▼ REST API
+Eden Application
+  ├── apps/api (NestJS 11, 17 modules)
+  ├── apps/web (React 18 + Vite + Tailwind)
+  └── db/migrations (PostgreSQL 16 + RLS)
+```
 
 ## Repo Structure
 
 ```
-.eve/manifest.yaml        # Project manifest (pack self-reference)
-.eve/packs.lock.yaml      # Resolved pack state
-eve/pack.yaml             # Pack descriptor (id: eden)
-eve/agents.yaml           # 8 agent definitions (1 routable + 7 internal)
-eve/teams.yaml            # expert-panel team (staged council, 7 members)
-eve/chat.yaml             # Single catch-all route → team:expert-panel
-eve/workflows.yaml        # pm-review workflow (doc.ingest trigger)
-eve/x-eve.yaml            # Harness profiles (coordinator/expert/monitor)
-skills/                   # SKILL.md files per agent persona
-skills.txt                # Skillpack source (eve-skillpacks)
+apps/api/src/               # NestJS REST API
+  ├── projects/             # Project CRUD
+  ├── activities/           # Story map backbone (top-level rows)
+  ├── steps/                # Steps within activities
+  ├── tasks/                # Tasks within steps
+  ├── personas/             # User archetypes
+  ├── releases/             # Release tracking
+  ├── questions/            # Q&A layer + evolve trigger
+  ├── changesets/           # Create/review/apply changeset workflow
+  ├── map/                  # Hydrated map endpoint (tree of activities→steps→tasks)
+  ├── chat/                 # Chat threads + Eve gateway proxy
+  ├── sources/              # Document ingestion sources + Eve ingest
+  ├── search/               # PostgreSQL full-text search (GIN indexes)
+  ├── audit/                # Immutable audit trail
+  ├── export/               # CSV + JSON export
+  ├── health/               # Readiness probe
+  └── common/               # AuthGuard, DatabaseService, EveEventsService
+
+apps/web/src/               # React SPA
+  ├── pages/                # 8 pages (Map, Q&A, Releases, Changes, Reviews, Sources, Audit)
+  ├── components/
+  │   ├── map/              # StoryMap grid, TaskCard, PersonaTabs, MiniMap, filters
+  │   ├── chat/             # ChatPanel, ChatMessage, ChatInput, TypingIndicator
+  │   ├── questions/        # QuestionModal, CrossCuttingPanel, AnswerProgress
+  │   ├── changesets/       # ChangesetReviewModal
+  │   └── layout/           # AppShell (header, sidebar, nav)
+  ├── hooks/                # useProjects, useKeyboardShortcuts
+  └── api/                  # Fetch client with Bearer auth
+
+db/migrations/              # 4 PostgreSQL migrations
+  ├── 20260312..._foundation.sql     # 15 tables, RLS, triggers
+  ├── 20260313..._changesets.sql     # Ingestion + changeset columns
+  ├── 20260314..._enrichments.sql    # Lifecycle, provenance, FTS
+  └── 20260315..._ingest_index.sql   # Callback lookup index
+
+eve/                        # Eve Horizon agent config
+  ├── agents.yaml           # 14 agents (1 coordinator + 7 experts + 6 intelligence)
+  ├── teams.yaml            # expert-panel (staged council dispatch)
+  ├── chat.yaml             # Catch-all route → team:expert-panel
+  ├── workflows.yaml        # 3 event-driven workflows
+  ├── x-eve.yaml            # Harness profiles (Claude Sonnet)
+  └── pack.yaml             # Pack descriptor
+
+skills/                     # 14 SKILL.md persona files (one per agent)
+scripts/                    # Smoke test scripts (local + staging)
+tests/manual/               # 14 test scenario documents
+tests/e2e/                  # Playwright specs
+docs/plans/                 # Phase plans (1–5)
 ```
 
-## Agents
+## Agents (14 total)
 
-| Agent | Slug | Profile | Gateway | Role |
-|---|---|---|---|---|
-| PM Coordinator | `pm` | coordinator | routable (Slack) | Triages, processes files, dispatches panel, synthesizes |
-| Tech Lead | `tech-lead` | expert | internal | Technical feasibility, architecture |
-| UX Advocate | `ux-advocate` | expert | internal | UX, accessibility, i18n |
-| Business Analyst | `biz-analyst` | expert | internal | Process flows, success criteria |
-| GTM Advocate | `gtm-advocate` | expert | internal | Revenue, competitive positioning |
-| Risk Assessor | `risk-assessor` | expert | internal | Timeline, dependency, regulatory risk |
-| QA Strategist | `qa-strategist` | expert | internal | Testing strategy, edge cases |
-| Devil's Advocate | `devils-advocate` | expert | internal | Challenges assumptions |
+| Agent | Slug | Type | Role |
+|-------|------|------|------|
+| PM Coordinator | `pm` | routable | Triage, file processing, panel dispatch, synthesis |
+| Tech Lead | `tech-lead` | expert panel | Technical feasibility, architecture |
+| UX Advocate | `ux-advocate` | expert panel | UX, accessibility, i18n |
+| Business Analyst | `biz-analyst` | expert panel | Process flows, success criteria |
+| GTM Advocate | `gtm-advocate` | expert panel | Revenue, competitive positioning |
+| Risk Assessor | `risk-assessor` | expert panel | Timeline, dependency, regulatory risk |
+| QA Strategist | `qa-strategist` | expert panel | Test strategy, edge cases |
+| Devil's Advocate | `devils-advocate` | expert panel | Challenge assumptions |
+| Ingestion | `ingestion` | pipeline | Extract content from documents |
+| Extraction | `extraction` | pipeline | Identify requirements from content |
+| Synthesis | `synthesis` | pipeline | Compare with map, create changeset |
+| Map Chat | `map-chat` | intelligence | Conversational map editing |
+| Alignment | `alignment` | intelligence | Post-changeset conflict/gap scan |
+| Question Agent | `question-agent` | intelligence | Answer → map change evaluation |
 
-## Team Dispatch
+## Event-Driven Workflows
 
-The `expert-panel` team uses **staged council** mode. The coordinator runs first (lead_timeout: 3600s). If it returns `prepared`, 7 experts fan out in parallel (max_parallel: 7, member_timeout: 300s). The coordinator then wakes to synthesize. If the coordinator returns `success`, experts are auto-cancelled.
+| Workflow | Trigger | Steps | Effect |
+|----------|---------|-------|--------|
+| ingestion-pipeline | `doc.ingest` | ingest → extract → synthesize | Creates changeset from document |
+| alignment-check | `changeset.accepted` | align | Creates questions for conflicts/gaps |
+| question-evolution | `question.answered` | evolve | Creates changeset from answer |
 
-## Harness Profiles (eve/x-eve.yaml)
+## Database (PostgreSQL 16)
 
-All profiles use `claude` harness with `sonnet` model:
-- **coordinator** — reasoning_effort: medium (triage, transcription, synthesis)
-- **expert** — reasoning_effort: medium (deep analysis)
-- **monitor** — reasoning_effort: low (lightweight classification)
+15 tables with RLS (org-scoped isolation):
 
-## Chat Routing (eve/chat.yaml)
+**Story Map:** projects, personas, activities, steps, tasks, step_tasks, releases
+**Intelligence:** questions, question_references, ingestion_sources, reviews, expert_opinions
+**Changesets:** changesets, changeset_items
+**Audit:** audit_log (immutable, append-only)
 
-Single catch-all route: `.*` → `team:expert-panel`. The coordinator handles all triage and routing decisions internally.
+Every query runs in a transaction with `SET LOCAL app.org_id`. RLS policies enforce scope.
+
+## Key Patterns
+
+- **Changeset model** — All AI-proposed changes go through changesets with per-item accept/reject
+- **Staged council** — Coordinator first, experts fan out only when needed
+- **RLS at query time** — `app.org_id` set per-transaction, policies enforce isolation
+- **Dual auth** — Eve SSO (users) + Eve job tokens (agents), normalized to `req.user`
+- **Display IDs** — Human-readable refs (TSK-1.2.1, ACT-3, Q-5) used across agents and UI
 
 ## Key Commands
 
 ```bash
-# Sync agents to a project (from committed ref)
-eve agents sync --project <proj_id> --ref <sha> --repo-dir .
+# Local dev
+docker-compose up -d              # Postgres + migrations
+cd apps/api && npm run start:dev  # API on :3000
+cd apps/web && npm run dev        # Web on :5175, proxy /api → :3000
 
-# Sync local state (development)
-eve agents sync --project <proj_id> --local --allow-dirty
+# Eve agent sync
+eve agents sync --project <id> --local --allow-dirty
 
-# Preview effective config
-eve agents config --repo-dir .
+# Staging deploy
+eve deploy --env sandbox
+
+# Smoke tests
+./scripts/smoke-test-local-p2.sh  # Local
+./scripts/smoke-test.sh           # Staging
 ```
 
 ## Conventions
 
-- Agent persona/behavior lives in `skills/<name>/SKILL.md`
-- Agent definitions (harness, gateway, workflow) live in `eve/agents.yaml`
-- Only the coordinator is gateway-routable; experts are internal (invoked by team dispatch)
-- Slug must be lowercase alphanumeric + dashes, org-unique
-- Skills are installed at runtime from `skills.txt` (eve-skillpacks)
-- `.agents/` and `.claude/` are gitignored (runtime-generated)
+- Agent persona/behavior → `skills/<name>/SKILL.md`
+- Agent definitions → `eve/agents.yaml`
+- Database schema → `db/migrations/` (immutable once created)
+- Only the coordinator is gateway-routable; all others are internal
+- Slug: lowercase alphanumeric + dashes, org-unique
+- **Never edit existing migrations.** Create a new migration file with the next timestamp.
 
 ## Editing Guidelines
 
-- When modifying an agent's behavior, edit its `skills/<name>/SKILL.md`
-- When adding a new agent, update: `eve/agents.yaml`, `eve/teams.yaml` (if team member), and create `skills/<slug>/SKILL.md`
-- When changing harness config, edit `eve/x-eve.yaml`
-- After any config change, re-sync with `eve agents sync`
-- **Never edit existing migrations.** Migrations are immutable once created — they may already have run on staging/production databases. Always create a new migration file with the next timestamp instead.
+- **Agent behavior** → Edit `skills/<name>/SKILL.md`
+- **New agent** → Update `eve/agents.yaml`, `eve/teams.yaml` (if team member), create `skills/<slug>/SKILL.md`
+- **Harness config** → Edit `eve/x-eve.yaml`
+- **API endpoint** → Add module in `apps/api/src/<name>/`, register in `app.module.ts`
+- **Web page** → Add page in `apps/web/src/pages/`, add route in `App.tsx`
+- **Database** → New migration file in `db/migrations/` (never edit existing ones)
+- After agent config changes → `eve agents sync`
 
 ## Testing Strategy
 
-Eden has a **two-tier verification** model:
+**Two-tier verification:**
 
-1. **Local Docker** (`docker-compose up`) — Tests DB migrations, API CRUD, changeset apply logic, UI rendering. No Eve platform needed. Use `scripts/smoke-test-local-*.sh` and direct `curl` against `localhost:3000`.
+1. **Local Docker** — DB migrations, API CRUD, changeset apply, UI rendering. No Eve needed.
+2. **Staging Sandbox** — Chat routing, SSE streaming, agent workflows, event-triggered pipelines.
 
-2. **Staging Sandbox** (Eve deploy) — Tests Eve-dependent features: chat routing, SSE streaming, agent workflows, event-triggered pipelines. Use `scripts/smoke-test*.sh` (curl) and `tests/e2e/*.spec.ts` (Playwright) against `https://eden-app.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev`.
-
-**Not all features need local Docker testing.** Features that leverage Eve platform capabilities (chat, SSE job streams, workflow triggers, child job dispatch) are inherently staging-only. Local Docker verification covers: schema correctness, API contract, RLS enforcement, changeset apply logic, and UI component rendering. Don't build local mocks of Eve infrastructure — test the real thing on staging.
+Don't build local mocks of Eve infrastructure — test the real thing on staging.

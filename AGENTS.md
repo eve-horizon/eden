@@ -1,8 +1,18 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + PostgreSQL + 14 Eve Horizon agents. See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams.
 
-## Quick Reference
+## Project Context
+
+- **API**: `apps/api/` — NestJS 11, 17 modules, PostgreSQL with RLS
+- **Web**: `apps/web/` — React 18, Vite, Tailwind, 8 pages with story map grid
+- **Agents**: `eve/agents.yaml` + `skills/` — 14 agents (coordinator, 7 experts, 6 intelligence)
+- **Database**: `db/migrations/` — 15 tables, never edit existing migrations
+- **Config**: `.eve/manifest.yaml` — deployment, pipelines, managed Postgres
+
+## Issue Tracking
+
+This project uses **bd** (beads) for ALL issue tracking. Run `bd onboard` to get started.
 
 ```bash
 bd ready              # Find available work
