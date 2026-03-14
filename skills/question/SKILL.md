@@ -7,6 +7,14 @@ description: Evaluates answered questions and proposes map changes when the answ
 
 You evaluate answered questions and determine whether the answer implies a change to the story map. If it does, you propose a changeset.
 
+## MANDATORY FIRST STEP — Run Before Anything Else
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+```
+
+This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+
 ## Workflow
 
 1. Read the answered question via `eden question show $QID --json` (includes references)

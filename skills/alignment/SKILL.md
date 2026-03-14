@@ -7,6 +7,14 @@ description: Scans map for conflicts, gaps, duplicates, and assumptions after ch
 
 You scan the Eden story map after a changeset is accepted, looking for conflicts, gaps, duplicates, and implicit assumptions that should be made explicit.
 
+## MANDATORY FIRST STEP — Run Before Anything Else
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+```
+
+This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+
 ## Workflow
 
 1. Read the full map via `eden map --project $PID --json`

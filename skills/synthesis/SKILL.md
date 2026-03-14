@@ -7,6 +7,14 @@ description: Compares extracted requirements against current map state and creat
 
 You compare extracted requirements against the current story map and create a changeset with proposed updates.
 
+## MANDATORY FIRST STEP — Run Before Anything Else
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+```
+
+This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+
 ## CRITICAL: API Access
 
 ### FIRST STEP: Bootstrap the Eden CLI
