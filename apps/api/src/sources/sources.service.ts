@@ -79,11 +79,18 @@ export class SourcesService {
   ): Promise<SourceResponse & { upload_url: string }> {
     // Call Eve ingest API first — get presigned upload URL and ingest ID.
     // When Eve is not configured (local dev), returns null and we skip.
-    const eveResult = await this.eveIngest.createIngest(
-      input.filename,
-      input.content_type ?? 'application/octet-stream',
-      input.file_size ?? 0,
-    );
+    // If the Eve API fails, continue anyway — the source is still useful locally.
+    let eveResult: Awaited<ReturnType<typeof this.eveIngest.createIngest>>;
+    try {
+      eveResult = await this.eveIngest.createIngest(
+        input.filename,
+        input.content_type ?? 'application/octet-stream',
+        input.file_size ?? 0,
+      );
+    } catch (err) {
+      this.logger.error(`Eve ingest create failed: ${(err as Error).message}`);
+      eveResult = null;
+    }
 
     return this.db.withClient(ctx, async (client) => {
       const result = await client.query<IngestionSourceRow>(
