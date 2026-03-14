@@ -16,3 +16,11 @@ time=2026-03-12T10:41:07.756Z level=INFO msg="Sync cycle complete"
 time=2026-03-12T10:41:07.756Z level=INFO msg="monitoring parent process" pid=0
 time=2026-03-12T10:41:07.756Z level=INFO msg="using event-driven mode"
 time=2026-03-12T10:41:07.756Z level=INFO msg="Auto-pull disabled: use 'git pull' manually to sync remote changes"
+time=2026-03-13T08:28:04.334Z level=INFO msg="Git ref change detected" path=/Users/adam/dev/eve-horizon/eden/.git/refs/heads/main.lock
+time=2026-03-13T08:28:05.339Z level=INFO msg="Import triggered by file change"
+time=2026-03-13T08:28:05.344Z level=INFO msg="Starting auto-import" mode=auto-import
+time=2026-03-13T08:28:06.511Z level=INFO msg="Pulled from remote"
+time=2026-03-13T08:28:06.511Z level=INFO msg="🔍 Checking JSONL content hash AFTER pull (fix: auto-pull-not-pulling)"
+time=2026-03-13T08:28:06.513Z level=INFO msg="JSONL content changed, proceeding with operation..." mode=auto-import
+time=2026-03-13T08:28:06.518Z level=INFO msg="Imported from JSONL"
+time=2026-03-13T08:28:06.518Z level=INFO msg="Auto-import complete"
