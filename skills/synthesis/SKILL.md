@@ -17,14 +17,14 @@ Structured JSON from the extraction step containing personas, activities, steps,
 
 ## Process
 
-1. **Read current map state** — Call `GET /api/projects/:id/map` using the API service to get the current story map
+1. **Read current map state** — Call `GET /projects/:id/map` using the API service to get the current story map
 2. **Compare entities** — For each extracted entity, determine:
    - **Match**: Entity already exists on the map (same name/title, similar content) → skip or create update if details differ
    - **New**: Entity doesn't exist → create add operation
    - **Conflict**: Entity exists but with contradicting information → create modify operation with explanation
    - **Duplicate**: Entity is essentially the same as an existing one → skip
 3. **Build changeset** — Create a single changeset with all proposed operations
-4. **Post changeset** — Call `POST /api/projects/:id/changesets` with:
+4. **Post changeset** — Call `POST /projects/:id/changesets` with:
    - Title describing the source document
    - Reasoning explaining the overall changes
    - Items array with each proposed operation
@@ -58,11 +58,11 @@ node --input-type=module -e "
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
   // 1. Find the Eden project ID (UUID)
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   // 2. Read current map state
-  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
   console.log(JSON.stringify(map, null, 2));
 "
 ```
@@ -74,7 +74,7 @@ node --input-type=module -e "
   const API = process.env.EVE_APP_API_URL_API;
   const TOKEN = process.env.EVE_JOB_TOKEN;
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   const changeset = {
@@ -86,7 +86,7 @@ node --input-type=module -e "
       // ... your items here
     ]
   };
-  const res = await fetch(API + '/api/projects/' + PID + '/changesets', {
+  const res = await fetch(API + '/projects/' + PID + '/changesets', {
     method: 'POST', headers, body: JSON.stringify(changeset)
   });
   console.log(await res.json());
@@ -97,10 +97,10 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/projects` | List projects (get Eden project UUID) |
-| GET | `/api/projects/:id/map` | Full map (personas, activities, steps, tasks) |
-| GET | `/api/projects/:id/questions` | List existing questions |
-| POST | `/api/projects/:id/changesets` | Create changeset |
+| GET | `/projects` | List projects (get Eden project UUID) |
+| GET | `/projects/:id/map` | Full map (personas, activities, steps, tasks) |
+| GET | `/projects/:id/questions` | List existing questions |
+| POST | `/projects/:id/changesets` | Create changeset |
 
 ### Changeset Body
 

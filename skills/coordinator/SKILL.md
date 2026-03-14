@@ -111,7 +111,7 @@ When you return `success`, the 7 backlog expert jobs are automatically cleaned u
 
 After expert panel completes synthesis, additionally:
 1. Extract actionable requirements from the synthesis
-2. Create changeset via `POST /api/projects/:projectId/changesets` with source `"expert-panel"` and actor `"pm-coordinator"`
+2. Create changeset via `POST /projects/:projectId/changesets` with source `"expert-panel"` and actor `"pm-coordinator"`
 3. Return executive summary + "View changeset #N" link
 
 ## Eden API Access
@@ -137,7 +137,7 @@ Chat messages may include the Eden project UUID in a prefix: `[eden-project:UUID
 
 **IMPORTANT:** The Eden project ID is a UUID (e.g. `d56fdeba-3bc3-4853-86c6-ffbc48488e00`), NOT an Eve project ID (e.g. `proj_01kkh30080e00rw62jqhkchwbk`). Never use Eve project IDs with the Eden API.
 
-If no project prefix is present, list all projects via `GET /api/projects` and use the first/only one.
+If no project prefix is present, list all projects via `GET /projects` and use the first/only one.
 
 ### Making API calls
 
@@ -148,11 +148,11 @@ node --input-type=module -e "
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
   // Find Eden project
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   // Read map
-  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
   console.log(JSON.stringify(map, null, 2));
 "
 ```
@@ -161,14 +161,14 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/projects` | List projects (get Eden project UUID) |
-| GET | `/api/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
-| GET | `/api/projects/:id/personas` | List personas |
-| GET | `/api/projects/:id/activities` | List activities |
-| GET | `/api/projects/:id/tasks` | List tasks |
-| GET | `/api/projects/:id/questions` | List questions |
-| POST | `/api/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
-| GET | `/api/projects/:id/changesets` | List changesets |
+| GET | `/projects` | List projects (get Eden project UUID) |
+| GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
+| GET | `/projects/:id/personas` | List personas |
+| GET | `/projects/:id/activities` | List activities |
+| GET | `/projects/:id/tasks` | List tasks |
+| GET | `/projects/:id/questions` | List questions |
+| POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
+| GET | `/projects/:id/changesets` | List changesets |
 
 **Do NOT use entity creation endpoints directly.** All entity creation goes through changesets.
 

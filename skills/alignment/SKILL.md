@@ -9,10 +9,10 @@ You scan the Eden story map after a changeset is accepted, looking for conflicts
 
 ## Workflow
 
-1. Read the full map via `GET /api/projects/:projectId/map`
-2. Read recent questions (last 24h) via `GET /api/projects/:projectId/questions` to avoid duplicates
+1. Read the full map via `GET /projects/:projectId/map`
+2. Read recent questions (last 24h) via `GET /projects/:projectId/questions` to avoid duplicates
 3. Scan for issues across all categories
-4. Create questions via `POST /api/projects/:projectId/questions` for each issue found
+4. Create questions via `POST /projects/:projectId/questions` for each issue found
 
 ## Issue Categories
 
@@ -37,7 +37,7 @@ Each question must include:
 
 Before creating ANY question, you MUST check for semantic overlap with existing questions:
 
-1. **Fetch ALL open questions** via `GET /api/projects/:projectId/questions?status=open` (not just last 24h)
+1. **Fetch ALL open questions** via `GET /projects/:projectId/questions?status=open` (not just last 24h)
 2. **For each candidate question**, compare against every existing question:
    - If the core concern is the same (even phrased differently), DO NOT create it
    - "Are persona assignments complete?" overlaps with "Which personas own which tasks?"
@@ -69,14 +69,14 @@ node --input-type=module -e "
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
   // 1. Find the Eden project ID (UUID)
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   // 2. Read map state
-  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
 
   // 3. Read existing questions (for dedup)
-  const questions = await (await fetch(API + '/api/projects/' + PID + '/questions?status=open', { headers })).json();
+  const questions = await (await fetch(API + '/projects/' + PID + '/questions?status=open', { headers })).json();
 
   console.log(JSON.stringify({ map_summary: { personas: map.personas.length, activities: map.activities.length }, open_questions: questions.length }));
 "
@@ -89,7 +89,7 @@ node --input-type=module -e "
   const API = process.env.EVE_APP_API_URL_API;
   const TOKEN = process.env.EVE_JOB_TOKEN;
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   const question = {
@@ -98,7 +98,7 @@ node --input-type=module -e "
     category: 'gap',
     references: [{ entity_type: 'activity', entity_id: 'ACT-1' }]
   };
-  const res = await fetch(API + '/api/projects/' + PID + '/questions', {
+  const res = await fetch(API + '/projects/' + PID + '/questions', {
     method: 'POST', headers, body: JSON.stringify(question)
   });
   console.log(await res.json());
@@ -109,10 +109,10 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/projects` | List projects (get Eden project UUID) |
-| GET | `/api/projects/:id/map` | Full map state |
-| GET | `/api/projects/:id/questions?status=open` | Open questions (for dedup) |
-| POST | `/api/projects/:id/questions` | Create question |
+| GET | `/projects` | List projects (get Eden project UUID) |
+| GET | `/projects/:id/map` | Full map state |
+| GET | `/projects/:id/questions?status=open` | Open questions (for dedup) |
+| POST | `/projects/:id/questions` | Create question |
 
 ## Rules
 

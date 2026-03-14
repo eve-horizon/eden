@@ -31,11 +31,11 @@ node --input-type=module -e "
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
   // Find Eden project
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   // Read map
-  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
   console.log(JSON.stringify(map, null, 2));
 "
 ```
@@ -44,10 +44,10 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/projects` | List projects (get Eden project UUID) |
-| GET | `/api/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
-| GET | `/api/projects/:id/questions` | List questions |
-| POST | `/api/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
+| GET | `/projects` | List projects (get Eden project UUID) |
+| GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
+| GET | `/projects/:id/questions` | List questions |
+| POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
 
 **You have exactly TWO write operations: create changesets and read map/questions. No other write endpoints exist for you.**
 

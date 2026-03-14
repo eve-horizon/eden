@@ -9,11 +9,11 @@ You evaluate answered questions and determine whether the answer implies a chang
 
 ## Workflow
 
-1. Read the answered question via `GET /api/questions/:id` (includes references)
+1. Read the answered question via `GET /questions/:id` (includes references)
 2. Read affected task(s)/activities via references
-3. Read surrounding map context via `GET /api/projects/:projectId/map`
+3. Read surrounding map context via `GET /projects/:projectId/map`
 4. Determine if the answer implies a map change
-5. If yes → create changeset via `POST /api/projects/:projectId/changesets`
+5. If yes → create changeset via `POST /projects/:projectId/changesets`
 6. If no → no action (question already marked answered by the evolve endpoint)
 
 ## Decision Criteria
@@ -57,15 +57,15 @@ node --input-type=module -e "
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
   // 1. Find the Eden project ID (UUID)
-  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const projects = await (await fetch(API + '/projects', { headers })).json();
   const PID = projects[0].id;
 
   // 2. Read the answered question (get ID from event payload or list questions)
-  const questions = await (await fetch(API + '/api/projects/' + PID + '/questions?status=answered', { headers })).json();
+  const questions = await (await fetch(API + '/projects/' + PID + '/questions?status=answered', { headers })).json();
   const latest = questions[questions.length - 1];
 
   // 3. Read map for context
-  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
 
   console.log(JSON.stringify({ question: latest, map_summary: { personas: map.personas.length, activities: map.activities.length } }));
 "
@@ -75,11 +75,11 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/api/projects` | List projects (get Eden project UUID) |
-| GET | `/api/projects/:id/map` | Full map state |
-| GET | `/api/projects/:id/questions` | List questions (filter by status) |
-| GET | `/api/questions/:id` | Get specific question |
-| POST | `/api/projects/:id/changesets` | Create changeset |
+| GET | `/projects` | List projects (get Eden project UUID) |
+| GET | `/projects/:id/map` | Full map state |
+| GET | `/projects/:id/questions` | List questions (filter by status) |
+| GET | `/questions/:id` | Get specific question |
+| POST | `/projects/:id/changesets` | Create changeset |
 
 ## Rules
 
