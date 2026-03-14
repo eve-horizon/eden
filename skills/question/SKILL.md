@@ -9,7 +9,7 @@ You evaluate answered questions and determine whether the answer implies a chang
 
 ## Workflow
 
-1. Read the answered question via `eden question get $QID --json` (includes references)
+1. Read the answered question via `eden question show $QID --json` (includes references)
 2. Read affected task(s)/activities via references
 3. Read surrounding map context via `eden map --project $PID --json`
 4. Determine if the answer implies a map change
@@ -40,33 +40,35 @@ Always create changesets with:
 
 ## Eden API Access
 
-The `eden` CLI is available on `PATH` and is the primary interface for all Eden API interactions. It handles authentication and API routing automatically.
+### FIRST STEP: Bootstrap the Eden CLI
 
-**Fallback**: If `eden` is unavailable, the platform injects these environment variables via `with_apis`:
-- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL, already includes scheme+host)
-- `EVE_JOB_TOKEN` — Bearer token for authentication
+**Before ANY API call**, run this once:
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+eden --version
+```
 
 ### Finding the Project ID
 
-The workflow input (in your task description) contains the event payload with `project_id`. **Always use this** to identify the correct Eden project:
+The workflow input contains `payload.project_id` — this is the Eden project UUID. If null, fall back to `eden projects list --json | jq -r '.[0].id'`.
 
-1. Parse the **Workflow input** JSON from your task description
-2. Extract `payload.project_id` — this is the Eden project UUID
-3. If payload is null or missing project_id, fall back to listing projects and picking the one with the most data
-
-### Simple API Calls
+### Key Commands
 
 ```bash
-# List projects
-eden projects list --json
+export PATH="$PWD/cli/bin:$PATH"
+PID="<from payload.project_id or eden projects list>"
 
-# Read map (when you already have PID)
-eden map --project $PID --json
+eden projects list --json                                    # List projects
+eden map --project $PID --json                               # Full map state
+eden question list --project $PID --status answered --json   # Answered questions
+eden question show $QID --json                               # Specific question with refs
+eden changeset create --project $PID --file /tmp/cs.json     # Create changeset
+```
 
-# Read answered questions
-eden question list --project $PID --status answered --json
+### Create a Changeset
 
-# Create a changeset (write JSON to temp file first for large payloads)
+```bash
 cat > /tmp/changeset.json << 'PAYLOAD'
 {
   "title": "Map update from Q-5",
@@ -76,37 +78,8 @@ cat > /tmp/changeset.json << 'PAYLOAD'
   "items": [...]
 }
 PAYLOAD
-
 eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
-
-### Multi-Step Pattern (discover project + read question + map)
-
-When you need to discover the Eden project ID and then read multiple resources:
-
-```bash
-# 1. Find the Eden project ID from workflow input payload or by listing projects
-PID="<from workflow input payload.project_id>"
-
-# If project_id not in payload, discover it:
-PID=$(eden projects list --json | jq -r '.[0].id')
-
-# 2. Read answered questions
-eden question list --project $PID --status answered --json
-
-# 3. Read map for context
-eden map --project $PID --json
-```
-
-### Key Commands
-
-| Command | Purpose |
-|---------|---------|
-| `eden projects list --json` | List projects (get Eden project UUID) |
-| `eden map --project $PID --json` | Full map state |
-| `eden question list --project $PID --json` | List questions (filter by status) |
-| `eden question get $QID --json` | Get specific question |
-| `eden changeset create --project $PID --file FILE --json` | Create changeset |
 
 ## Rules
 

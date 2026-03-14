@@ -1,3 +1,4 @@
+import { readFile } from 'fs/promises';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
@@ -5,10 +6,12 @@ import { autoDetectProject } from './projects.js';
 
 interface Question {
   id: string;
-  text: string;
+  text?: string;
+  question?: string;
   status: string;
   category?: string;
   answer?: string;
+  references?: { entity_type: string; entity_id: string }[];
   created_at: string;
 }
 
@@ -44,8 +47,44 @@ export function registerQuestions(program: Command): void {
       console.log(`Question: ${data.id}`);
       console.log(`Status: ${data.status}`);
       console.log(`Category: ${data.category ?? '(none)'}`);
-      console.log(`Text: ${data.text}`);
+      console.log(`Text: ${data.text ?? data.question ?? ''}`);
       if (data.answer) console.log(`Answer: ${data.answer}`);
+      if (data.references?.length) {
+        console.log('References:');
+        for (const ref of data.references) {
+          console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
+        }
+      }
+    });
+
+  questions
+    .command('create')
+    .description('Create a question (inline or from JSON file)')
+    .requiredOption('--project <id>', 'Project ID')
+    .option('--file <path>', 'JSON file with question data')
+    .option('--question <text>', 'Question text (inline)')
+    .option('--priority <p>', 'Priority (high/medium/low)')
+    .option('--category <cat>', 'Category (conflict/gap/duplicate/assumption)')
+    .option('--cross-cutting', 'Mark as cross-cutting')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      let body: Record<string, unknown>;
+      if (opts.file) {
+        body = JSON.parse(await readFile(opts.file, 'utf8'));
+      } else if (opts.question) {
+        body = {
+          question: opts.question,
+          ...(opts.priority && { priority: opts.priority }),
+          ...(opts.category && { category: opts.category }),
+          ...(opts.crossCutting && { is_cross_cutting: true }),
+        };
+      } else {
+        console.error('Provide --file <path> or --question <text>');
+        process.exit(1);
+      }
+      const result = await api<Question>('POST', `/projects/${opts.project}/questions`, body);
+      if (opts.json) return json(result);
+      console.log(`Created question: ${result.id} (${result.status})`);
     });
 
   questions

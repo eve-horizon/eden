@@ -3495,6 +3495,7 @@ function registerPersonas(program3) {
 }
 
 // src/commands/questions.ts
+var import_promises2 = require("fs/promises");
 function registerQuestions(program3) {
   const questions = program3.command("question").description("Manage questions");
   questions.command("list").description("List questions").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (open/answered/dismissed)").option("--category <cat>", "Filter by category").option("--json", "JSON output").action(async (opts) => {
@@ -3513,8 +3514,33 @@ function registerQuestions(program3) {
     console.log(`Question: ${data.id}`);
     console.log(`Status: ${data.status}`);
     console.log(`Category: ${data.category ?? "(none)"}`);
-    console.log(`Text: ${data.text}`);
+    console.log(`Text: ${data.text ?? data.question ?? ""}`);
     if (data.answer) console.log(`Answer: ${data.answer}`);
+    if (data.references?.length) {
+      console.log("References:");
+      for (const ref of data.references) {
+        console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
+      }
+    }
+  });
+  questions.command("create").description("Create a question (inline or from JSON file)").requiredOption("--project <id>", "Project ID").option("--file <path>", "JSON file with question data").option("--question <text>", "Question text (inline)").option("--priority <p>", "Priority (high/medium/low)").option("--category <cat>", "Category (conflict/gap/duplicate/assumption)").option("--cross-cutting", "Mark as cross-cutting").option("--json", "JSON output").action(async (opts) => {
+    let body;
+    if (opts.file) {
+      body = JSON.parse(await (0, import_promises2.readFile)(opts.file, "utf8"));
+    } else if (opts.question) {
+      body = {
+        question: opts.question,
+        ...opts.priority && { priority: opts.priority },
+        ...opts.category && { category: opts.category },
+        ...opts.crossCutting && { is_cross_cutting: true }
+      };
+    } else {
+      console.error("Provide --file <path> or --question <text>");
+      process.exit(1);
+    }
+    const result = await api("POST", `/projects/${opts.project}/questions`, body);
+    if (opts.json) return json(result);
+    console.log(`Created question: ${result.id} (${result.status})`);
   });
   questions.command("evolve").description("Evolve a question with an answer").argument("<id>", "Question ID").requiredOption("--answer <text>", "Answer text").action(async (id, opts) => {
     await api("POST", `/questions/${id}/evolve`, { answer: opts.answer });

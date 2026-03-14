@@ -116,42 +116,46 @@ After expert panel completes synthesis, additionally:
 
 ## Eden API Access
 
-Use the `eden` CLI (available on PATH) for all Eden API interactions.
+### FIRST STEP: Bootstrap the Eden CLI
 
-### Eden CLI
+**Before ANY API call**, run this once to add the CLI to PATH:
 
-The `eden` CLI is pre-installed and authenticated in the agent environment. It handles auth and API routing automatically — no tokens or URLs needed.
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+eden --version
+```
 
-**Fallback:** If `eden` is not available, the raw API is accessible via environment variables injected by `with_apis`:
-- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL, already includes scheme+host)
-- `EVE_JOB_TOKEN` — Bearer token for authentication
+This gives you the `eden` command for all subsequent calls. The CLI auto-authenticates using `EVE_APP_API_URL_API` and `EVE_JOB_TOKEN` (injected by the platform).
 
-**IMPORTANT: The Eden API has NO `/api/` prefix.** Routes are directly at the root: `/projects`, `/health`, `/changesets/:id`, etc. Do NOT prepend `/api/` to any endpoint.
+**IMPORTANT: The Eden API has NO `/api/` prefix.** Routes are at the root: `/projects`, `/health`, `/changesets/:id`.
 
-### CRITICAL: Eve Project ID vs Eden Project ID
+### Finding the Eden Project ID
 
-**`EVE_PROJECT_ID` is the Eve platform project ID (e.g., `proj_01kkh30080e00rw62jqhkchwbk`). This is NOT the Eden project ID.** You MUST run `eden projects list --json` to discover Eden's internal project UUIDs. Never use `EVE_PROJECT_ID` in Eden API calls.
+Chat messages include the Eden project UUID in a prefix: `[eden-project:UUID]`. Extract this from the user's message.
 
-If the workflow event payload contains a `project_id` field (via `payload.project_id` in the workflow input), use that directly — it's the Eden project UUID. Otherwise, list projects and pick the one with map data.
+Example: `[eden-project:794bcca5-...-8445260bc8d3] Add a new persona...` → `PID=794bcca5-...-8445260bc8d3`
 
-### Finding the Eden project ID
-
-Chat messages may include the Eden project UUID in a prefix: `[eden-project:UUID]`. Extract this from the user's message. Example: `[eden-project:794bcca5-9b92-4554-86e8-8445260bc8d3] Add a new persona...` → project ID is `794bcca5-9b92-4554-86e8-8445260bc8d3`.
-
-**IMPORTANT:** The Eden project ID is a UUID (e.g. `d56fdeba-3bc3-4853-86c6-ffbc48488e00`), NOT an Eve project ID (e.g. `proj_01kkh30080e00rw62jqhkchwbk`). Never use Eve project IDs with the Eden API.
+**IMPORTANT:** The Eden project ID is a UUID, NOT an Eve project ID (`proj_xxx`). Never use `EVE_PROJECT_ID` with the Eden CLI.
 
 If no project prefix is present, list all projects via `eden projects list --json` and use the first/only one.
 
-### Common Commands
+### Eden CLI Commands
 
 ```bash
-# List projects
-eden projects list --json
+# Bootstrap (run once per session)
+export PATH="$PWD/cli/bin:$PATH"
 
-# Read map (when you already have PID)
-eden map --project $PID --json
+# Extract project ID from message prefix, then:
+eden projects list --json                                    # List projects
+eden map --project $PID --json                               # Full map state
+eden question list --project $PID --status open --json       # List questions
+eden changeset create --project $PID --file /tmp/cs.json     # Create changeset
+eden question create --project $PID --file /tmp/q.json       # Create question
+```
 
-# Create a changeset (write JSON to temp file first for large payloads)
+### Create a Changeset
+
+```bash
 cat > /tmp/changeset.json << 'PAYLOAD'
 {
   "title": "...",
@@ -161,45 +165,8 @@ cat > /tmp/changeset.json << 'PAYLOAD'
   "items": [...]
 }
 PAYLOAD
-
-eden changeset create --project $PID --file /tmp/changeset.json
+eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
-
-### Multi-Step Pattern (discover project + read map)
-
-When you need to discover the Eden project ID and then read data:
-
-```bash
-# Get the first project's ID
-PID=$(eden projects list --json | jq -r '.[0].id')
-
-# Read the map
-eden map --project $PID --json
-```
-
-If the workflow event payload contains a `project_id`, use that directly instead of listing projects.
-
-### Eden CLI Commands
-
-| Command | Purpose |
-|---------|---------|
-| `eden projects list --json` | List projects (get Eden project UUID) |
-| `eden map --project $PID --json` | Full map state (personas, activities, steps, tasks) |
-| `eden question list --project $PID --status open --json` | List open questions |
-| `eden changeset create --project $PID --file /tmp/changeset.json` | Create changeset |
-
-### Key API endpoints (fallback)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/projects` | List projects (get Eden project UUID) |
-| GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
-| GET | `/projects/:id/personas` | List personas |
-| GET | `/projects/:id/activities` | List activities |
-| GET | `/projects/:id/tasks` | List tasks |
-| GET | `/projects/:id/questions` | List questions |
-| POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
-| GET | `/projects/:id/changesets` | List changesets |
 
 **Do NOT use entity creation endpoints directly.** All entity creation goes through changesets.
 

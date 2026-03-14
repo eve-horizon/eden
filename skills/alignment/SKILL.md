@@ -52,62 +52,46 @@ Before creating ANY question, you MUST check for semantic overlap with existing 
 
 ## Eden API Access
 
-The `eden` CLI is available on PATH and is the primary interface for all Eden API interactions. It handles authentication and API routing automatically.
+### FIRST STEP: Bootstrap the Eden CLI
 
-**Fallback**: If `eden` is unavailable, the platform injects these environment variables via `with_apis`:
-- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL, already includes scheme+host)
-- `EVE_JOB_TOKEN` — Bearer token for authentication
+**Before ANY API call**, run this once:
 
-**IMPORTANT: The Eden API has NO `/api/` prefix.** Routes are directly at the root: `/projects`, `/health`, `/questions/:id`, etc. Do NOT prepend `/api/` to any endpoint (relevant only if using curl fallback).
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+eden --version
+```
 
 ### Finding the Project ID
 
-The workflow input (in your task description) contains the event payload with `project_id`. **Always use this** to identify the correct Eden project:
+The workflow input contains `payload.project_id` — this is the Eden project UUID. If null, fall back to `eden projects list --json | jq -r '.[0].id'`.
 
-1. Parse the **Workflow input** JSON from your task description
-2. Extract `payload.project_id` — this is the Eden project UUID
-3. If payload is null or missing project_id, fall back to listing projects and picking the one with the most data
-
-### Simple API Calls
+### Key Commands
 
 ```bash
-# List projects
-eden projects list --json
+export PATH="$PWD/cli/bin:$PATH"
+PID="<from payload.project_id or eden projects list>"
 
-# Read map (when you already have PID)
-eden map --project $PID --json
-
-# Read open questions (when you already have PID)
-eden question list --project $PID --status open --json
+eden projects list --json                                    # List projects
+eden map --project $PID --json                               # Full map state
+eden question list --project $PID --status open --json       # Open questions (for dedup)
+eden question create --project $PID --file /tmp/q.json       # Create question
 ```
 
-### Multi-Step Pattern (discover project + read map + questions)
-
-When you need to discover the Eden project ID and then read multiple resources:
+### Multi-Step Bootstrap
 
 ```bash
-# 1. Find the Eden project ID from workflow input payload or by listing projects
+export PATH="$PWD/cli/bin:$PATH"
 PID="${PAYLOAD_PROJECT_ID:-$(eden projects list --json | jq -r '.[0].id')}"
-
-# 2. Read map state
 eden map --project "$PID" --json > /tmp/map.json
-
-# 3. Read existing questions (for dedup)
 eden question list --project "$PID" --status open --json > /tmp/questions.json
-
-# 4. Summarize
-echo "Project: $PID"
-echo "Personas: $(jq '.personas | length' /tmp/map.json)"
-echo "Activities: $(jq '.activities | length' /tmp/map.json)"
-echo "Open questions: $(jq 'length' /tmp/questions.json)"
 ```
 
 ### Creating Questions
 
-The eden CLI does not yet have a `question create` command. Use curl for question creation:
+Use the `eden question create` command. You can pass a JSON file or inline arguments:
 
 ```bash
-# Write the question payload to a temp file, then POST it
+# Option A: From JSON file (best for questions with references)
 cat > /tmp/question.json << 'PAYLOAD'
 {
   "question": "Are persona assignments complete for all tasks?",
@@ -117,20 +101,20 @@ cat > /tmp/question.json << 'PAYLOAD'
 }
 PAYLOAD
 
-curl -s -X POST "$EVE_APP_API_URL_API/projects/$PID/questions" \
-  -H "Authorization: Bearer $EVE_JOB_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d @/tmp/question.json | jq .
+eden question create --project $PID --file /tmp/question.json --json
+
+# Option B: Inline (simple questions without references)
+eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
 ```
 
-### Key Commands & Endpoints
+### Key Commands
 
-| Action | Eden CLI | Curl Fallback |
-|--------|----------|---------------|
-| List projects | `eden projects list --json` | `GET /projects` |
-| Read map | `eden map --project $PID --json` | `GET /projects/:id/map` |
-| List open questions | `eden question list --project $PID --status open --json` | `GET /projects/:id/questions?status=open` |
-| Create question | *(not yet in CLI)* | `POST /projects/:id/questions` |
+| Action | Command |
+|--------|---------|
+| List projects | `eden projects list --json` |
+| Read map | `eden map --project $PID --json` |
+| List open questions | `eden question list --project $PID --status open --json` |
+| Create question | `eden question create --project $PID --file /tmp/question.json --json` |
 
 ## Rules
 

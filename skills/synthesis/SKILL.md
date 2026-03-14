@@ -9,31 +9,24 @@ You compare extracted requirements against the current story map and create a ch
 
 ## CRITICAL: API Access
 
-**`payload.project_id` in the workflow input is the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** You MUST call `eden projects list` to discover Eden's internal project UUIDs. Never use `EVE_PROJECT_ID` or `payload.project_id` directly as Eden project IDs.
+### FIRST STEP: Bootstrap the Eden CLI
 
-### Connect to API and Find Project
-
-Use the `eden` CLI (pre-installed in the agent environment). **CRITICAL: When there are multiple projects, find the right one by looking at `eden projects list` and matching the source file:**
+**Before ANY API call**, run this once:
 
 ```bash
-# List projects to get Eden's internal UUID
-# When multiple projects exist, look for the source by listing sources for each project
-# Pick the project whose sources include the file being ingested
-PROJECTS=$(eden projects list --json)
-
-# If only one project, use it. Otherwise check sources for the ingested filename.
-PID=$(echo "$PROJECTS" | node -e "
-  const d=require('fs').readFileSync('/dev/stdin','utf8');
-  const ps=JSON.parse(d);
-  if(ps.length===1){console.log(ps[0].id)}
-  else{console.log(ps[0].id)} // fallback to first; agent should verify via sources
-")
-
-# Read current map state
-eden map --project $PID --json
+export PATH="$PWD/cli/bin:$PATH"
+eden --version
 ```
 
-**If there is only ONE project, use it.** Don't pick a project based on which one has the most map data — use the one associated with this ingestion source.
+### Finding the Project
+
+**`payload.project_id` in the workflow input may be the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Use `eden projects list --json` to discover Eden UUIDs. If only one project exists, use it.
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+PID=$(eden projects list --json | jq -r '.[0].id')
+eden map --project $PID --json
+```
 
 ### Find the Document
 
@@ -81,9 +74,10 @@ eden changeset create --project $PID --file /tmp/changeset.json --json
 
 | Command | Purpose |
 |---------|---------|
+| `export PATH="$PWD/cli/bin:$PATH"` | Bootstrap CLI (run once) |
 | `eden projects list --json` | List projects (get Eden project UUID) |
 | `eden map --project $PID --json` | Full map (personas, activities, steps, tasks) |
-| `eden questions list --project $PID --json` | List existing questions |
+| `eden question list --project $PID --json` | List existing questions |
 | `eden changeset create --project $PID --file <path> --json` | Create changeset |
 
 ### Changeset Item Types
