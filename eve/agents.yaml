@@ -8,6 +8,9 @@ agents:
     skill: coordinator
     harness_profile: coordinator
     workflow: coordinator
+    with_apis:
+      - service: api
+        description: Eden Story Map API for reading map state and creating changesets
     gateway:
       policy: routable
       clients: [slack]
@@ -171,6 +174,9 @@ agents:
     skill: map-chat
     harness_profile: coordinator
     workflow: assistant
+    with_apis:
+      - service: api
+        description: Eden Story Map API for reading map state and creating changesets
     context:
       memory:
         agent: shared
