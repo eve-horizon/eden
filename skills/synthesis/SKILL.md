@@ -54,34 +54,37 @@ The document is a file in the git repo. Search for it by filename using Glob (e.
 
 ### Create Changeset
 
-```bash
-node --input-type=module -e "
-  const API = process.env.EVE_APP_API_URL_API;
-  const TOKEN = process.env.EVE_JOB_TOKEN;
-  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
-  const PID = process.argv[2]; // pass Eden project UUID
+**Important**: For large changesets, write the script to a temp file first to avoid inline quote conflicts:
 
-  const changeset = {
-    title: 'Requirements from document-name.md',
-    reasoning: 'Extracted from ingested document',
-    source: 'ingestion',
-    actor: 'synthesis-agent',
-    items: [
-      {
-        entity_type: 'persona',
-        operation: 'create',
-        after_state: { code: 'PM', name: 'Product Manager', description: '...' },
-        description: 'New persona identified in document',
-        display_reference: 'PER-PM'
-      }
-      // ... more items
-    ]
-  };
-  const res = await fetch(API + '/projects/' + PID + '/changesets', {
-    method: 'POST', headers, body: JSON.stringify(changeset)
-  });
-  console.log(await res.json());
-" -- 'EDEN_PROJECT_UUID_HERE'
+```bash
+cat > /tmp/create-changeset.mjs << 'SCRIPT'
+const API = process.env.EVE_APP_API_URL_API;
+const TOKEN = process.env.EVE_JOB_TOKEN;
+const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+const PID = process.argv[2];
+
+const changeset = {
+  title: 'Requirements from document-name.md',
+  reasoning: 'Extracted from ingested document',
+  source: 'ingestion',
+  actor: 'synthesis-agent',
+  items: [
+    {
+      entity_type: 'persona',
+      operation: 'create',
+      after_state: { code: 'PM', name: 'Product Manager', description: '...' },
+      description: 'New persona identified in document',
+      display_reference: 'PER-PM'
+    }
+    // ... more items
+  ]
+};
+const res = await fetch(API + '/projects/' + PID + '/changesets', {
+  method: 'POST', headers, body: JSON.stringify(changeset)
+});
+console.log(JSON.stringify(await res.json(), null, 2));
+SCRIPT
+node /tmp/create-changeset.mjs 'EDEN_PROJECT_UUID_HERE'
 ```
 
 ### Key Endpoints
