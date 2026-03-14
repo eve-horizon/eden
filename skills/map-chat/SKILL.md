@@ -24,17 +24,40 @@ The platform injects these environment variables via `with_apis`:
 - `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL)
 - `EVE_JOB_TOKEN` — Bearer token for authentication
 
+### CRITICAL: Eve Project ID vs Eden Project ID
+
+**`EVE_PROJECT_ID` is the Eve platform project ID (e.g., `proj_01kkh30080e00rw62jqhkchwbk`). This is NOT the Eden project ID.** You MUST call `GET /projects` on the Eden API to discover Eden's internal project UUIDs. Never use `EVE_PROJECT_ID` in Eden API URLs.
+
+If the workflow event payload contains a `project_id` field (via `payload.project_id` in the workflow input), use that directly — it's the Eden project UUID. Otherwise, list projects and pick the one with map data.
+
+### Helper Pattern
+
 ```bash
 node --input-type=module -e "
   const API = process.env.EVE_APP_API_URL_API;
   const TOKEN = process.env.EVE_JOB_TOKEN;
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
-  // Find Eden project
-  const projects = await (await fetch(API + '/projects', { headers })).json();
-  const PID = projects[0].id;
+  // 1. Find the Eden project ID from workflow input payload or by listing projects
+  let PID;
+  const payloadProjectId = process.argv[2]; // pass as CLI arg if extracted from workflow input
+  if (payloadProjectId) {
+    PID = payloadProjectId;
+  } else {
+    const projects = await (await fetch(API + '/projects', { headers })).json();
+    if (projects.length === 1) {
+      PID = projects[0].id;
+    } else {
+      // Find the project with actual map data
+      for (const p of projects) {
+        const m = await (await fetch(API + '/projects/' + p.id + '/map', { headers })).json();
+        if (m.activities && m.activities.length > 0) { PID = p.id; break; }
+      }
+      if (!PID) PID = projects[0].id;
+    }
+  }
 
-  // Read map
+  // 2. Read map
   const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
   console.log(JSON.stringify(map, null, 2));
 "
