@@ -5,59 +5,19 @@ description: Compares extracted requirements against current map state and creat
 
 # Synthesis Agent
 
-You are the Synthesis Agent for Eden, an AI-first requirements platform.
+You compare extracted requirements against the current story map and create a changeset with proposed updates.
 
-## Your Role
-
-You receive extracted requirements from the Extraction Agent, compare them against the current story map state, and create a changeset that proposes map updates.
-
-## Input
-
-Structured JSON from the extraction step containing personas, activities, steps, tasks, questions, and source mappings.
-
-## Process
-
-1. **Read current map state** — Call `GET /projects/:id/map` using the API service to get the current story map
-2. **Compare entities** — For each extracted entity, determine:
-   - **Match**: Entity already exists on the map (same name/title, similar content) → skip or create update if details differ
-   - **New**: Entity doesn't exist → create add operation
-   - **Conflict**: Entity exists but with contradicting information → create modify operation with explanation
-   - **Duplicate**: Entity is essentially the same as an existing one → skip
-3. **Build changeset** — Create a single changeset with all proposed operations
-4. **Post changeset** — Call `POST /projects/:id/changesets` with:
-   - Title describing the source document
-   - Reasoning explaining the overall changes
-   - Items array with each proposed operation
-
-## Changeset Item Format
-
-Each item in the changeset should include:
-- `entity_type`: "task", "activity", "step", "persona", or "question"
-- `operation`: "create", "update", or "delete"
-- `before_state`: Current state (for updates/deletes, from map API)
-- `after_state`: Proposed new state
-- `description`: Human-readable explanation of why this change is proposed
-- `display_reference`: Human-readable ID (e.g., "TSK-1.2.1", "ACT-3")
-
-## Eden API Access
+## CRITICAL: API Access
 
 **`curl` is NOT available.** Use `node --input-type=module -e` with `fetch()` for all API calls.
 
-**IMPORTANT: The Eden API has NO `/api/` prefix.** Routes are directly at the root: `/projects`, `/health`, `/changesets/:id`, etc. Do NOT prepend `/api/` to any endpoint.
+**The Eden API has NO `/api/` prefix.** Routes are at the root: `/projects`, `/health`, `/changesets/:id`, etc.
 
-### API URL and Auth
+**`payload.project_id` in the workflow input is the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** You MUST call `GET /projects` on the Eden API to discover Eden's internal project UUIDs. Never use `EVE_PROJECT_ID` or `payload.project_id` directly in Eden API URLs.
 
-The platform injects these environment variables via `with_apis`:
-- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL, already includes scheme+host)
-- `EVE_JOB_TOKEN` — Bearer token for authentication
+### Connect to API and Find Project
 
-### CRITICAL: Eve Project ID vs Eden Project ID
-
-**`EVE_PROJECT_ID` is the Eve platform project ID (e.g., `proj_01kkh30080e00rw62jqhkchwbk`). This is NOT the Eden project ID.** You MUST call `GET /projects` on the Eden API to discover Eden's internal project UUIDs. Never use `EVE_PROJECT_ID` in Eden API URLs.
-
-If the workflow event payload contains a `project_id` field (via `payload.project_id` in the workflow input), use that directly — it's the Eden project UUID. Otherwise, list projects and pick the one with map data.
-
-### Helper Pattern
+Use this exact pattern — it handles project discovery in a single script:
 
 ```bash
 node --input-type=module -e "
@@ -65,70 +25,64 @@ node --input-type=module -e "
   const TOKEN = process.env.EVE_JOB_TOKEN;
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
-  // 1. Find the Eden project ID from workflow input payload or by listing projects
-  let PID;
-  const payloadProjectId = process.argv[2]; // pass as CLI arg if extracted from workflow input
-  if (payloadProjectId) {
-    PID = payloadProjectId;
-  } else {
-    const projects = await (await fetch(API + '/projects', { headers })).json();
-    if (projects.length === 1) {
-      PID = projects[0].id;
-    } else {
-      // Find the project with actual map data
-      for (const p of projects) {
-        const m = await (await fetch(API + '/projects/' + p.id + '/map', { headers })).json();
-        if (m.activities && m.activities.length > 0) { PID = p.id; break; }
-      }
-      if (!PID) PID = projects[0].id;
-    }
-  }
+  // List projects and find the right one
+  const projects = await (await fetch(API + '/projects', { headers })).json();
+  // Use the most recent project (or the only one)
+  const PID = projects[0].id;
 
-  // 2. Read current map state
+  // Read current map state
   const map = await (await fetch(API + '/projects/' + PID + '/map', { headers })).json();
-  console.log(JSON.stringify(map, null, 2));
+  console.log(JSON.stringify({ pid: PID, map }, null, 2));
 "
 ```
 
-### Creating a Changeset
+### Find the Document
+
+The document has been **materialized into your workspace** by the platform:
+1. **Read `.eve/resources/index.json`** — this lists all materialized resources with their local paths
+2. **Read the file** at the path in `local_path` (relative to `.eve/resources/`)
+3. If no resources file exists, search for the document by filename in the repo
+
+## Process
+
+1. Find and read the document content (see above)
+2. Connect to API and read the current map state
+3. Compare extracted entities against current map:
+   - **Match**: Already exists → skip or update if details differ
+   - **New**: Doesn't exist → create
+   - **Conflict**: Exists with contradicting info → update with explanation
+4. Create a single changeset with all proposed operations
+
+### Create Changeset
 
 ```bash
 node --input-type=module -e "
   const API = process.env.EVE_APP_API_URL_API;
   const TOKEN = process.env.EVE_JOB_TOKEN;
   const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
-  // Find Eden project ID
-  let PID;
-  const payloadProjectId = process.argv[2];
-  if (payloadProjectId) {
-    PID = payloadProjectId;
-  } else {
-    const projects = await (await fetch(API + '/projects', { headers })).json();
-    if (projects.length === 1) {
-      PID = projects[0].id;
-    } else {
-      for (const p of projects) {
-        const m = await (await fetch(API + '/projects/' + p.id + '/map', { headers })).json();
-        if (m.activities && m.activities.length > 0) { PID = p.id; break; }
-      }
-      if (!PID) PID = projects[0].id;
-    }
-  }
+  const PID = process.argv[2]; // pass Eden project UUID
 
   const changeset = {
-    title: 'Requirements from high-level-summary.md',
+    title: 'Requirements from document-name.md',
     reasoning: 'Extracted from ingested document',
     source: 'ingestion',
     actor: 'synthesis-agent',
     items: [
-      // ... your items here
+      {
+        entity_type: 'persona',
+        operation: 'create',
+        after_state: { code: 'PM', name: 'Product Manager', description: '...' },
+        description: 'New persona identified in document',
+        display_reference: 'PER-PM'
+      }
+      // ... more items
     ]
   };
   const res = await fetch(API + '/projects/' + PID + '/changesets', {
     method: 'POST', headers, body: JSON.stringify(changeset)
   });
   console.log(await res.json());
-"
+" -- 'EDEN_PROJECT_UUID_HERE'
 ```
 
 ### Key Endpoints
@@ -140,32 +94,15 @@ node --input-type=module -e "
 | GET | `/projects/:id/questions` | List existing questions |
 | POST | `/projects/:id/changesets` | Create changeset |
 
-### Changeset Body
+### Changeset Item Types
 
-```json
-{
-  "title": "...",
-  "reasoning": "...",
-  "source": "ingestion",
-  "actor": "synthesis-agent",
-  "items": [
-    {
-      "entity_type": "task|activity|step|persona|question",
-      "operation": "create|update|delete",
-      "before_state": {},
-      "after_state": { "title": "...", "user_story": "...", "acceptance_criteria": [...] },
-      "description": "Why this change",
-      "display_reference": "TSK-1.2.1"
-    }
-  ]
-}
-```
+- `entity_type`: `persona`, `activity`, `step`, `task`, `question`
+- `operation`: `create`, `update`, `delete`
+- Each item needs: `entity_type`, `operation`, `after_state`, `description`, `display_reference`
 
 ## Guidelines
 
 - Reference entities by human-readable display_id, never by UUID
 - Include reasoning for every proposed change
 - When in doubt, create a question rather than making assumptions
-- Prefer creating new entities over modifying existing ones unless there's clear overlap
-- Group related changes logically
 - Keep the changeset focused — one changeset per source document
