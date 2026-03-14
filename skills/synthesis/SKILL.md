@@ -15,17 +15,29 @@ You compare extracted requirements against the current story map and create a ch
 
 ### Connect to API and Find Project
 
-Use `curl` with the platform-injected env vars:
+Use `curl` with the platform-injected env vars. **CRITICAL: When there are multiple projects, find the right one by looking at `GET /projects` and matching the source file:**
 
 ```bash
 # List projects to get Eden's internal UUID
-curl -s "$EVE_APP_API_URL_API/projects" \
-  -H "Authorization: Bearer $EVE_JOB_TOKEN" | jq .
+# When multiple projects exist, look for the source by listing sources for each project
+# Pick the project whose sources include the file being ingested
+PROJECTS=$(curl -s "$EVE_APP_API_URL_API/projects" \
+  -H "Authorization: Bearer $EVE_JOB_TOKEN")
 
-# Read current map state (replace PID with the UUID from above)
+# If only one project, use it. Otherwise check sources for the ingested filename.
+PID=$(echo "$PROJECTS" | node -e "
+  const d=require('fs').readFileSync('/dev/stdin','utf8');
+  const ps=JSON.parse(d);
+  if(ps.length===1){console.log(ps[0].id)}
+  else{console.log(ps[0].id)} // fallback to first; agent should verify via sources
+")
+
+# Read current map state
 curl -s "$EVE_APP_API_URL_API/projects/$PID/map" \
-  -H "Authorization: Bearer $EVE_JOB_TOKEN" | jq .
+  -H "Authorization: Bearer $EVE_JOB_TOKEN"
 ```
+
+**If there is only ONE project, use it.** Don't pick a project based on which one has the most map data — use the one associated with this ingestion source.
 
 ### Find the Document
 
@@ -87,9 +99,32 @@ curl -s -X POST "$EVE_APP_API_URL_API/projects/$PID/changesets" \
 - `operation`: `create`, `update`, `delete`
 - Each item needs: `entity_type`, `operation`, `after_state`, `description`, `display_reference`
 
+**CRITICAL: `display_reference` format:**
+- Personas: `PER-{CODE}` (e.g., `PER-PM`, `PER-VIEWER`)
+- Activities: `ACT-{N}` (e.g., `ACT-1`, `ACT-2`)
+- Steps: `STP-{A}.{S}` (e.g., `STP-1.1` = step 1 of activity 1)
+- Tasks: `TSK-{A}.{S}.{T}` (e.g., `TSK-1.1.1`)
+- Questions: `Q-{N}` (e.g., `Q-1`)
+
+The `display_reference` is used as the entity's `display_id` in the database. Steps and tasks need parent references:
+
+- **Steps** must include `activity_ref` in `after_state` pointing to the parent activity's display_reference (e.g., `"activity_ref": "ACT-1"`)
+- **Tasks** must include `step_ref` in `after_state` pointing to the parent step's display_reference (e.g., `"step_ref": "STP-1.1"`)
+
+**Example changeset items in correct order (persona → activity → step → task):**
+```json
+{"entity_type":"activity","operation":"create","display_reference":"ACT-1",
+ "after_state":{"name":"System Setup"},"description":"New activity"},
+{"entity_type":"step","operation":"create","display_reference":"STP-1.1",
+ "after_state":{"name":"Define context","activity_ref":"ACT-1"},"description":"New step"},
+{"entity_type":"task","operation":"create","display_reference":"TSK-1.1.1",
+ "after_state":{"title":"Write brief","step_ref":"STP-1.1","user_story":"As a PM...","acceptance_criteria":"System accepts the brief"},"description":"New task"}
+```
+
 ## Guidelines
 
-- Reference entities by human-readable display_id, never by UUID
+- Reference entities by human-readable display_reference, never by UUID
 - Include reasoning for every proposed change
 - When in doubt, create a question rather than making assumptions
 - Keep the changeset focused — one changeset per source document
+- **Items are auto-sorted by dependency order** (persona → activity → step → task → question) during accept, so ordering in the changeset doesn't matter
