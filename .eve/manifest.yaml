@@ -14,6 +14,12 @@ services:
       context: ./apps/api
       dockerfile: ./apps/api/Dockerfile
     ports: [3000]
+    x-eve:
+      api_spec:
+        type: openapi
+      cli:
+        name: eden
+        bin: cli/bin/eden
     environment:
       NODE_ENV: production
       DATABASE_URL: ${managed.db.url}

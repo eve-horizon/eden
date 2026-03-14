@@ -1,0 +1,16 @@
+{
+  "name": "@eden/cli",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
