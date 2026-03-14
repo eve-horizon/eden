@@ -38,6 +38,49 @@ Always create changesets with:
 - `title`: reference the question display_id (e.g. "Map update from Q-5")
 - `reasoning`: quote the question and answer, explain the proposed change
 
+## Eden API Access
+
+**`curl` is NOT available.** Use `node --input-type=module -e` with `fetch()` for all API calls.
+
+### API URL and Auth
+
+The platform injects these environment variables via `with_apis`:
+- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL)
+- `EVE_JOB_TOKEN` — Bearer token for authentication
+
+### Helper Pattern
+
+```bash
+node --input-type=module -e "
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+
+  // 1. Find the Eden project ID (UUID)
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  // 2. Read the answered question (get ID from event payload or list questions)
+  const questions = await (await fetch(API + '/api/projects/' + PID + '/questions?status=answered', { headers })).json();
+  const latest = questions[questions.length - 1];
+
+  // 3. Read map for context
+  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+
+  console.log(JSON.stringify({ question: latest, map_summary: { personas: map.personas.length, activities: map.activities.length } }));
+"
+```
+
+### Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects` | List projects (get Eden project UUID) |
+| GET | `/api/projects/:id/map` | Full map state |
+| GET | `/api/projects/:id/questions` | List questions (filter by status) |
+| GET | `/api/questions/:id` | Get specific question |
+| POST | `/api/projects/:id/changesets` | Create changeset |
+
 ## Rules
 
 - Be conservative — only propose changes when the answer clearly implies one

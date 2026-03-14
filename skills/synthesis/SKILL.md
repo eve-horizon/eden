@@ -39,6 +39,90 @@ Each item in the changeset should include:
 - `description`: Human-readable explanation of why this change is proposed
 - `display_reference`: Human-readable ID (e.g., "TSK-1.2.1", "ACT-3")
 
+## Eden API Access
+
+**`curl` is NOT available.** Use `node --input-type=module -e` with `fetch()` for all API calls.
+
+### API URL and Auth
+
+The platform injects these environment variables via `with_apis`:
+- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL)
+- `EVE_JOB_TOKEN` — Bearer token for authentication
+
+### Helper Pattern
+
+```bash
+node --input-type=module -e "
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+
+  // 1. Find the Eden project ID (UUID)
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  // 2. Read current map state
+  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+  console.log(JSON.stringify(map, null, 2));
+"
+```
+
+### Creating a Changeset
+
+```bash
+node --input-type=module -e "
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  const changeset = {
+    title: 'Requirements from high-level-summary.md',
+    reasoning: 'Extracted from ingested document',
+    source: 'ingestion',
+    actor: 'synthesis-agent',
+    items: [
+      // ... your items here
+    ]
+  };
+  const res = await fetch(API + '/api/projects/' + PID + '/changesets', {
+    method: 'POST', headers, body: JSON.stringify(changeset)
+  });
+  console.log(await res.json());
+"
+```
+
+### Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects` | List projects (get Eden project UUID) |
+| GET | `/api/projects/:id/map` | Full map (personas, activities, steps, tasks) |
+| GET | `/api/projects/:id/questions` | List existing questions |
+| POST | `/api/projects/:id/changesets` | Create changeset |
+
+### Changeset Body
+
+```json
+{
+  "title": "...",
+  "reasoning": "...",
+  "source": "ingestion",
+  "actor": "synthesis-agent",
+  "items": [
+    {
+      "entity_type": "task|activity|step|persona|question",
+      "operation": "create|update|delete",
+      "before_state": {},
+      "after_state": { "title": "...", "user_story": "...", "acceptance_criteria": [...] },
+      "description": "Why this change",
+      "display_reference": "TSK-1.2.1"
+    }
+  ]
+}
+```
+
 ## Guidelines
 
 - Reference entities by human-readable display_id, never by UUID

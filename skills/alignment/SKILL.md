@@ -50,6 +50,70 @@ Before creating ANY question, you MUST check for semantic overlap with existing 
 
 **The dedup check is mandatory.** If you skip it and create overlapping questions, the system floods with noise. When in doubt, do NOT create the question.
 
+## Eden API Access
+
+**`curl` is NOT available.** Use `node --input-type=module -e` with `fetch()` for all API calls.
+
+### API URL and Auth
+
+The platform injects these environment variables via `with_apis`:
+- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL)
+- `EVE_JOB_TOKEN` — Bearer token for authentication
+
+### Helper Pattern
+
+```bash
+node --input-type=module -e "
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+
+  // 1. Find the Eden project ID (UUID)
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  // 2. Read map state
+  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
+
+  // 3. Read existing questions (for dedup)
+  const questions = await (await fetch(API + '/api/projects/' + PID + '/questions?status=open', { headers })).json();
+
+  console.log(JSON.stringify({ map_summary: { personas: map.personas.length, activities: map.activities.length }, open_questions: questions.length }));
+"
+```
+
+### Creating Questions
+
+```bash
+node --input-type=module -e "
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  const question = {
+    question: 'Are persona assignments complete for all tasks?',
+    priority: 'medium',
+    category: 'gap',
+    references: [{ entity_type: 'activity', entity_id: 'ACT-1' }]
+  };
+  const res = await fetch(API + '/api/projects/' + PID + '/questions', {
+    method: 'POST', headers, body: JSON.stringify(question)
+  });
+  console.log(await res.json());
+"
+```
+
+### Key Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/projects` | List projects (get Eden project UUID) |
+| GET | `/api/projects/:id/map` | Full map state |
+| GET | `/api/projects/:id/questions?status=open` | Open questions (for dedup) |
+| POST | `/api/projects/:id/questions` | Create question |
+
 ## Rules
 
 - Be precise — reference specific display_ids when identifying issues

@@ -116,20 +116,16 @@ After expert panel completes synthesis, additionally:
 
 ## Eden API Access
 
-You can call the Eden REST API to read and modify the story map. **Do not use `curl`** — it is not available. Use Node.js `fetch()` via Bash instead.
+**`curl` is NOT available.** Use `node --input-type=module -e` with `fetch()` for all API calls.
 
-### Discovering the API
+### API URL and Auth
 
-```bash
-EDEN_API_URL="${EDEN_API_URL:-https://api.Incept5-eden-sandbox.eh1.incept5.dev}"
-```
+The platform injects these environment variables via `with_apis`:
+- `EVE_APP_API_URL_API` — base URL of the Eden API (internal K8s URL)
+- `EVE_JOB_TOKEN` — Bearer token for authentication
 
-### Getting your auth token
-
-`eve auth token --raw` does NOT work for system/job users. Read the token directly from the credentials file:
-
+If `EVE_APP_API_URL_API` is not set (e.g. direct chat without `with_apis`), fall back to reading credentials:
 ```javascript
-// In node --input-type=module -e:
 import { readFileSync } from 'fs';
 const creds = JSON.parse(readFileSync(process.env.HOME + '/.eve/credentials.json', 'utf8'));
 const TOKEN = Object.values(creds.tokens)[0].access_token;
@@ -141,24 +137,22 @@ Chat messages may include the Eden project UUID in a prefix: `[eden-project:UUID
 
 **IMPORTANT:** The Eden project ID is a UUID (e.g. `d56fdeba-3bc3-4853-86c6-ffbc48488e00`), NOT an Eve project ID (e.g. `proj_01kkh30080e00rw62jqhkchwbk`). Never use Eve project IDs with the Eden API.
 
-If no project prefix is present, list all projects via `GET /projects` and use the first/only one. The project `id` field in the response is the UUID you need.
+If no project prefix is present, list all projects via `GET /api/projects` and use the first/only one.
 
 ### Making API calls
 
-Always use `node --input-type=module -e` for API calls (enables `import` + top-level `await`):
-
 ```bash
 node --input-type=module -e "
-  import { readFileSync } from 'fs';
-  const creds = JSON.parse(readFileSync(process.env.HOME + '/.eve/credentials.json', 'utf8'));
-  const TOKEN = Object.values(creds.tokens)[0].access_token;
-  const API = '${EDEN_API_URL}';
-  const PID = '${PROJECT_ID}';
+  const API = process.env.EVE_APP_API_URL_API;
+  const TOKEN = process.env.EVE_JOB_TOKEN;
+  const headers = { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' };
 
-  // GET — read map
-  const map = await (await fetch(API + '/projects/' + PID + '/map', {
-    headers: { Authorization: 'Bearer ' + TOKEN }
-  })).json();
+  // Find Eden project
+  const projects = await (await fetch(API + '/api/projects', { headers })).json();
+  const PID = projects[0].id;
+
+  // Read map
+  const map = await (await fetch(API + '/api/projects/' + PID + '/map', { headers })).json();
   console.log(JSON.stringify(map, null, 2));
 "
 ```
@@ -167,15 +161,16 @@ node --input-type=module -e "
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
-| GET | `/projects/:id/personas` | List personas |
-| GET | `/projects/:id/activities` | List activities |
-| GET | `/projects/:id/tasks` | List tasks |
-| GET | `/projects/:id/questions` | List questions |
-| POST | `/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
-| GET | `/projects/:id/changesets` | List changesets |
+| GET | `/api/projects` | List projects (get Eden project UUID) |
+| GET | `/api/projects/:id/map` | Full map state (personas, activities, steps, tasks) |
+| GET | `/api/projects/:id/personas` | List personas |
+| GET | `/api/projects/:id/activities` | List activities |
+| GET | `/api/projects/:id/tasks` | List tasks |
+| GET | `/api/projects/:id/questions` | List questions |
+| POST | `/api/projects/:id/changesets` | Create changeset `{title, reasoning, source, actor, items[]}` |
+| GET | `/api/projects/:id/changesets` | List changesets |
 
-**Do NOT use entity creation endpoints directly.** There are no POST endpoints for personas, tasks, activities, or steps in your API access. All entity creation goes through changesets.
+**Do NOT use entity creation endpoints directly.** All entity creation goes through changesets.
 
 ### Map Edit via Changeset
 
