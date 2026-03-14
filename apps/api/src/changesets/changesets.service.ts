@@ -216,12 +216,27 @@ export class ChangesetsService {
         );
       }
 
-      const { rows: items } = await client.query<ChangesetItemRow>(
+      const { rows: rawItems } = await client.query<ChangesetItemRow>(
         `SELECT * FROM changeset_items
           WHERE changeset_id = $1 AND status = 'pending'
           ORDER BY created_at`,
         [id],
       );
+
+      // Sort by dependency order: persona → activity → step → task/question
+      const entityOrder: Record<string, number> = {
+        persona: 0,
+        activity: 1,
+        step: 2,
+        task: 3,
+        step_task: 4,
+        question: 5,
+      };
+      const items = [...rawItems].sort((a, b) => {
+        const aOrder = entityOrder[a.entity_type] ?? 99;
+        const bOrder = entityOrder[b.entity_type] ?? 99;
+        return aOrder - bOrder;
+      });
 
       for (const item of items) {
         await this.applyItem(client, ctx, item, projectId);
@@ -577,6 +592,25 @@ export class ChangesetsService {
           );
           stepDisplayId = `STP-${parseInt(stepCount[0].cnt, 10) + 1}`;
         }
+
+        // Resolve activity_id: prefer UUID, fall back to display_id lookup
+        let activityId = afterState.activity_id as string | null;
+        if (!activityId && afterState.activity_display_id) {
+          activityId = await this.resolveEntityByDisplayRef(
+            client, 'activities', afterState.activity_display_id as string, projectId,
+          );
+        }
+        // Also try display_reference as parent activity ref (e.g. "ACT-1")
+        if (!activityId && item.display_reference) {
+          const ref = item.display_reference as string;
+          const actRef = ref.includes('.') ? ref.split('.')[0] : ref;
+          if (actRef.startsWith('ACT-')) {
+            activityId = await this.resolveEntityByDisplayRef(
+              client, 'activities', actRef, projectId,
+            );
+          }
+        }
+
         const { rows } = await client.query(
           `INSERT INTO steps
                   (org_id, project_id, activity_id, display_id, name, sort_order)
@@ -585,7 +619,7 @@ export class ChangesetsService {
           [
             ctx.org_id,
             projectId,
-            afterState.activity_id ?? null,
+            activityId,
             stepDisplayId,
             afterState.name ?? 'Untitled',
             afterState.sort_order ?? 0,
