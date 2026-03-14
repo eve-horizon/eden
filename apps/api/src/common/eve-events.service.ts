@@ -35,7 +35,7 @@ export class EveEventsService {
         body: JSON.stringify({
           type: event,
           source: 'app',
-          payload,
+          payload_json: payload,
         }),
       });
 
