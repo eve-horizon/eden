@@ -7,36 +7,23 @@ description: Compares extracted requirements against current map state and creat
 
 You compare extracted requirements against the current story map and create a changeset with proposed updates.
 
-## MANDATORY FIRST STEP — Run Before Anything Else
+## Eden CLI
+
+All Eden API calls go through the CLI at `./cli/bin/eden`. It handles auth and URLs automatically.
+
+**You MUST use `./cli/bin/eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
+
+## Finding the Project
+
+**`payload.project_id` in the workflow input may be the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Discover Eden UUIDs via:
 
 ```bash
-export PATH="$PWD/cli/bin:$PATH"
+PID=$(./cli/bin/eden projects list --json | jq -r '.[0].id')
 ```
 
-This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+If only one project exists, use it.
 
-## CRITICAL: API Access
-
-### FIRST STEP: Bootstrap the Eden CLI
-
-**Before ANY API call**, run this once:
-
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-eden --version
-```
-
-### Finding the Project
-
-**`payload.project_id` in the workflow input may be the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Use `eden projects list --json` to discover Eden UUIDs. If only one project exists, use it.
-
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-PID=$(eden projects list --json | jq -r '.[0].id')
-eden map --project $PID --json
-```
-
-### Find the Document
+## Find the Document
 
 **This step does NOT have materialized resources.** Do NOT check `.eve/resources/index.json` — it does not exist for this step.
 
@@ -45,16 +32,19 @@ The document is a file in the git repo. Search for it by filename using Glob (e.
 ## Process
 
 1. Find and read the document content (see above)
-2. Connect to API and read the current map state
+2. Read the current map state:
+   ```bash
+   ./cli/bin/eden map --project $PID --json
+   ```
 3. Compare extracted entities against current map:
    - **Match**: Already exists → skip or update if details differ
    - **New**: Doesn't exist → create
    - **Conflict**: Exists with contradicting info → update with explanation
 4. Create a single changeset with all proposed operations
 
-### Create Changeset
+## Create Changeset
 
-Write the JSON payload to a temp file, then submit it via the eden CLI:
+Write the JSON payload to a temp file, then submit it:
 
 ```bash
 cat > /tmp/changeset.json << 'JSON'
@@ -74,21 +64,19 @@ cat > /tmp/changeset.json << 'JSON'
   ]
 }
 JSON
-
-eden changeset create --project $PID --file /tmp/changeset.json --json
+./cli/bin/eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
 
-### Key CLI Commands
+## CLI Command Reference
 
 | Command | Purpose |
 |---------|---------|
-| `export PATH="$PWD/cli/bin:$PATH"` | Bootstrap CLI (run once) |
-| `eden projects list --json` | List projects (get Eden project UUID) |
-| `eden map --project $PID --json` | Full map (personas, activities, steps, tasks) |
-| `eden question list --project $PID --json` | List existing questions |
-| `eden changeset create --project $PID --file <path> --json` | Create changeset |
+| `./cli/bin/eden projects list --json` | List projects (get Eden project UUID) |
+| `./cli/bin/eden map --project $PID --json` | Full map (personas, activities, steps, tasks) |
+| `./cli/bin/eden question list --project $PID --json` | List existing questions |
+| `./cli/bin/eden changeset create --project $PID --file <path> --json` | Create changeset |
 
-### Changeset Item Types
+## Changeset Item Types
 
 - `entity_type`: `persona`, `activity`, `step`, `task`, `question`
 - `operation`: `create`, `update`, `delete`

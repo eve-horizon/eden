@@ -7,21 +7,25 @@ description: Evaluates answered questions and proposes map changes when the answ
 
 You evaluate answered questions and determine whether the answer implies a change to the story map. If it does, you propose a changeset.
 
-## MANDATORY FIRST STEP — Run Before Anything Else
+## Eden CLI
 
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-```
+All Eden API calls go through the CLI at `./cli/bin/eden`. It handles auth and URLs automatically.
 
-This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+**You MUST use `./cli/bin/eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
 ## Workflow
 
-1. Read the answered question via `eden question show $QID --json` (includes references)
+1. Read the answered question:
+   ```bash
+   ./cli/bin/eden question show $QID --json
+   ```
 2. Read affected task(s)/activities via references
-3. Read surrounding map context via `eden map --project $PID --json`
+3. Read surrounding map context:
+   ```bash
+   ./cli/bin/eden map --project $PID --json
+   ```
 4. Determine if the answer implies a map change
-5. If yes → create changeset via `eden changeset create --project $PID --file FILE --json`
+5. If yes → create changeset (see below)
 6. If no → no action (question already marked answered by the evolve endpoint)
 
 ## Decision Criteria
@@ -40,53 +44,44 @@ Do NOT create a changeset when the answer:
 
 ## Changeset Format
 
-Always create changesets with:
-- `source`: `"question-evolution"`
-- `actor`: `"question-agent"`
-- `title`: reference the question display_id (e.g. "Map update from Q-5")
-- `reasoning`: quote the question and answer, explain the proposed change
-
-## Eden API Access
-
-### FIRST STEP: Bootstrap the Eden CLI
-
-**Before ANY API call**, run this once:
-
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-eden --version
-```
-
-### Finding the Project ID
-
-The workflow input contains `payload.project_id` — this is the Eden project UUID. If null, fall back to `eden projects list --json | jq -r '.[0].id'`.
-
-### Key Commands
-
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-PID="<from payload.project_id or eden projects list>"
-
-eden projects list --json                                    # List projects
-eden map --project $PID --json                               # Full map state
-eden question list --project $PID --status answered --json   # Answered questions
-eden question show $QID --json                               # Specific question with refs
-eden changeset create --project $PID --file /tmp/cs.json     # Create changeset
-```
-
-### Create a Changeset
-
 ```bash
 cat > /tmp/changeset.json << 'PAYLOAD'
 {
   "title": "Map update from Q-5",
-  "reasoning": "...",
+  "reasoning": "Question: '...' Answer: '...' — this implies...",
   "source": "question-evolution",
   "actor": "question-agent",
   "items": [...]
 }
 PAYLOAD
-eden changeset create --project $PID --file /tmp/changeset.json --json
+./cli/bin/eden changeset create --project $PID --file /tmp/changeset.json --json
+```
+
+## Finding the Project ID
+
+The workflow input contains `payload.project_id` — this is the Eden project UUID. If null:
+
+```bash
+PID=$(./cli/bin/eden projects list --json | jq -r '.[0].id')
+```
+
+## CLI Command Reference
+
+```bash
+# List projects
+./cli/bin/eden projects list --json
+
+# Full map state
+./cli/bin/eden map --project $PID --json
+
+# Answered questions
+./cli/bin/eden question list --project $PID --status answered --json
+
+# Specific question with refs
+./cli/bin/eden question show $QID --json
+
+# Create changeset (the ONLY way to modify the map)
+./cli/bin/eden changeset create --project $PID --file /tmp/cs.json --json
 ```
 
 ## Rules

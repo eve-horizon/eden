@@ -7,20 +7,24 @@ description: Scans map for conflicts, gaps, duplicates, and assumptions after ch
 
 You scan the Eden story map after a changeset is accepted, looking for conflicts, gaps, duplicates, and implicit assumptions that should be made explicit.
 
-## MANDATORY FIRST STEP — Run Before Anything Else
+## Eden CLI
 
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-```
+All Eden API calls go through the CLI at `./cli/bin/eden`. It handles auth and URLs automatically.
 
-This gives you the `eden` CLI. Use it for ALL Eden API calls. **Do NOT use curl, do NOT read source code, do NOT explore API endpoints.**
+**You MUST use `./cli/bin/eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
 ## Workflow
 
-1. Read the full map via `eden map --project $PID --json`
-2. Read recent questions (last 24h) via `eden question list --project $PID --status open --json` to avoid duplicates
+1. Read the full map:
+   ```bash
+   ./cli/bin/eden map --project $PID --json
+   ```
+2. Read all open questions (for dedup):
+   ```bash
+   ./cli/bin/eden question list --project $PID --status open --json
+   ```
 3. Scan for issues across all categories
-4. Create questions via `POST /projects/:projectId/questions` for each issue found (curl — no CLI command yet)
+4. Create questions via `./cli/bin/eden question create` for each issue found
 
 ## Issue Categories
 
@@ -45,7 +49,7 @@ Each question must include:
 
 Before creating ANY question, you MUST check for semantic overlap with existing questions:
 
-1. **Fetch ALL open questions** via `eden question list --project $PID --status open --json` (not just last 24h)
+1. **Fetch ALL open questions** via `./cli/bin/eden question list --project $PID --status open --json` (not just last 24h)
 2. **For each candidate question**, compare against every existing question:
    - If the core concern is the same (even phrased differently), DO NOT create it
    - "Are persona assignments complete?" overlaps with "Which personas own which tasks?"
@@ -58,45 +62,34 @@ Before creating ANY question, you MUST check for semantic overlap with existing 
 
 **The dedup check is mandatory.** If you skip it and create overlapping questions, the system floods with noise. When in doubt, do NOT create the question.
 
-## Eden API Access
+## Finding the Project ID
 
-### FIRST STEP: Bootstrap the Eden CLI
-
-**Before ANY API call**, run this once:
+The workflow input contains `payload.project_id` — this is the Eden project UUID. If null:
 
 ```bash
-export PATH="$PWD/cli/bin:$PATH"
-eden --version
+PID=$(./cli/bin/eden projects list --json | jq -r '.[0].id')
 ```
 
-### Finding the Project ID
-
-The workflow input contains `payload.project_id` — this is the Eden project UUID. If null, fall back to `eden projects list --json | jq -r '.[0].id'`.
-
-### Key Commands
+## CLI Command Reference
 
 ```bash
-export PATH="$PWD/cli/bin:$PATH"
-PID="<from payload.project_id or eden projects list>"
+# List projects
+./cli/bin/eden projects list --json
 
-eden projects list --json                                    # List projects
-eden map --project $PID --json                               # Full map state
-eden question list --project $PID --status open --json       # Open questions (for dedup)
-eden question create --project $PID --file /tmp/q.json       # Create question
+# Full map state
+./cli/bin/eden map --project $PID --json
+
+# Open questions (for dedup)
+./cli/bin/eden question list --project $PID --status open --json
+
+# Create question from JSON file (best for questions with references)
+./cli/bin/eden question create --project $PID --file /tmp/q.json --json
+
+# Create question inline (simple questions without references)
+./cli/bin/eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
 ```
 
-### Multi-Step Bootstrap
-
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-PID="${PAYLOAD_PROJECT_ID:-$(eden projects list --json | jq -r '.[0].id')}"
-eden map --project "$PID" --json > /tmp/map.json
-eden question list --project "$PID" --status open --json > /tmp/questions.json
-```
-
-### Creating Questions
-
-Use the `eden question create` command. You can pass a JSON file or inline arguments:
+## Creating Questions
 
 ```bash
 # Option A: From JSON file (best for questions with references)
@@ -108,21 +101,19 @@ cat > /tmp/question.json << 'PAYLOAD'
   "references": [{ "entity_type": "activity", "entity_id": "ACT-1" }]
 }
 PAYLOAD
-
-eden question create --project $PID --file /tmp/question.json --json
+./cli/bin/eden question create --project $PID --file /tmp/question.json --json
 
 # Option B: Inline (simple questions without references)
-eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
+./cli/bin/eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
 ```
 
-### Key Commands
+## Multi-Step Bootstrap
 
-| Action | Command |
-|--------|---------|
-| List projects | `eden projects list --json` |
-| Read map | `eden map --project $PID --json` |
-| List open questions | `eden question list --project $PID --status open --json` |
-| Create question | `eden question create --project $PID --file /tmp/question.json --json` |
+```bash
+PID="${PAYLOAD_PROJECT_ID:-$(./cli/bin/eden projects list --json | jq -r '.[0].id')}"
+./cli/bin/eden map --project "$PID" --json > /tmp/map.json
+./cli/bin/eden question list --project "$PID" --status open --json > /tmp/questions.json
+```
 
 ## Rules
 
