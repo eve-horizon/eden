@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useEveAuth } from '@eve-horizon/auth-react';
 import { api } from '../api/client';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,7 @@ export interface ProjectWithCounts extends Project {
 // ---------------------------------------------------------------------------
 
 export function useProjects() {
+  const { activeOrg } = useEveAuth();
   const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function useProjects() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeOrg?.id]);
 
   useEffect(() => {
     fetchProjects();

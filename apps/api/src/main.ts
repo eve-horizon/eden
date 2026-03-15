@@ -49,7 +49,15 @@ async function bootstrap() {
   // Bridge req.eveUser or req.agent -> req.user for NestJS guard compatibility
   app.use((req: Request, _res: Response, next: NextFunction) => {
     if ((req as any).eveUser) {
-      (req as any).user = (req as any).eveUser;
+      (req as any).user = { ...(req as any).eveUser };
+
+      // Allow the SPA to override the active org via header (org switcher).
+      // The user is already authenticated — the frontend only sends org IDs
+      // from the user's own membership list.
+      const orgOverride = req.headers['x-eve-org-id'];
+      if (typeof orgOverride === 'string' && orgOverride) {
+        (req as any).user.orgId = orgOverride;
+      }
     } else if ((req as any).agent) {
       // Map Eve agent/job token claims to the user shape AuthGuard expects
       const agent = (req as any).agent;

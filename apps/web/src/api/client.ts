@@ -41,6 +41,16 @@ async function request<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // Send the user's active org so the API scopes queries correctly
+  try {
+    const activeOrg = localStorage.getItem('eve_active_org_id');
+    if (activeOrg) {
+      headers['X-Eve-Org-Id'] = activeOrg;
+    }
+  } catch {
+    // localStorage unavailable
+  }
+
   const response = await fetch(`${API_PREFIX}${path}`, {
     ...rest,
     headers,
