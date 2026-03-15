@@ -31,18 +31,24 @@ export function useProjects() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const orgId = activeOrg?.id;
+
   const fetchProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await api.get<ProjectWithCounts[]>('/projects');
-      setProjects(data);
+      // API returns all projects; filter to the active org client-side
+      const filtered = orgId
+        ? data.filter((p) => p.org_id === orgId)
+        : data;
+      setProjects(filtered);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
       setLoading(false);
     }
-  }, [activeOrg?.id]);
+  }, [orgId]);
 
   useEffect(() => {
     fetchProjects();
