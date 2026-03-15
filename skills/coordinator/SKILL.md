@@ -127,6 +127,34 @@ Handle the request directly using your PM expertise:
 - **Decision capture** → acknowledge and confirm: `Noted: decision — [summary]`
 - **Action items** → acknowledge: `Noted: action — [summary]`
 - **File + simple question** → read the file, answer the specific question
+- **Comprehensive multi-perspective review** → when you cover multiple expert domains in a solo response (e.g. a user asks for a full assessment and you provide perspectives from all 7 domains), **also create a review record** so results appear in the Eden Reviews page
+
+### Solo Review Record
+
+When your solo response covers expert perspectives (tech, UX, business, GTM, risk, QA, devil's advocate), create a review record the same way as the panel path:
+
+```bash
+cat > /tmp/review.json << 'PAYLOAD'
+{
+  "title": "Expert Panel Review: <topic>",
+  "synthesis": "<your executive summary>",
+  "status": "complete",
+  "eve_job_id": "<EVE_JOB_ID env var>",
+  "expert_opinions": [
+    { "expert_slug": "tech-lead", "summary": "<your tech-lead perspective>" },
+    { "expert_slug": "ux-advocate", "summary": "<your UX perspective>" },
+    { "expert_slug": "biz-analyst", "summary": "<your BA perspective>" },
+    { "expert_slug": "gtm-advocate", "summary": "<your GTM perspective>" },
+    { "expert_slug": "risk-assessor", "summary": "<your risk perspective>" },
+    { "expert_slug": "qa-strategist", "summary": "<your QA perspective>" },
+    { "expert_slug": "devils-advocate", "summary": "<your devil's advocate perspective>" }
+  ]
+}
+PAYLOAD
+./cli/bin/eden review create --project $PID --file /tmp/review.json --json
+```
+
+Only create a review record when your response actually covers multiple expert domains. Don't create one for simple Q&A, search, or action items.
 
 Return the result signal:
 ````
