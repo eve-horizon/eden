@@ -89,7 +89,29 @@ Automatic — the platform promotes 7 backlog experts to ready and runs them in 
    - **Critical risks**: highest-severity items from risk-assessor
    - **Key questions**: unresolved questions across all reviews
    - **Recommended actions**: prioritized next steps
-3. Return the final signal:
+3. **Create a review record** so results are visible in the Eden web UI:
+   ```bash
+   cat > /tmp/review.json << 'PAYLOAD'
+   {
+     "title": "Expert Panel Review: <document or topic name>",
+     "synthesis": "<your executive summary text>",
+     "status": "complete",
+     "eve_job_id": "<current job ID from EVE_JOB_ID env var, or omit>",
+     "expert_opinions": [
+       { "expert_slug": "tech-lead", "summary": "<tech-lead's summary>" },
+       { "expert_slug": "ux-advocate", "summary": "<ux-advocate's summary>" },
+       { "expert_slug": "biz-analyst", "summary": "<biz-analyst's summary>" },
+       { "expert_slug": "gtm-advocate", "summary": "<gtm-advocate's summary>" },
+       { "expert_slug": "risk-assessor", "summary": "<risk-assessor's summary>" },
+       { "expert_slug": "qa-strategist", "summary": "<qa-strategist's summary>" },
+       { "expert_slug": "devils-advocate", "summary": "<devils-advocate's summary>" }
+     ]
+   }
+   PAYLOAD
+   ./cli/bin/eden review create --project $PID --file /tmp/review.json --json
+   ```
+   Include every expert that responded. Each summary should be the expert's key findings (1-3 paragraphs).
+4. Return the final signal:
    ````
    ```json-result
    {"eve": {"status": "success", "summary": "Executive summary with the synthesis"}}

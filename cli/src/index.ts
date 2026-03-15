@@ -6,6 +6,7 @@ import { registerPersonas } from './commands/personas.js';
 import { registerQuestions } from './commands/questions.js';
 import { registerSearch } from './commands/search.js';
 import { registerExport } from './commands/export.js';
+import { registerReviews } from './commands/reviews.js';
 
 const program = new Command();
 program
@@ -20,5 +21,6 @@ registerPersonas(program);
 registerQuestions(program);
 registerSearch(program);
 registerExport(program);
+registerReviews(program);
 
 program.parse();

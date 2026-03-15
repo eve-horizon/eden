@@ -66,16 +66,11 @@ export function ReviewsPage() {
         </p>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       {/* Content */}
       {loading ? (
         <CardSkeleton />
+      ) : error ? (
+        <EmptyState />
       ) : reviews.length === 0 ? (
         <EmptyState />
       ) : (
@@ -146,9 +141,10 @@ function ReviewCard({
               <h4 className="text-xs font-semibold text-eden-text uppercase tracking-wider mb-2">
                 Synthesis
               </h4>
-              <div className="rounded-lg bg-eden-bg/50 border border-eden-border p-4 text-sm text-eden-text leading-relaxed whitespace-pre-wrap">
-                {review.synthesis}
-              </div>
+              <div
+                className="rounded-lg bg-eden-bg/50 border border-eden-border p-4 text-sm text-eden-text leading-relaxed whitespace-pre-wrap"
+                dangerouslySetInnerHTML={{ __html: renderMarkdownInline(review.synthesis) }}
+              />
             </div>
           )}
 
@@ -243,6 +239,16 @@ function ReviewStatusBadge({ status }: { status: ReviewStatus }) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Render **bold** and *italic* markdown inline — no dependencies. */
+function renderMarkdownInline(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
 
 function formatDate(iso: string): string {
   try {
