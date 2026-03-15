@@ -110,45 +110,46 @@ export function AppShell({
               </div>
             )}
 
-            {/* Org Switcher */}
-            <div className="relative ml-2">
-              <button
-                onClick={() => {
-                  setOrgOpen(!orgOpen);
-                  setUserMenuOpen(false);
-                }}
-                className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5
-                           text-sm text-white/90 hover:bg-white/15 transition-colors"
-              >
-                <span className="font-medium">
-                  {currentOrgId ?? 'Select org'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-white/60" />
-              </button>
+            {/* Org Switcher — only on projects page, only with multiple orgs */}
+            {!projectId && orgs.length > 1 && (
+              <div className="relative ml-2">
+                <button
+                  onClick={() => {
+                    setOrgOpen(!orgOpen);
+                    setUserMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5
+                             text-sm text-white/90 hover:bg-white/15 transition-colors"
+                >
+                  <span className="font-medium">
+                    {formatOrgName(currentOrgId)}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-white/60" />
+                </button>
 
-              {orgOpen && orgs.length > 1 && (
-                <div className="absolute left-0 top-full mt-1 w-56 rounded-eden bg-eden-surface shadow-modal border border-eden-border py-1 z-50">
-                  {orgs.map((org) => (
-                    <button
-                      key={org.id}
-                      onClick={() => {
-                        switchOrg(org.id);
-                        setOrgOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-eden-bg transition-colors
-                        ${org.id === currentOrgId ? 'text-eden-accent font-semibold' : 'text-eden-text'}`}
-                    >
-                      {org.id}
-                      {org.id === currentOrgId && (
-                        <span className="float-right text-eden-accent">
-                          &check;
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                {orgOpen && (
+                  <div className="absolute left-0 top-full mt-1 w-56 rounded-eden bg-eden-surface shadow-modal border border-eden-border py-1 z-50">
+                    {orgs.map((org) => (
+                      <button
+                        key={org.id}
+                        onClick={() => {
+                          switchOrg(org.id);
+                          setOrgOpen(false);
+                          navigate('/');
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-eden-bg transition-colors
+                          ${org.id === currentOrgId ? 'text-eden-accent font-semibold' : 'text-eden-text'}`}
+                      >
+                        {formatOrgName(org.id)}
+                        {org.id === currentOrgId && (
+                          <span className="float-right text-eden-accent">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* User menu */}
@@ -267,6 +268,14 @@ export function AppShell({
       </div>
     </div>
   );
+}
+
+/* ---------- Helpers ---------- */
+
+/** Strip `org_` prefix and humanize: "org_Incept5" → "Incept5" */
+function formatOrgName(orgId: string | undefined): string {
+  if (!orgId) return 'Select org';
+  return orgId.replace(/^org_/i, '');
 }
 
 /* ---------- Inline SVG icons ---------- */
