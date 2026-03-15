@@ -86,6 +86,32 @@ cd apps/web
 npx playwright test tests/e2e/manual-07-pages.spec.ts --reporter=list
 ```
 
+  test('Reviews page shows expert panel reviews', async ({ page }) => {
+    await page.click('text=Reviews');
+    await page.waitForTimeout(3000);
+
+    // Page should load without errors (no 404 banner)
+    await expect(page.locator('text=Reviews').first()).toBeVisible();
+    await expect(page.locator('text=Expert panel reviews')).toBeVisible();
+
+    // Should show either review cards or the empty state — not a 404 error
+    const errorBanner = page.locator('.bg-red-50');
+    await expect(errorBanner).not.toBeVisible();
+
+    // Should show either reviews list or empty state message
+    const content = page.locator('text=No reviews yet').or(page.locator('text=expert'));
+    await expect(content.first()).toBeVisible();
+  });
+});
+```
+
+## Running
+
+```bash
+cd apps/web
+npx playwright test tests/e2e/manual-07-pages.spec.ts --reporter=list
+```
+
 ## Success Criteria
 
 - [ ] Q&A page displays questions with open/answered status
@@ -94,3 +120,5 @@ npx playwright test tests/e2e/manual-07-pages.spec.ts --reporter=list
 - [ ] Releases page shows MVP Release
 - [ ] Audit page shows 10+ historical entries
 - [ ] Sources page has document upload area
+- [ ] Reviews page loads without 404 error
+- [ ] Reviews page shows review cards or empty state (not error)

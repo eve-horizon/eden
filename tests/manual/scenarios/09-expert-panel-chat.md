@@ -115,6 +115,23 @@ for s in .1 .2 .3 .4 .5 .6 .7; do
 done
 ```
 
+### 5. Verify Review Record Created
+
+After the coordinator completes synthesis, it should create a review record in the Eden API (visible in the Reviews page).
+
+```bash
+TOKEN=$(eve auth token 2>/dev/null)
+REVIEWS=$(curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/reviews")
+echo "$REVIEWS" | jq '[.[] | {id, title, status, expert_count, created_at}]'
+```
+
+**Expected:** At least one review record with:
+- `status: "complete"`
+- `expert_count: 7` (or however many experts responded)
+- `title` containing the review topic
+
+If no review record exists, the coordinator's SKILL.md may be missing the `review create` step in Phase 3 SYNTHESIZE.
+
 ## Success Criteria
 
 - [ ] Chat message routed to expert-panel team
@@ -123,4 +140,5 @@ done
 - [ ] If solo: coordinator covers all 7 expert domains inline
 - [ ] Chat thread receives the review response
 - [ ] Review covers all 7 domain-specific perspectives
+- [ ] Review record created in Eden API (visible on Reviews page)
 - [ ] No secrets (API keys, tokens) appear in job logs

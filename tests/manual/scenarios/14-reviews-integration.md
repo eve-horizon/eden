@@ -1,77 +1,127 @@
-# Scenario 14: Reviews Integration — Chat to Map
+# Scenario 14: Reviews Integration — Panel to UI to Action
 
 **Time:** ~8 minutes
 **Parallel Safe:** No
 **LLM Required:** Yes
 
-Verifies that expert panel review findings can be acted on — closing the loop from review → changeset → map update. Expert panel reviews are delivered inline as chat messages (the coordinator synthesizes expert responses in the conversation thread).
+Verifies the complete expert panel review lifecycle: panel review creates a review record visible in the Eden UI, and review recommendations can be acted on via chat to create changesets.
 
 ## Prerequisites
 
-- Scenario 09 passed — expert panel review delivered via chat
+- Scenario 09 passed — expert panel review completed
+- Reviews API endpoint deployed and accessible
 
 ## Steps
 
-### 1. Read Expert Recommendations from Chat
+### 1. Verify Review Record Exists
 
 ```bash
-# List threads to find the review thread from scenario 09
-THREADS=$(api "$EDEN_URL/api/projects/$PROJECT_ID/chat/threads")
-REVIEW_THREAD_ID=$(echo "$THREADS" | jq -r '[.[] | select(.title | test("[Rr]eview|[Aa]nalys"))] | .[0].id')
-
-# Get messages from the review thread — the synthesis is in the coordinator's final message
-MESSAGES=$(api "$EDEN_URL/api/chat/threads/$REVIEW_THREAD_ID/messages")
-echo "$MESSAGES" | jq '.[-1].content' | head -50
+TOKEN=$(eve auth token 2>/dev/null)
+REVIEWS=$(curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/reviews")
+REVIEW_COUNT=$(echo "$REVIEWS" | jq 'length')
+echo "Reviews found: $REVIEW_COUNT"
+echo "$REVIEWS" | jq '[.[] | {id, title, status, expert_count}]'
 ```
 
-**Expected:** Coordinator's synthesis message with expert recommendations (consensus, dissent, risks, actions).
+**Expected:** At least one review with `status: "complete"` and `expert_count >= 1`.
 
-### 2. Act on a Recommendation via Chat
+If no reviews exist, the coordinator didn't call `./cli/bin/eden review create` during synthesis. Check the coordinator skill Phase 3.
+
+### 2. Verify Review Details via API
 
 ```bash
-THREAD=$(api -X POST "$EDEN_URL/api/projects/$PROJECT_ID/chat/threads" \
-  -d '{"title": "Act on review recommendation"}')
-THREAD_ID=$(echo "$THREAD" | jq -r '.id')
-
-# Use one of the actual recommendations from the review
-api -X POST "$EDEN_URL/api/chat/threads/$THREAD_ID/messages" \
-  -d '{"content": "Based on the expert review, the QA strategist identified that we have no explicit testing requirements. Please add a Testing & Validation activity with steps for unit testing, integration testing, and e2e testing, with appropriate tasks for each."}'
+REVIEW_ID=$(echo "$REVIEWS" | jq -r '.[0].id')
+REVIEW=$(curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/reviews/$REVIEW_ID")
+echo "$REVIEW" | jq '{title, status, synthesis: (.synthesis | .[0:200]), expert_count, experts: [.expert_opinions[].expert_slug]}'
 ```
 
-### 3. Wait for Changeset
+**Expected:**
+- `synthesis` contains executive summary text
+- `expert_opinions` array has entries for each responding expert
+- Each opinion has `expert_slug` and `summary`
+
+### 3. Verify Reviews Page in UI (Playwright)
 
 ```bash
-for i in $(seq 1 24); do
-  CS=$(api "$EDEN_URL/api/projects/$PROJECT_ID/changesets" | jq '[.[] | select(.status == "draft" or .status == "pending")] | .[0]')
-  [ "$CS" != "null" ] && break
+# Navigate to Reviews page and verify no 404 error
+npx playwright test --grep "Reviews page" tests/e2e/manual-07-pages.spec.ts
+```
+
+**Or manually via browser:**
+1. Navigate to `$EDEN_URL/projects/$PROJECT_ID/reviews`
+2. Verify no error banner appears
+3. Verify review card(s) are visible with title, status badge, expert count
+4. Click a review card to expand — verify synthesis and expert opinions render
+
+### 4. Act on a Review Recommendation via Chat
+
+```bash
+THREAD=$(eve-api -X POST "$EVE_API_URL/projects/$EVE_PROJECT_ID/chat/simulate" \
+  -d "$(jq -n --arg text '[eden-project:'"$PROJECT_ID"'] Based on the expert review, the QA strategist identified that we have no explicit testing requirements. Please add a Testing & Validation activity with steps for unit testing, integration testing, and e2e testing, with appropriate tasks for each.' \
+    '{provider: "simulated", team_id: "expert-panel", text: $text, thread_key: "scenario14"}')")
+THREAD_ID=$(echo "$THREAD" | jq -r '.thread_id')
+PARENT_JOB=$(echo "$THREAD" | jq -r '.job_ids[0]')
+echo "Thread: $THREAD_ID  Job: $PARENT_JOB"
+```
+
+### 5. Wait for Changeset
+
+```bash
+TIMEOUT=120; START=$(date +%s)
+while true; do
+  ELAPSED=$(( $(date +%s) - START ))
+  [ $ELAPSED -gt $TIMEOUT ] && echo "TIMEOUT" && break
+
+  CS=$(curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/changesets" \
+    | jq '[.[] | select(.status == "draft" or .status == "pending")] | sort_by(.created_at) | last')
+  [ "$CS" != "null" ] && [ -n "$CS" ] && break
   sleep 5
 done
-echo "$CS" | jq '{title, item_count: (.items | length)}'
+echo "$CS" | jq '{id, title, item_count: (.items | length), status}'
 ```
 
-### 4. Review and Accept
+### 6. Review and Accept Changeset
 
 ```bash
 CS_ID=$(echo "$CS" | jq -r '.id')
 echo "Changeset items:"
-api "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID" | jq '.items[] | {entity_type, operation, description}'
+curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID" \
+  | jq '.items[] | {entity_type, operation, description}'
 
-api -X POST "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID/accept"
+curl -s -X POST -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID/accept"
 ```
 
-### 5. Verify Loop Closed
+### 7. Verify Map Updated
 
 ```bash
-# Map should now have the testing activity
-api "$EDEN_URL/api/projects/$PROJECT_ID/map" | jq '.activities[] | select(.name | test("[Tt]est")) | {name, step_count: (.steps | length)}'
+curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/map" \
+  | jq '.activities[] | select(.name | test("[Tt]est")) | {name, step_count: (.steps | length)}'
 ```
 
-**Expected:** New "Testing & Validation" activity appears with testing-related steps.
+**Expected:** New testing-related activity appears in the map.
+
+## Debugging
+
+```bash
+# Check if reviews API is working
+curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/reviews"
+
+# Check coordinator skill has review create step
+grep -A 5 "review create" skills/coordinator/SKILL.md
+
+# Check CLI has review command
+./cli/bin/eden review --help
+```
 
 ## Success Criteria
 
-- [ ] Expert synthesis available in chat thread from scenario 09
+- [ ] Reviews API returns 200 (not 404)
+- [ ] At least one review record exists after expert panel review
+- [ ] Review contains synthesis and expert opinions
+- [ ] Reviews page in UI renders without errors
+- [ ] Review card expands to show synthesis with markdown rendering
+- [ ] Expert opinion badges are color-coded by expert type
 - [ ] Chat request based on recommendation creates changeset (not direct mutation)
 - [ ] Changeset contains testing-related entities
 - [ ] Acceptance adds testing activity to the map
-- [ ] Full loop: review (chat) → chat request → changeset → map update
+- [ ] Full loop: expert panel → review record → UI display → chat action → changeset → map update
