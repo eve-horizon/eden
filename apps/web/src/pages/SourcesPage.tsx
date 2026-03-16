@@ -49,17 +49,17 @@ export function SourcesPage() {
   const [sourceTasks, setSourceTasks] = useState<SourceTask[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchSources = useCallback(async () => {
+  const fetchSources = useCallback(async (silent = false) => {
     if (!projectId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const data = await api.get<Source[]>(`/projects/${projectId}/sources`);
       setSources(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load sources');
+      if (!silent) setError(err instanceof Error ? err.message : 'Failed to load sources');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [projectId]);
 
@@ -73,7 +73,7 @@ export function SourcesPage() {
       (s) => s.status === 'processing' || s.status === 'extracted' || s.status === 'uploaded',
     );
     if (!hasInProgress) return;
-    const timer = setInterval(fetchSources, 5000);
+    const timer = setInterval(() => fetchSources(true), 5000);
     return () => clearInterval(timer);
   }, [sources, fetchSources]);
 
