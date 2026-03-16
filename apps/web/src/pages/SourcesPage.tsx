@@ -15,6 +15,9 @@ interface Source {
   created_at: string;
   upload_url?: string;
   excerpt?: string;
+  eve_job_id?: string | null;
+  eve_ingest_id?: string | null;
+  error_message?: string | null;
 }
 
 interface SourceTask {
@@ -24,7 +27,7 @@ interface SourceTask {
   role: string | null;
 }
 
-type SourceStatus = 'uploaded' | 'processing' | 'extracted' | 'synthesized' | 'failed';
+type SourceStatus = 'uploaded' | 'processing' | 'extracted' | 'synthesized' | 'done' | 'failed';
 
 // ---------------------------------------------------------------------------
 // SourcesPage
@@ -64,6 +67,16 @@ export function SourcesPage() {
     fetchSources();
   }, [fetchSources]);
 
+  // Auto-poll every 5s while any source is still processing
+  useEffect(() => {
+    const hasProcessing = sources.some(
+      (s) => s.status === 'processing' || s.status === 'uploaded',
+    );
+    if (!hasProcessing) return;
+    const timer = setInterval(fetchSources, 5000);
+    return () => clearInterval(timer);
+  }, [sources, fetchSources]);
+
   const selectSource = useCallback(async (source: Source) => {
     if (selectedSource?.id === source.id) {
       setSelectedSource(null);
@@ -87,13 +100,27 @@ export function SourcesPage() {
     setUploading(true);
     setError(null);
     try {
-      // Create the source record
-      const source = await api.post<Source>(`/projects/${projectId}/sources`, {
-        filename: file.name,
-        content_type: file.type || 'application/octet-stream',
-      });
+      // 1. Create source record — returns a presigned S3 upload URL
+      const source = await api.post<Source & { upload_url: string }>(
+        `/projects/${projectId}/sources`,
+        {
+          filename: file.name,
+          content_type: file.type || 'application/octet-stream',
+          file_size: file.size,
+        },
+      );
 
-      // Confirm to transition to processing
+      // 2. Upload the file to S3 via the presigned URL
+      const uploadRes = await fetch(source.upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        throw new Error(`File upload failed (${uploadRes.status})`);
+      }
+
+      // 3. Confirm — tells Eve the file is ready, triggers ingestion pipeline
       await api.post(`/sources/${source.id}/confirm`);
 
       // Refresh list
@@ -353,6 +380,30 @@ function SourceDetailPanel({
         </div>
       </div>
 
+      {/* Processing progress */}
+      {source.status === 'processing' && (
+        <div className="px-5 py-3 border-b border-eden-border bg-blue-50/50">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-medium text-blue-700">
+              Ingestion pipeline running
+            </span>
+            {source.eve_job_id && (
+              <span className="text-[10px] font-mono text-blue-500 ml-auto">
+                {source.eve_job_id}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {source.status === 'failed' && source.error_message && (
+        <div className="px-5 py-3 border-b border-eden-border bg-red-50/50">
+          <p className="text-xs text-red-700">{source.error_message}</p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="px-5 py-3 border-b border-eden-border">
         <a
@@ -429,6 +480,7 @@ const SOURCE_STATUS_STYLES: Record<SourceStatus, string> = {
   processing: 'bg-blue-100 text-blue-800',
   extracted: 'bg-amber-100 text-amber-800',
   synthesized: 'bg-emerald-100 text-emerald-800',
+  done: 'bg-emerald-100 text-emerald-800',
   failed: 'bg-red-100 text-red-800',
 };
 
@@ -436,8 +488,11 @@ function SourceStatusBadge({ status }: { status: SourceStatus }) {
   const style = SOURCE_STATUS_STYLES[status] ?? 'bg-gray-100 text-gray-700';
   return (
     <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize ${style}`}
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${style}`}
     >
+      {status === 'processing' && (
+        <span className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
+      )}
       {status}
     </span>
   );
