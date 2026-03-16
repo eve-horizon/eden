@@ -104,6 +104,25 @@ The `display_reference` is used as the entity's `display_id` in the database. St
  "after_state":{"title":"Write brief","step_ref":"STP-1.1","user_story":"As a PM...","acceptance_criteria":"System accepts the brief"},"description":"New task"}
 ```
 
+## CRITICAL: Update Source Status
+
+After creating the changeset, you **MUST** update the ingestion source status so the UI reflects completion.
+
+Find the source by listing sources and matching the filename from the workflow input:
+```bash
+SRC_ID=$(./cli/bin/eden source list --project $PID --json | jq -r '.[] | select(.status == "extracted" or .status == "processing") | .id' | head -1)
+```
+
+Then mark it as synthesized:
+```bash
+./cli/bin/eden source update-status --source "$SRC_ID" --status synthesized
+```
+
+If the changeset creation fails, mark the source as failed:
+```bash
+./cli/bin/eden source update-status --source "$SRC_ID" --status failed --error "Synthesis failed: <reason>"
+```
+
 ## Guidelines
 
 - Reference entities by human-readable display_reference, never by UUID

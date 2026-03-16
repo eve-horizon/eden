@@ -57,6 +57,22 @@ export class SourcesController {
     return this.sources.confirm(dbContext(req), id);
   }
 
+  @Post('sources/:id/status')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  updateStatus(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { status: string; error_message?: string },
+  ) {
+    return this.sources.updateStatus(
+      dbContext(req),
+      id,
+      body.status,
+      { error_message: body.error_message },
+    );
+  }
+
   // -------------------------------------------------------------------------
   // Eve callback — no auth guard (Eve signs via service token in payload)
   // -------------------------------------------------------------------------
@@ -85,7 +101,10 @@ export class SourcesController {
       return { received: true, matched: false };
     }
 
-    const status = body.status === 'done' ? 'done' : 'failed';
+    // Eve's callback fires when the ingest step (step 1 of 3) completes.
+    // Map 'done' → 'extracted' since extract + synthesize still need to run.
+    // The synthesis agent marks the source as 'synthesized' when it finishes.
+    const status = body.status === 'done' ? 'extracted' : 'failed';
 
     await this.sources.updateStatus(
       { org_id: source.org_id },

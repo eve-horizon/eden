@@ -3635,6 +3635,24 @@ ${data.synthesis}`);
   });
 }
 
+// src/commands/sources.ts
+function registerSources(program3) {
+  const src = program3.command("source").description("Manage ingestion sources");
+  src.command("list").description("List ingestion sources").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/sources`);
+    if (opts.json) return json(data);
+    table(data, ["id", "filename", "status", "file_size", "created_at"]);
+  });
+  src.command("update-status").description("Update source processing status").requiredOption("--source <id>", "Source ID").requiredOption("--status <status>", "New status (extracted, synthesized, done, failed)").option("--error <message>", "Error message (for failed status)").option("--json", "JSON output").action(async (opts) => {
+    const body = { status: opts.status };
+    if (opts.error) body.error_message = opts.error;
+    const result = await api("POST", `/sources/${opts.source}/status`, body);
+    if (opts.json) return json(result);
+    console.log(`Source ${opts.source} \u2192 ${opts.status}`);
+  });
+}
+
 // src/index.ts
 var program2 = new Command();
 program2.name("eden").description("Eden story map CLI \u2014 agent-friendly interface to the Eden API").version("1.0.0");
@@ -3646,4 +3664,5 @@ registerQuestions(program2);
 registerSearch(program2);
 registerExport(program2);
 registerReviews(program2);
+registerSources(program2);
 program2.parse();

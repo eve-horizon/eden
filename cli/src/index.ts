@@ -7,6 +7,7 @@ import { registerQuestions } from './commands/questions.js';
 import { registerSearch } from './commands/search.js';
 import { registerExport } from './commands/export.js';
 import { registerReviews } from './commands/reviews.js';
+import { registerSources } from './commands/sources.js';
 
 const program = new Command();
 program
@@ -22,5 +23,6 @@ registerQuestions(program);
 registerSearch(program);
 registerExport(program);
 registerReviews(program);
+registerSources(program);
 
 program.parse();
