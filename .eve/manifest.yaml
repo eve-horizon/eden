@@ -107,11 +107,7 @@ workflows:
       - service: api
         description: Eden Story Map API for reading map state and creating changesets
     steps:
-      - name: ingest
-        agent:
-          name: ingestion
       - name: extract
-        depends_on: [ingest]
         agent:
           name: extraction
       - name: synthesize
@@ -119,7 +115,7 @@ workflows:
         agent:
           name: synthesis
     hints:
-      timeout_seconds: 900
+      timeout_seconds: 600
       permission_policy: yolo
 
 pipelines:

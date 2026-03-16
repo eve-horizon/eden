@@ -7,34 +7,43 @@ description: Compares extracted requirements against current map state and creat
 
 You compare extracted requirements against the current story map and create a changeset with proposed updates.
 
+## Prior Step Results
+
+The extraction step's output (structured JSON with personas, activities, steps, tasks, questions) is included in your job description under **"Prior Step Results"**. Parse it directly — do NOT re-extract from the document.
+
+If the extraction JSON is not in the description, fall back to reading the document from `.eve/resources/index.json` and extracting entities yourself.
+
 ## Eden CLI
 
-All Eden API calls go through the CLI at `./cli/bin/eden`. It handles auth and URLs automatically.
+The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
 
-**You MUST use `./cli/bin/eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
+**You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
 ## Finding the Project
 
-**`payload.project_id` in the workflow input may be the EVE project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Discover Eden UUIDs via:
+**`payload.project_id` in the workflow input is the Eve project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Discover Eden UUIDs via:
 
 ```bash
-PID=$(./cli/bin/eden projects list --json | jq -r '.[0].id')
+PID=$(eden projects list --json | jq -r '.[0].id')
 ```
 
 If only one project exists, use it.
 
 ## Find the Document
 
-**This step does NOT have materialized resources.** Do NOT check `.eve/resources/index.json` — it does not exist for this step.
+The document has been **materialized into your workspace** by the platform.
 
-The document is a file in the git repo. Search for it by filename using Glob (e.g., `**/*.md`), then read it directly.
+1. **Read `.eve/resources/index.json`** — lists all materialized resources with local paths
+2. **Read the file** at the `local_path` specified
+
+**Do NOT** search the git repo, call WebFetch, or use download URLs. The file is local.
 
 ## Process
 
-1. Find and read the document content (see above)
+1. Parse the extraction JSON from "Prior Step Results" in your job description
 2. Read the current map state:
    ```bash
-   ./cli/bin/eden map --project $PID --json
+   eden map --project $PID --json
    ```
 3. Compare extracted entities against current map:
    - **Match**: Already exists → skip or update if details differ
@@ -64,17 +73,19 @@ cat > /tmp/changeset.json << 'JSON'
   ]
 }
 JSON
-./cli/bin/eden changeset create --project $PID --file /tmp/changeset.json --json
+eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
 
 ## CLI Command Reference
 
 | Command | Purpose |
 |---------|---------|
-| `./cli/bin/eden projects list --json` | List projects (get Eden project UUID) |
-| `./cli/bin/eden map --project $PID --json` | Full map (personas, activities, steps, tasks) |
-| `./cli/bin/eden question list --project $PID --json` | List existing questions |
-| `./cli/bin/eden changeset create --project $PID --file <path> --json` | Create changeset |
+| `eden projects list --json` | List projects (get Eden project UUID) |
+| `eden map --project $PID --json` | Full map (personas, activities, steps, tasks) |
+| `eden question list --project $PID --json` | List existing questions |
+| `eden changeset create --project $PID --file <path> --json` | Create changeset |
+| `eden source list --project $PID --json` | List ingestion sources |
+| `eden source update-status --source $SRC_ID --status <status>` | Update source status |
 
 ## Changeset Item Types
 
@@ -94,7 +105,7 @@ The `display_reference` is used as the entity's `display_id` in the database. St
 - **Steps** must include `activity_ref` in `after_state` pointing to the parent activity's display_reference (e.g., `"activity_ref": "ACT-1"`)
 - **Tasks** must include `step_ref` in `after_state` pointing to the parent step's display_reference (e.g., `"step_ref": "STP-1.1"`)
 
-**Example changeset items in correct order (persona → activity → step → task):**
+**Example changeset items in correct order (persona -> activity -> step -> task):**
 ```json
 {"entity_type":"activity","operation":"create","display_reference":"ACT-1",
  "after_state":{"name":"System Setup"},"description":"New activity"},
@@ -108,19 +119,17 @@ The `display_reference` is used as the entity's `display_id` in the database. St
 
 After creating the changeset, you **MUST** update the ingestion source status so the UI reflects completion.
 
-Find the source by listing sources and matching the filename from the workflow input:
-```bash
-SRC_ID=$(./cli/bin/eden source list --project $PID --json | jq -r '.[] | select(.status == "extracted" or .status == "processing") | .id' | head -1)
-```
+Find the source by matching the `payload.ingest_id` from the workflow input:
 
-Then mark it as synthesized:
 ```bash
-./cli/bin/eden source update-status --source "$SRC_ID" --status synthesized
+INGEST_ID="<payload.ingest_id from workflow input>"
+SRC_ID=$(eden source list --project $PID --json | jq -r --arg iid "$INGEST_ID" '.[] | select(.eve_ingest_id == $iid) | .id')
+eden source update-status --source "$SRC_ID" --status synthesized
 ```
 
 If the changeset creation fails, mark the source as failed:
 ```bash
-./cli/bin/eden source update-status --source "$SRC_ID" --status failed --error "Synthesis failed: <reason>"
+eden source update-status --source "$SRC_ID" --status failed --error "Synthesis failed: <reason>"
 ```
 
 ## Guidelines
@@ -129,4 +138,4 @@ If the changeset creation fails, mark the source as failed:
 - Include reasoning for every proposed change
 - When in doubt, create a question rather than making assumptions
 - Keep the changeset focused — one changeset per source document
-- **Items are auto-sorted by dependency order** (persona → activity → step → task → question) during accept, so ordering in the changeset doesn't matter
+- **Items are auto-sorted by dependency order** (persona -> activity -> step -> task -> question) during accept, so ordering in the changeset doesn't matter
