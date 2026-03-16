@@ -67,12 +67,12 @@ export function SourcesPage() {
     fetchSources();
   }, [fetchSources]);
 
-  // Auto-poll every 5s while any source is still processing
+  // Auto-poll every 5s while any source is still in progress
   useEffect(() => {
-    const hasProcessing = sources.some(
-      (s) => s.status === 'processing' || s.status === 'uploaded',
+    const hasInProgress = sources.some(
+      (s) => s.status === 'processing' || s.status === 'extracted' || s.status === 'uploaded',
     );
-    if (!hasProcessing) return;
+    if (!hasInProgress) return;
     const timer = setInterval(fetchSources, 5000);
     return () => clearInterval(timer);
   }, [sources, fetchSources]);
@@ -380,13 +380,13 @@ function SourceDetailPanel({
         </div>
       </div>
 
-      {/* Processing progress */}
-      {source.status === 'processing' && (
+      {/* Pipeline progress */}
+      {isInProgress(source.status) && (
         <div className="px-5 py-3 border-b border-eden-border bg-blue-50/50">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs font-medium text-blue-700">
-              Ingestion pipeline running
+              {pipelineStageLabel(source.status)}
             </span>
             {source.eve_job_id && (
               <span className="text-[10px] font-mono text-blue-500 ml-auto">
@@ -394,6 +394,7 @@ function SourceDetailPanel({
               </span>
             )}
           </div>
+          <PipelineProgress status={source.status} />
         </div>
       )}
 
@@ -490,11 +491,55 @@ function SourceStatusBadge({ status }: { status: SourceStatus }) {
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium capitalize ${style}`}
     >
-      {status === 'processing' && (
+      {isInProgress(status) && (
         <span className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin" />
       )}
       {status}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline progress
+// ---------------------------------------------------------------------------
+
+const PIPELINE_STAGES = ['processing', 'extracted', 'synthesized'] as const;
+
+function isInProgress(status: string): boolean {
+  return status === 'processing' || status === 'extracted';
+}
+
+function pipelineStageLabel(status: string): string {
+  switch (status) {
+    case 'processing': return 'Ingesting document...';
+    case 'extracted': return 'Extracting requirements...';
+    default: return 'Processing...';
+  }
+}
+
+function PipelineProgress({ status }: { status: string }) {
+  const currentIdx = PIPELINE_STAGES.indexOf(status as typeof PIPELINE_STAGES[number]);
+  return (
+    <div className="flex items-center gap-1">
+      {PIPELINE_STAGES.map((stage, i) => {
+        const done = i < currentIdx;
+        const active = i === currentIdx;
+        return (
+          <div key={stage} className="flex items-center gap-1 flex-1">
+            <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-blue-100">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  done ? 'w-full bg-blue-500' :
+                  active ? 'w-1/2 bg-blue-400 animate-pulse' :
+                  'w-0'
+                }`}
+              />
+            </div>
+            {i < PIPELINE_STAGES.length - 1 && <div className="w-1" />}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
