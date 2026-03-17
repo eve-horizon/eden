@@ -205,7 +205,11 @@ export class ChangesetsService {
   // Accept all
   // -------------------------------------------------------------------------
 
-  async accept(ctx: DbContext, id: string): Promise<ChangesetDetail> {
+  async accept(
+    ctx: DbContext,
+    id: string,
+    projectRole?: string | null,
+  ): Promise<ChangesetDetail> {
     return this.db.withClient(ctx, async (client) => {
       const changeset = await this.lockChangeset(client, id);
       const projectId = changeset.project_id;
@@ -238,11 +242,16 @@ export class ChangesetsService {
         return aOrder - bOrder;
       });
 
+      // Two-stage approval: editors create preview items, owners create approved items
+      const isOwner = projectRole === 'owner' || projectRole === null; // null = agent bypass
+      const taskApproval = isOwner ? 'approved' : 'preview';
+      const itemApprovalStatus = isOwner ? 'applied' : 'pending_approval';
+
       for (const item of items) {
-        await this.applyItem(client, ctx, item, projectId);
+        await this.applyItem(client, ctx, item, projectId, taskApproval);
         await client.query(
-          `UPDATE changeset_items SET status = 'accepted' WHERE id = $1`,
-          [item.id],
+          `UPDATE changeset_items SET status = 'accepted', approval_status = $2 WHERE id = $1`,
+          [item.id, itemApprovalStatus],
         );
       }
 
@@ -259,7 +268,7 @@ export class ChangesetsService {
           projectId,
           id,
           ctx.user_id ?? null,
-          JSON.stringify({ items_accepted: items.length }),
+          JSON.stringify({ items_accepted: items.length, approval: taskApproval }),
         ],
       );
 
@@ -337,6 +346,7 @@ export class ChangesetsService {
     ctx: DbContext,
     id: string,
     decisions: ReviewDecision[],
+    projectRole?: string | null,
   ): Promise<ChangesetDetail> {
     return this.db.withClient(ctx, async (client) => {
       const changeset = await this.lockChangeset(client, id);
@@ -347,6 +357,10 @@ export class ChangesetsService {
           `Changeset is "${changeset.status}", expected "draft"`,
         );
       }
+
+      const isOwner = projectRole === 'owner' || projectRole === null;
+      const taskApproval = isOwner ? 'approved' : 'preview';
+      const itemApprovalStatus = isOwner ? 'applied' : 'pending_approval';
 
       for (const decision of decisions) {
         if (decision.status === 'accepted') {
@@ -359,10 +373,10 @@ export class ChangesetsService {
             throw new NotFoundException(`Changeset item ${decision.id} not found`);
           }
 
-          await this.applyItem(client, ctx, item, projectId);
+          await this.applyItem(client, ctx, item, projectId, taskApproval);
           await client.query(
-            `UPDATE changeset_items SET status = 'accepted' WHERE id = $1`,
-            [decision.id],
+            `UPDATE changeset_items SET status = 'accepted', approval_status = $2 WHERE id = $1`,
+            [decision.id, itemApprovalStatus],
           );
         } else {
           await client.query(
@@ -419,6 +433,7 @@ export class ChangesetsService {
     ctx: DbContext,
     item: ChangesetItemRow,
     projectId: string,
+    taskApproval: string = 'approved',
   ): Promise<void> {
     const afterState = (item.after_state ?? {}) as Record<string, unknown>;
     const entityType = item.entity_type;
@@ -443,8 +458,8 @@ export class ChangesetsService {
         const { rows } = await client.query(
           `INSERT INTO tasks
                   (org_id, project_id, display_id, title, user_story,
-                   acceptance_criteria, priority, status, device)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                   acceptance_criteria, priority, status, device, approval)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
              RETURNING id`,
           [
             ctx.org_id,
@@ -456,6 +471,7 @@ export class ChangesetsService {
             afterState.priority ?? 'medium',
             afterState.status ?? 'draft',
             afterState.device ?? null,
+            taskApproval,
           ],
         );
         const taskId = rows[0].id;
@@ -700,6 +716,135 @@ export class ChangesetsService {
           `Unsupported changeset item: ${key}`,
         );
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pending approvals (WS2: Two-Stage Approval)
+  // -------------------------------------------------------------------------
+
+  async pendingApprovals(
+    ctx: DbContext,
+    projectId: string,
+  ): Promise<ChangesetItemRow[]> {
+    return this.db.query<ChangesetItemRow>(
+      ctx,
+      `SELECT ci.*
+         FROM changeset_items ci
+         JOIN changesets c ON c.id = ci.changeset_id
+        WHERE c.project_id = $1
+          AND ci.approval_status = 'pending_approval'
+        ORDER BY ci.created_at`,
+      [projectId],
+    );
+  }
+
+  async approveItems(
+    ctx: DbContext,
+    projectId: string,
+    itemIds: string[],
+  ): Promise<{ approved: number }> {
+    if (itemIds.length === 0) return { approved: 0 };
+
+    return this.db.withClient(ctx, async (client) => {
+      let approved = 0;
+
+      for (const itemId of itemIds) {
+        // Update changeset item approval status
+        const { rowCount } = await client.query(
+          `UPDATE changeset_items
+              SET approval_status = 'owner_approved',
+                  approved_by = $2,
+                  approved_at = NOW()
+            WHERE id = $1 AND approval_status = 'pending_approval'`,
+          [itemId, ctx.user_id ?? null],
+        );
+
+        if (rowCount && rowCount > 0) {
+          approved++;
+
+          // Promote any tasks that were created as 'preview' to 'approved'
+          // Find tasks created by this changeset item via audit trail
+          await client.query(
+            `UPDATE tasks SET approval = 'approved'
+              WHERE id IN (
+                SELECT entity_id::uuid FROM audit_log
+                 WHERE details->>'changeset_item_id' = $1
+                   AND entity_type = 'task'
+                   AND action = 'create'
+              )`,
+            [itemId],
+          );
+        }
+      }
+
+      await client.query(
+        `INSERT INTO audit_log (org_id, project_id, entity_type, entity_id, action, actor, details)
+              VALUES ($1, $2, 'changeset_item', $3, 'owner_approve', $4, $5)`,
+        [
+          ctx.org_id,
+          projectId,
+          itemIds[0],
+          ctx.user_id ?? null,
+          JSON.stringify({ item_count: approved, item_ids: itemIds }),
+        ],
+      );
+
+      return { approved };
+    });
+  }
+
+  async rejectItems(
+    ctx: DbContext,
+    projectId: string,
+    itemIds: string[],
+  ): Promise<{ rejected: number }> {
+    if (itemIds.length === 0) return { rejected: 0 };
+
+    return this.db.withClient(ctx, async (client) => {
+      let rejected = 0;
+
+      for (const itemId of itemIds) {
+        const { rowCount } = await client.query(
+          `UPDATE changeset_items
+              SET approval_status = 'owner_rejected',
+                  approved_by = $2,
+                  approved_at = NOW()
+            WHERE id = $1 AND approval_status = 'pending_approval'`,
+          [itemId, ctx.user_id ?? null],
+        );
+
+        if (rowCount && rowCount > 0) {
+          rejected++;
+
+          // Remove preview tasks that were created by this changeset item
+          await client.query(
+            `DELETE FROM tasks
+              WHERE approval = 'preview'
+                AND id IN (
+                  SELECT entity_id::uuid FROM audit_log
+                   WHERE details->>'changeset_item_id' = $1
+                     AND entity_type = 'task'
+                     AND action = 'create'
+                )`,
+            [itemId],
+          );
+        }
+      }
+
+      await client.query(
+        `INSERT INTO audit_log (org_id, project_id, entity_type, entity_id, action, actor, details)
+              VALUES ($1, $2, 'changeset_item', $3, 'owner_reject', $4, $5)`,
+        [
+          ctx.org_id,
+          projectId,
+          itemIds[0],
+          ctx.user_id ?? null,
+          JSON.stringify({ item_count: rejected, item_ids: itemIds }),
+        ],
+      );
+
+      return { rejected };
+    });
   }
 
   // -------------------------------------------------------------------------

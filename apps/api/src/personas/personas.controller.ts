@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { PersonasService } from './personas.service';
 
@@ -28,6 +29,7 @@ export class PersonasController {
   }
 
   @Post('projects/:projectId/personas')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -38,6 +40,7 @@ export class PersonasController {
   }
 
   @Patch('personas/:id')
+  @UseGuards(EditorGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -47,6 +50,7 @@ export class PersonasController {
   }
 
   @Delete('personas/:id')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.personas.remove(dbContext(req), id);

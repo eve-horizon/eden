@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { OwnerGuard } from '../common/owner.guard';
 import { dbContext } from '../common/request.util';
 import { ProjectsService } from './projects.service';
 
@@ -39,6 +40,7 @@ export class ProjectsController {
   }
 
   @Patch(':id')
+  @UseGuards(OwnerGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -48,6 +50,7 @@ export class ProjectsController {
   }
 
   @Delete(':id')
+  @UseGuards(OwnerGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.projects.remove(dbContext(req), id);

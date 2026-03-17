@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { TasksService } from './tasks.service';
 
@@ -43,6 +44,7 @@ export class TasksController {
   }
 
   @Post('projects/:projectId/tasks')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -70,6 +72,7 @@ export class TasksController {
   }
 
   @Patch('tasks/:id')
+  @UseGuards(EditorGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -79,6 +82,7 @@ export class TasksController {
   }
 
   @Delete('tasks/:id')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.tasks.remove(dbContext(req), id);
@@ -89,6 +93,7 @@ export class TasksController {
   // -------------------------------------------------------------------------
 
   @Post('tasks/:id/place')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   place(
     @Req() req: Request,
@@ -105,12 +110,14 @@ export class TasksController {
   }
 
   @Delete('step-tasks/:id')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeStepTask(@Req() req: Request, @Param('id') id: string) {
     await this.tasks.removeStepTask(dbContext(req), id);
   }
 
   @Post('projects/:projectId/tasks/reorder')
+  @UseGuards(EditorGuard)
   reorder(
     @Req() req: Request,
     @Param('projectId') projectId: string,

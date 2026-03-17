@@ -102,6 +102,7 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
       style={cardStyle}
       data-testid={`task-card-${task.display_id}`}
       data-display-id={task.display_id}
+      data-approval={task.approval}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => forceExpanded === undefined && setLocalExpanded(!localExpanded)}
@@ -210,6 +211,25 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
               }}
             >
               DISCONTINUED
+            </span>
+          )}
+
+          {/* Pending review badge */}
+          {task.approval === 'preview' && (
+            <span
+              style={{
+                fontSize: '7px',
+                fontWeight: 800,
+                padding: '2px 6px',
+                borderRadius: '3px',
+                letterSpacing: '0.4px',
+                background: '#fef3c7',
+                color: '#92400e',
+                border: '1px solid #f59e0b',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              PENDING REVIEW
             </span>
           )}
 

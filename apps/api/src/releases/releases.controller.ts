@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import {
   CreateReleaseInput,
@@ -32,6 +33,7 @@ export class ReleasesController {
   }
 
   @Post('projects/:projectId/releases')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -42,6 +44,7 @@ export class ReleasesController {
   }
 
   @Patch('releases/:id')
+  @UseGuards(EditorGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -51,12 +54,14 @@ export class ReleasesController {
   }
 
   @Delete('releases/:id')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.releases.remove(dbContext(req), id);
   }
 
   @Post('releases/:id/tasks')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.OK)
   assignTasks(
     @Req() req: Request,
@@ -67,6 +72,7 @@ export class ReleasesController {
   }
 
   @Delete('releases/:id/tasks/:taskId')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeTask(
     @Req() req: Request,

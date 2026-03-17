@@ -43,6 +43,7 @@ export interface Task {
   source_id: string | null;
   role_in_journey: string;
   handoff_label: string | null;
+  approval?: string;
 }
 
 /** A task deduplicated across placements — collects all persona roles. */

@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { ReviewsService } from './reviews.service';
 
@@ -31,6 +32,7 @@ export class ReviewsController {
   }
 
   @Post('projects/:projectId/reviews')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,

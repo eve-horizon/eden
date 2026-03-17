@@ -77,6 +77,32 @@
   .flash-highlight {
     animation: flash-glow 2s ease-out forwards;
   }
+
+  /* Phase 6a: approval flash and preview border */
+  @keyframes flash-accept {
+    0% { box-shadow: 0 0 0 4px #f97316; }
+    100% { box-shadow: none; }
+  }
+
+  .flash-accept {
+    animation: flash-accept 2s ease-out;
+  }
+
+  [data-approval="preview"] {
+    position: relative;
+  }
+
+  [data-approval="preview"]::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border: 2px solid #f59e0b;
+    border-radius: 10px;
+    pointer-events: none;
+  }
 }
 
 @layer components {

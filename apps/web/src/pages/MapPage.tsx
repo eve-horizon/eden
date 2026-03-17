@@ -7,6 +7,8 @@ import { CrossCuttingPanel } from '../components/questions/CrossCuttingPanel';
 import { QuestionModal } from '../components/questions/QuestionModal';
 import { ChangesetReviewModal } from '../components/changesets/ChangesetReviewModal';
 import { EvolvedBadge } from '../components/map/EvolvedBadge';
+import { useProjectRole } from '../hooks/useProjectRole';
+import { usePendingApprovals } from '../hooks/usePendingApprovals';
 
 // ---------------------------------------------------------------------------
 // MapPage — renders the full story map grid with Phase 3 intelligence panels
@@ -25,6 +27,15 @@ interface ChangesetDetail {
 
 export function MapPage() {
   const { projectId } = useParams<{ projectId: string }>();
+
+  // Role-based access — canEdit will gate future inline editing controls
+  const projectRole = useProjectRole(projectId);
+  const { isOwner } = projectRole;
+  const pendingApprovals = usePendingApprovals(projectId);
+  const { items: pendingItems } = pendingApprovals;
+
+  // Pending approvals panel
+  const [pendingOpen, setPendingOpen] = useState(false);
 
   // Panel state
   const [chatOpen, setChatOpen] = useState(false);
@@ -280,6 +291,21 @@ export function MapPage() {
           </button>
 
           <div className="w-px h-5 bg-eden-border" />
+
+          {/* Pending Approvals badge — owner-only */}
+          {pendingItems.length > 0 && isOwner && (
+            <button
+              onClick={() => setPendingOpen(!pendingOpen)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100 transition-colors"
+              data-testid="pending-approvals-btn"
+            >
+              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {pendingItems.length}
+              </span>
+              Pending Review
+            </button>
+          )}
 
           {/* Cross-Cutting Qs */}
           <button

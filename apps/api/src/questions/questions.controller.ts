@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import {
   CreateQuestionInput,
@@ -41,6 +42,7 @@ export class QuestionsController {
   }
 
   @Post('projects/:projectId/questions')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -56,6 +58,7 @@ export class QuestionsController {
   }
 
   @Patch('questions/:id')
+  @UseGuards(EditorGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -65,6 +68,7 @@ export class QuestionsController {
   }
 
   @Post('questions/:id/evolve')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.OK)
   evolve(
     @Req() req: Request,
@@ -75,6 +79,7 @@ export class QuestionsController {
   }
 
   @Delete('questions/:id')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.questions.remove(dbContext(req), id);

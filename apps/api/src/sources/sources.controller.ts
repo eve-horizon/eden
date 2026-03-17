@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { SourcesService } from './sources.service';
 
@@ -33,7 +34,7 @@ export class SourcesController {
   }
 
   @Post('projects/:projectId/sources')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -51,7 +52,7 @@ export class SourcesController {
   }
 
   @Post('sources/:id/confirm')
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, EditorGuard)
   @HttpCode(HttpStatus.OK)
   confirm(@Req() req: Request, @Param('id') id: string) {
     return this.sources.confirm(dbContext(req), id);

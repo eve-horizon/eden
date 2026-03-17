@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { ChatGatewayService } from './chat-gateway.service';
 
@@ -31,6 +32,7 @@ export class ChatController {
   }
 
   @Post('projects/:projectId/chat/threads')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   createThread(
     @Req() req: Request,
@@ -57,6 +59,7 @@ export class ChatController {
   }
 
   @Post('chat/threads/:threadId/messages')
+  @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   sendMessage(
     @Req() req: Request,

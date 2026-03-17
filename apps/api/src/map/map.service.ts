@@ -57,6 +57,7 @@ interface StepTaskJoinRow {
   task_source_type: string | null;
   task_source_excerpt: string | null;
   task_source_id: string | null;
+  task_approval: string | null;
 }
 
 interface QuestionJoinRow {
@@ -108,6 +109,7 @@ interface MapTask {
   role_in_journey: string;
   handoff_label: string | null;
   questions: MapQuestion[];
+  approval: string;
 }
 
 interface MapStep {
@@ -221,6 +223,7 @@ export class MapService {
           role_in_journey: row.st_role_in_journey ?? 'primary',
           handoff_label: row.st_handoff_label,
           questions: questionsByTask.get(row.task_id) ?? [],
+          approval: row.task_approval ?? 'approved',
         };
 
         const list = tasksByStep.get(row.st_step_id) ?? [];
@@ -391,7 +394,8 @@ export class MapService {
               t.lifecycle      AS task_lifecycle,
               t.source_type    AS task_source_type,
               t.source_excerpt AS task_source_excerpt,
-              t.source_id      AS task_source_id
+              t.source_id      AS task_source_id,
+              t.approval       AS task_approval
          FROM step_tasks st
          JOIN tasks    t ON t.id = st.task_id
          JOIN personas p ON p.id = st.persona_id
