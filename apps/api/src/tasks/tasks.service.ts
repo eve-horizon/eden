@@ -353,6 +353,65 @@ export class TasksService {
     });
   }
 
+  async move(
+    ctx: DbContext,
+    taskId: string,
+    data: { from_step_id: string; to_step_id: string; sort_order?: number },
+  ): Promise<StepTaskRow> {
+    const task = await this.requireTask(ctx, taskId);
+
+    return this.db.withClient(ctx, async (client) => {
+      // Find the step_task for this task in the source step
+      const stResult = await client.query<StepTaskRow>(
+        `SELECT * FROM step_tasks WHERE task_id = $1 AND step_id = $2`,
+        [taskId, data.from_step_id],
+      );
+
+      const stepTask = stResult.rows[0];
+      if (!stepTask) {
+        throw new NotFoundException(
+          `Task ${taskId} has no placement in step ${data.from_step_id}`,
+        );
+      }
+
+      // Determine sort_order — use provided or append to end
+      let sortOrder = data.sort_order;
+      if (sortOrder === undefined) {
+        const maxResult = await client.query<{ max_sort: number }>(
+          `SELECT COALESCE(MAX(sort_order), -1) AS max_sort FROM step_tasks WHERE step_id = $1`,
+          [data.to_step_id],
+        );
+        sortOrder = (maxResult.rows[0]?.max_sort ?? -1) + 1;
+      }
+
+      // Update the step_task to the new step
+      const updated = await client.query<StepTaskRow>(
+        `UPDATE step_tasks SET step_id = $1, sort_order = $2 WHERE id = $3 RETURNING *`,
+        [data.to_step_id, sortOrder, stepTask.id],
+      );
+
+      // Audit log
+      await client.query(
+        `INSERT INTO audit_log (org_id, project_id, entity_type, entity_id, action, actor, details)
+              VALUES ($1, $2, 'step_task', $3, 'move', $4, $5)`,
+        [
+          task.org_id,
+          task.project_id,
+          stepTask.id,
+          ctx.user_id ?? null,
+          JSON.stringify({
+            task_id: taskId,
+            from_step_id: data.from_step_id,
+            to_step_id: data.to_step_id,
+            sort_order: sortOrder,
+          }),
+        ],
+      );
+
+      return updated.rows[0];
+    });
+  }
+
   async reorder(
     ctx: DbContext,
     projectId: string,

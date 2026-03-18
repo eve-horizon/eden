@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects, type ProjectWithCounts } from '../hooks/useProjects';
+import { ProjectWizard } from '../components/projects/ProjectWizard';
 
 // ---------------------------------------------------------------------------
 // ProjectsPage — grid of project cards + inline create form
 // ---------------------------------------------------------------------------
 
 export function ProjectsPage() {
-  const { projects, loading, error, createProject } = useProjects();
+  const { projects, loading, error, refetch } = useProjects();
   const [showCreate, setShowCreate] = useState(false);
 
   if (loading) return <PageSkeleton />;
@@ -41,12 +42,9 @@ export function ProjectsPage() {
       </div>
 
       {showCreate && (
-        <CreateProjectForm
-          onCreate={async (name, slug) => {
-            await createProject(name, slug);
-            setShowCreate(false);
-          }}
-          onCancel={() => setShowCreate(false)}
+        <ProjectWizard
+          onClose={() => setShowCreate(false)}
+          onProjectCreated={refetch}
         />
       )}
 
@@ -106,7 +104,8 @@ function ProjectCard({ project }: { project: ProjectWithCounts }) {
 // CreateProjectForm
 // ---------------------------------------------------------------------------
 
-function CreateProjectForm({
+// Kept as fallback — wizard is the primary creation flow
+export function CreateProjectForm({
   onCreate,
   onCancel,
 }: {

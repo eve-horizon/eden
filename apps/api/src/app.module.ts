@@ -18,6 +18,7 @@ import { SearchModule } from './search/search.module';
 import { SourcesModule } from './sources/sources.module';
 import { StepsModule } from './steps/steps.module';
 import { TasksModule } from './tasks/tasks.module';
+import { WizardModule } from './wizard/wizard.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { TasksModule } from './tasks/tasks.module';
     ExportModule,
     AuditModule,
     MembersModule,
+    WizardModule,
   ],
   providers: [DatabaseService],
 })

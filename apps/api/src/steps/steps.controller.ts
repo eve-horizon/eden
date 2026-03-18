@@ -59,6 +59,16 @@ export class StepsController {
     return this.steps.update(dbContext(req), id, body);
   }
 
+  @Patch('steps/:id/move')
+  @UseGuards(EditorGuard)
+  move(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { activity_id: string; sort_order?: number },
+  ) {
+    return this.steps.move(dbContext(req), id, body);
+  }
+
   @Delete('steps/:id')
   @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)

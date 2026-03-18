@@ -109,6 +109,16 @@ export class TasksController {
     return this.tasks.place(dbContext(req), id, body);
   }
 
+  @Patch('tasks/:id/move')
+  @UseGuards(EditorGuard)
+  move(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { from_step_id: string; to_step_id: string; sort_order?: number },
+  ) {
+    return this.tasks.move(dbContext(req), id, body);
+  }
+
   @Delete('step-tasks/:id')
   @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)

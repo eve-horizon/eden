@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { DeduplicatedTask } from './types';
 import { TaskCardExpanded } from './TaskCardExpanded';
+import { InlineEdit } from './InlineEdit';
 
 // ---------------------------------------------------------------------------
 // TaskCard — compact card for a single deduplicated task
@@ -17,6 +18,12 @@ interface TaskCardProps {
   aiStatus?: 'modified' | 'added' | null;
   onQuestionClick?: (questionId: string) => void;
   forceExpanded?: boolean;
+  canEdit?: boolean;
+  onRenameTask?: (taskId: string, title: string) => Promise<void>;
+  isOwner?: boolean;
+  onAskQuestion?: (taskDisplayId: string) => void;
+  onApprove?: (taskId: string) => Promise<void>;
+  onReject?: (taskId: string) => Promise<void>;
 }
 
 // Source badge color map
@@ -35,7 +42,7 @@ const DEVICE_STYLES: Record<string, { bg: string; color: string }> = {
   all:     { bg: '#e0e7ff', color: '#4338ca' },
 };
 
-export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpanded }: TaskCardProps) {
+export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpanded, canEdit, onRenameTask, isOwner, onAskQuestion, onApprove, onReject }: TaskCardProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = forceExpanded ?? localExpanded;
   const [hovered, setHovered] = useState(false);
@@ -122,7 +129,22 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
               margin: 0,
             }}
           >
-            {task.title}
+            {onRenameTask ? (
+              <InlineEdit
+                value={task.title}
+                onSave={(title) => onRenameTask(task.id, title)}
+                disabled={!canEdit}
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  lineHeight: 1.35,
+                  color: lifecycle === 'discontinued' ? '#9ca3af' : '#1a1a2e',
+                  textDecoration: lifecycle === 'discontinued' ? 'line-through' : undefined,
+                }}
+              />
+            ) : (
+              task.title
+            )}
           </h4>
 
           <span
@@ -139,6 +161,46 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
             <ChevronIcon className="w-4 h-4" />
           </span>
         </div>
+
+        {/* Quick actions — visible on hover for editors/owners */}
+        {hovered && !dimmed && (canEdit || isOwner) && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginBottom: '4px',
+            }}
+          >
+            {canEdit && onAskQuestion && (
+              <QuickActionButton
+                label="Ask Question"
+                onClick={(e) => { e.stopPropagation(); onAskQuestion(task.display_id); }}
+                style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #f59e0b' }}
+              >
+                ?
+              </QuickActionButton>
+            )}
+            {isOwner && task.approval === 'preview' && onApprove && (
+              <QuickActionButton
+                label="Approve"
+                onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
+                style={{ background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }}
+              >
+                ✓
+              </QuickActionButton>
+            )}
+            {isOwner && task.approval === 'preview' && onReject && (
+              <QuickActionButton
+                label="Reject"
+                onClick={(e) => { e.stopPropagation(); onReject(task.id); }}
+                style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #ef4444' }}
+              >
+                ✗
+              </QuickActionButton>
+            )}
+          </div>
+        )}
 
         {/* Metadata row: ID + persona badges + lifecycle + source + device + questions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
@@ -338,6 +400,41 @@ function DeviceBadge({ device }: { device: string }) {
     >
       {device}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// QuickActionButton — small hover-revealed action button
+// ---------------------------------------------------------------------------
+
+function QuickActionButton({
+  label,
+  onClick,
+  style,
+  children,
+}: {
+  label: string;
+  onClick: (e: React.MouseEvent) => void;
+  style: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={label}
+      style={{
+        fontSize: '9px',
+        fontWeight: 700,
+        padding: '2px 8px',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        transition: 'all 0.15s',
+        ...style,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

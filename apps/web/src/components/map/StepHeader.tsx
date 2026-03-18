@@ -1,4 +1,5 @@
 import type { Step } from './types';
+import { InlineEdit } from './InlineEdit';
 
 // ---------------------------------------------------------------------------
 // StepHeader — orange accent column header for a step within an activity
@@ -11,9 +12,11 @@ interface StepHeaderProps {
   step: Step;
   /** Color of the primary persona (first task's persona) — shown as a 4px left border. */
   primaryPersonaColor?: string | null;
+  canEdit?: boolean;
+  onRename?: (stepId: string, name: string) => Promise<void>;
 }
 
-export function StepHeader({ step, primaryPersonaColor }: StepHeaderProps) {
+export function StepHeader({ step, primaryPersonaColor, canEdit, onRename }: StepHeaderProps) {
   return (
     <div
       style={{
@@ -41,7 +44,18 @@ export function StepHeader({ step, primaryPersonaColor }: StepHeaderProps) {
       >
         {step.display_id}
       </span>
-      {step.name}
+      {onRename ? (
+        <InlineEdit
+          value={step.name}
+          onSave={(name) => onRename(step.id, name)}
+          disabled={!canEdit}
+          darkBackground
+          style={{ color: '#fff', fontSize: '11px', fontWeight: 600 }}
+          inputClassName="text-white"
+        />
+      ) : (
+        step.name
+      )}
     </div>
   );
 }

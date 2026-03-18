@@ -180,6 +180,62 @@ export class StepsService {
   }
 
   /**
+   * Move a step from its current activity to a different activity.
+   * Optionally set sort_order; defaults to appending at the end.
+   */
+  async move(
+    ctx: DbContext,
+    id: string,
+    data: { activity_id: string; sort_order?: number },
+  ): Promise<Step> {
+    return this.db.withClient(ctx, async (client) => {
+      // Verify target activity exists
+      const activity = await client.query<ActivityRow>(
+        'SELECT id, project_id FROM activities WHERE id = $1',
+        [data.activity_id],
+      );
+      if (activity.rows.length === 0) {
+        throw new NotFoundException('Target activity not found');
+      }
+
+      // Determine sort_order
+      let sortOrder = data.sort_order;
+      if (sortOrder === undefined) {
+        const maxResult = await client.query<{ max_sort: number }>(
+          `SELECT COALESCE(MAX(sort_order), -1) AS max_sort FROM steps WHERE activity_id = $1`,
+          [data.activity_id],
+        );
+        sortOrder = (maxResult.rows[0]?.max_sort ?? -1) + 1;
+      }
+
+      const { rows } = await client.query<Step>(
+        `UPDATE steps SET activity_id = $1, sort_order = $2 WHERE id = $3 RETURNING *`,
+        [data.activity_id, sortOrder, id],
+      );
+      const step = rows[0];
+      if (!step) throw new NotFoundException('Step not found');
+
+      // Audit log
+      await client.query(
+        `INSERT INTO audit_log (org_id, project_id, entity_type, entity_id, action, actor, details)
+              VALUES ($1, $2, 'step', $3, 'move', $4, $5)`,
+        [
+          step.org_id,
+          step.project_id,
+          step.id,
+          ctx.user_id ?? null,
+          JSON.stringify({
+            activity_id: data.activity_id,
+            sort_order: sortOrder,
+          }),
+        ],
+      );
+
+      return step;
+    });
+  }
+
+  /**
    * Reorder steps within an activity.
    * Accepts an ordered array of step IDs — each receives sort_order
    * based on its array position.

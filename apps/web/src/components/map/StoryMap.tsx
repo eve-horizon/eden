@@ -9,6 +9,9 @@ import { MapLegend } from './MapLegend';
 import { StepHeader } from './StepHeader';
 import { TaskCard } from './TaskCard';
 import { MiniMap } from './MiniMap';
+import { InlineEdit } from './InlineEdit';
+import { useDragDrop } from '../../hooks/useDragDrop';
+import { useProjectRole } from '../../hooks/useProjectRole';
 
 // ---------------------------------------------------------------------------
 // StoryMap — main component
@@ -65,6 +68,9 @@ export function StoryMap({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Role-based editing
+  const { canEdit } = useProjectRole(projectId);
+
   const fetchMap = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
@@ -94,6 +100,28 @@ export function StoryMap({
   }, [projectId, personaTab, releaseFilter]);
 
   useEffect(() => {
+    fetchMap();
+  }, [fetchMap]);
+
+  // Drag-and-drop
+  const drag = useDragDrop({
+    projectId: projectId!,
+    onMoveComplete: fetchMap,
+  });
+
+  // Inline rename handlers
+  const handleRenameActivity = useCallback(async (activityId: string, name: string) => {
+    await api.patch(`/activities/${activityId}`, { name });
+    fetchMap();
+  }, [fetchMap]);
+
+  const handleRenameStep = useCallback(async (stepId: string, name: string) => {
+    await api.patch(`/steps/${stepId}`, { name });
+    fetchMap();
+  }, [fetchMap]);
+
+  const handleRenameTask = useCallback(async (taskId: string, title: string) => {
+    await api.patch(`/tasks/${taskId}`, { title });
     fetchMap();
   }, [fetchMap]);
 
@@ -221,6 +249,15 @@ export function StoryMap({
                   gridColumn={`${start} / span ${span}`}
                   dimmed={isDimmed}
                   isLast={actIdx === data.activities.length - 1}
+                  canEdit={canEdit}
+                  onRename={handleRenameActivity}
+                  isDropTarget={drag.dropTarget === `act-${activity.id}`}
+                  draggable={canEdit}
+                  onDragStart={(e) => drag.handleDragStart(e, { type: 'activity', id: activity.id })}
+                  onDragEnd={drag.handleDragEnd}
+                  onDragOver={(e) => drag.handleDragOver(e, `act-${activity.id}`)}
+                  onDragLeave={drag.handleDragLeave}
+                  onDrop={(e) => drag.handleActivityDrop(e, actIdx, data.activities.map(a => a.id))}
                 />
               );
             })}
@@ -236,15 +273,29 @@ export function StoryMap({
                 return (
                   <div
                     key={`stp-${step.id}`}
+                    draggable={canEdit}
+                    onDragStart={(e) => drag.handleDragStart(e, {
+                      type: 'step',
+                      id: step.id,
+                      sourceActivityId: activity.id,
+                    })}
+                    onDragEnd={drag.handleDragEnd}
+                    onDragOver={(e) => drag.handleDragOver(e, `stp-${step.id}`)}
+                    onDragLeave={drag.handleDragLeave}
+                    onDrop={(e) => drag.handleStepDrop(e, activity.id)}
                     style={{
                       gridRow: 2,
                       opacity: isDimmed ? 0.1 : 1,
                       pointerEvents: isDimmed ? 'none' : undefined,
+                      outline: drag.dropTarget === `stp-${step.id}` ? '2px dashed #3b82f6' : undefined,
+                      cursor: canEdit ? 'grab' : undefined,
                     }}
                   >
                     <StepHeader
                       step={step}
                       primaryPersonaColor={primaryPersonaColor}
+                      canEdit={canEdit}
+                      onRename={handleRenameStep}
                     />
                   </div>
                 );
@@ -276,6 +327,9 @@ export function StoryMap({
                   <div
                     key={`tasks-${step.id}`}
                     className="task-cell"
+                    onDragOver={(e) => drag.handleDragOver(e, `tasks-${step.id}`)}
+                    onDragLeave={drag.handleDragLeave}
+                    onDrop={(e) => drag.handleTaskDrop(e, step.id)}
                     style={{
                       gridRow: 3,
                       padding: '10px 8px',
@@ -283,10 +337,11 @@ export function StoryMap({
                       flexDirection: 'column',
                       gap: '8px',
                       borderRight: '1px dashed #d1d5db',
-                      background: '#f0f2f5',
+                      background: drag.dropTarget === `tasks-${step.id}` ? '#e0f2fe' : '#f0f2f5',
                       minHeight: '120px',
                       opacity: isDimmed ? 0.1 : 1,
                       pointerEvents: isDimmed ? 'none' : undefined,
+                      transition: 'background 0.15s',
                     }}
                   >
                     {deduped.length === 0 ? (
@@ -295,21 +350,34 @@ export function StoryMap({
                       </div>
                     ) : (
                       deduped.map((task) => (
-                        <TaskCard
+                        <div
                           key={task.id}
-                          task={task}
-                          dimmed={
-                            roleHighlight !== null &&
-                            !task.personas.some((p) => p.persona.code === roleHighlight)
-                          }
-                          aiStatus={
-                            aiAddedEntities?.has(task.display_id) ? 'added'
-                            : aiModifiedEntities?.has(task.display_id) ? 'modified'
-                            : undefined
-                          }
-                          onQuestionClick={onQuestionClick}
-                          forceExpanded={expandAll ? true : undefined}
-                        />
+                          draggable={canEdit}
+                          onDragStart={(e) => drag.handleDragStart(e, {
+                            type: 'task',
+                            id: task.id,
+                            sourceStepId: step.id,
+                          })}
+                          onDragEnd={drag.handleDragEnd}
+                          style={{ cursor: canEdit ? 'grab' : undefined }}
+                        >
+                          <TaskCard
+                            task={task}
+                            dimmed={
+                              roleHighlight !== null &&
+                              !task.personas.some((p) => p.persona.code === roleHighlight)
+                            }
+                            aiStatus={
+                              aiAddedEntities?.has(task.display_id) ? 'added'
+                              : aiModifiedEntities?.has(task.display_id) ? 'modified'
+                              : undefined
+                            }
+                            onQuestionClick={onQuestionClick}
+                            forceExpanded={expandAll ? true : undefined}
+                            canEdit={canEdit}
+                            onRenameTask={handleRenameTask}
+                          />
+                        </div>
                       ))
                     )}
                   </div>
@@ -383,11 +451,29 @@ function ActivityHeader({
   gridColumn,
   dimmed,
   isLast,
+  canEdit,
+  onRename,
+  isDropTarget,
+  draggable,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   activity: Activity;
   gridColumn: string;
   dimmed: boolean;
   isLast: boolean;
+  canEdit?: boolean;
+  onRename?: (activityId: string, name: string) => Promise<void>;
+  isDropTarget?: boolean;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
 }) {
   // Collect unique personas that have tasks within this activity
   const personaMap = new Map<string, Persona>();
@@ -412,6 +498,12 @@ function ActivityHeader({
   return (
     <div
       data-testid={`activity-${activity.display_id}`}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       style={{
         gridRow: 1,
         gridColumn,
@@ -428,13 +520,26 @@ function ActivityHeader({
         borderRight: isLast ? 'none' : '2px solid rgba(255,255,255,0.1)',
         opacity: dimmed ? 0.1 : 1,
         pointerEvents: dimmed ? 'none' : undefined,
+        outline: isDropTarget ? '2px dashed #3b82f6' : undefined,
+        cursor: canEdit ? 'grab' : undefined,
       }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <span style={{ fontSize: '9px', fontWeight: 500, opacity: 0.4, marginRight: '6px' }}>
           {activity.display_id}
         </span>
-        {activity.name}
+        {onRename ? (
+          <InlineEdit
+            value={activity.name}
+            onSave={(name) => onRename(activity.id, name)}
+            disabled={!canEdit}
+            darkBackground
+            style={{ color: '#fff', fontSize: '13px', fontWeight: 700 }}
+            inputClassName="text-white"
+          />
+        ) : (
+          activity.name
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>

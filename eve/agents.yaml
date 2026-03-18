@@ -233,3 +233,22 @@ agents:
       git:
         commit: never
         push: never
+
+  # Phase 6: Project Wizard Agent
+  map-generator:
+    slug: map-generator
+    name: "Map Generator"
+    description: "Generates initial story map structures from project descriptions"
+    skill: map-generator
+    harness_profile: expert
+    workflow: assistant
+    with_apis:
+      - service: api
+        description: Eden Story Map API for creating personas, activities, steps, tasks, and changesets
+    gateway:
+      policy: none
+    policies:
+      permission_policy: yolo
+      git:
+        commit: never
+        push: never
