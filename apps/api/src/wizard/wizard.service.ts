@@ -63,9 +63,9 @@ export class WizardService {
       'POST',
       `/projects/${this.eveProjectId}/jobs`,
       {
-        agent: 'map-generator',
+        assignee: 'map-generator',
         title: `Generate map: ${project.name}`,
-        message: prompt,
+        description: prompt,
       },
     );
 
