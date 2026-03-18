@@ -1,6 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useEveAuth } from '@eve-horizon/auth-react';
+import { NotificationBell } from './NotificationBell';
+import { Walkthrough, isWalkthroughComplete, resetWalkthrough } from '../onboarding/Walkthrough';
+import type { WalkthroughRole } from '../onboarding/Walkthrough';
+import { WalkthroughTrigger } from '../onboarding/WalkthroughTrigger';
 
 interface EveUser {
   id: string;
@@ -32,6 +36,17 @@ export function AppShell({
 
   const { orgs, activeOrg, switchOrg } = useEveAuth();
   const currentOrgId = activeOrg?.id ?? user.orgId;
+
+  // Walkthrough state — derive role from user's org role
+  const walkthroughRole: WalkthroughRole = user.role === 'owner' || user.role === 'admin' ? 'owner' : 'viewer';
+  const [walkthroughActive, setWalkthroughActive] = useState(
+    () => projectId != null && !isWalkthroughComplete(walkthroughRole),
+  );
+
+  const handleReplayWalkthrough = useCallback(() => {
+    resetWalkthrough(walkthroughRole);
+    setWalkthroughActive(true);
+  }, [walkthroughRole]);
 
   // Build nav items based on whether we have a project context
   const navItems = projectId
@@ -158,7 +173,9 @@ export function AppShell({
             )}
           </div>
 
-          {/* User menu */}
+          {/* Notification bell + User menu */}
+          <div className="flex items-center gap-2">
+          <NotificationBell />
           <div className="relative">
             <button
               onClick={() => {
@@ -197,6 +214,7 @@ export function AppShell({
                 </button>
               </div>
             )}
+          </div>
           </div>
         </div>
       </header>
@@ -262,16 +280,28 @@ export function AppShell({
             })}
           </div>
 
-          <div className="px-3 py-4 border-t border-eden-border">
+          <div className="px-3 py-4 border-t border-eden-border flex items-center justify-between">
             <p className="text-[10px] font-medium uppercase tracking-wider text-eden-text-2">
-              Phase 4 — Polish
+              Phase 6c
             </p>
+            {projectId && (
+              <WalkthroughTrigger onClick={handleReplayWalkthrough} />
+            )}
           </div>
         </nav>
 
         {/* Main content */}
         <main className="flex flex-1 min-h-0 flex-col overflow-hidden">{children}</main>
       </div>
+
+      {/* Walkthrough overlay */}
+      {projectId && (
+        <Walkthrough
+          role={walkthroughRole}
+          active={walkthroughActive}
+          onDismiss={() => setWalkthroughActive(false)}
+        />
+      )}
     </div>
   );
 }

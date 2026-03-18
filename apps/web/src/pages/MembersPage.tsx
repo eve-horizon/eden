@@ -2,6 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useProjectRole } from '../hooks/useProjectRole';
 import { useMembers, type ProjectMember } from '../hooks/useMembers';
 import { useState } from 'react';
+import { InviteModal } from '../components/projects/InviteModal';
 
 // ---------------------------------------------------------------------------
 // MembersPage — full-page project member management.
@@ -32,6 +33,9 @@ export function MembersPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
 
+  // InviteModal state
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
   if (!projectId) return null;
 
   const handleInvite = async () => {
@@ -59,7 +63,22 @@ export function MembersPage() {
   return (
     <div className="flex-1 overflow-auto p-6">
       <div className="max-w-2xl mx-auto">
-        <h2 className="text-xl font-bold text-eden-text mb-6">Project Members</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-eden-text">Project Members</h2>
+          {isOwner && (
+            <button
+              onClick={() => setInviteModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold
+                         bg-eden-accent text-white hover:opacity-90 transition-opacity"
+              data-testid="open-invite-modal-btn"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" />
+              </svg>
+              Invite Member
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <div className="text-center py-12 text-eden-text-2 text-sm">Loading members...</div>
@@ -186,6 +205,13 @@ export function MembersPage() {
           </>
         )}
       </div>
+
+      {/* Invite Modal */}
+      <InviteModal
+        open={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        onInvite={invite}
+      />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useCallback, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { StoryMap } from '../components/map/StoryMap';
+import { MapViewTabs } from '../components/map/MapViewTabs';
+import { ReleaseSlices } from '../components/map/ReleaseSlices';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { CrossCuttingPanel } from '../components/questions/CrossCuttingPanel';
 import { QuestionModal } from '../components/questions/QuestionModal';
@@ -28,9 +30,11 @@ interface ChangesetDetail {
 export function MapPage() {
   const { projectId } = useParams<{ projectId: string }>();
 
+  const [, setSearchParams] = useSearchParams();
+
   // Role-based access — canEdit will gate future inline editing controls
   const projectRole = useProjectRole(projectId);
-  const { isOwner } = projectRole;
+  const { isOwner, canEdit } = projectRole;
   const pendingApprovals = usePendingApprovals(projectId);
   const { items: pendingItems } = pendingApprovals;
 
@@ -195,10 +199,31 @@ export function MapPage() {
     }
   }, [projectId]);
 
+  // View filter handler — applies saved view filters to URL search params
+  const handleApplyViewFilters = useCallback(
+    (filters: Record<string, string>) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        // Clear existing view-managed params
+        next.delete('persona');
+        next.delete('release');
+        // Apply new filters
+        for (const [key, value] of Object.entries(filters)) {
+          if (value) next.set(key, value);
+        }
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
+
   if (!projectId) return null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* View tabs */}
+      <MapViewTabs projectId={projectId} onApplyFilters={handleApplyViewFilters} />
+
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-eden-border bg-eden-surface">
         <div className="flex items-center gap-3">
@@ -341,6 +366,9 @@ export function MapPage() {
         expandAll={expandAll}
         questionsOnly={questionsOnly}
       />
+
+      {/* Release Slices — below the map grid */}
+      <ReleaseSlices projectId={projectId} canEdit={canEdit} />
 
       {/* Chat Panel */}
       <ChatPanel

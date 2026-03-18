@@ -9,6 +9,7 @@ import { ExportModule } from './export/export.module';
 import { HealthModule } from './health/health.module';
 import { MapModule } from './map/map.module';
 import { MembersModule } from './members/members.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PersonasModule } from './personas/personas.module';
 import { ProjectsModule } from './projects/projects.module';
 import { QuestionsModule } from './questions/questions.module';
@@ -18,6 +19,7 @@ import { SearchModule } from './search/search.module';
 import { SourcesModule } from './sources/sources.module';
 import { StepsModule } from './steps/steps.module';
 import { TasksModule } from './tasks/tasks.module';
+import { ViewsModule } from './views/views.module';
 import { WizardModule } from './wizard/wizard.module';
 
 @Module({
@@ -40,6 +42,8 @@ import { WizardModule } from './wizard/wizard.module';
     AuditModule,
     MembersModule,
     WizardModule,
+    ViewsModule,
+    NotificationsModule,
   ],
   providers: [DatabaseService],
 })
