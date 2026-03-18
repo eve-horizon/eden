@@ -20,6 +20,7 @@ import { SourcesModule } from './sources/sources.module';
 import { StepsModule } from './steps/steps.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ViewsModule } from './views/views.module';
+import { InvitesModule } from './invites/invites.module';
 import { WizardModule } from './wizard/wizard.module';
 
 @Module({
@@ -41,6 +42,7 @@ import { WizardModule } from './wizard/wizard.module';
     ExportModule,
     AuditModule,
     MembersModule,
+    InvitesModule,
     WizardModule,
     ViewsModule,
     NotificationsModule,
