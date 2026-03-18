@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { StoryMap } from '../components/map/StoryMap';
@@ -65,6 +65,22 @@ export function MapPage() {
   // Expand all / questions only
   const [expandAll, setExpandAll] = useState(false);
   const [questionsOnly, setQuestionsOnly] = useState(false);
+
+  // Dropdown menus
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Open changeset review modal
   const handleReviewChangeset = useCallback(async (changesetId: string) => {
@@ -224,105 +240,112 @@ export function MapPage() {
       {/* View tabs */}
       <MapViewTabs projectId={projectId} onApplyFilters={handleApplyViewFilters} />
 
-      {/* Toolbar — matches prototype header: buttons left, stats right */}
+      {/* Toolbar — matching live prototype: Questions + Filter + ... */}
       <div
         style={{
           background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)',
-          padding: '10px 24px',
+          padding: '8px 24px',
           boxShadow: '0 4px 20px rgba(0,0,0,.25)',
           flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
       >
-        {/* Row 1: action buttons (left) + pending review (right) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <EvolvedBadge
-              visible={evolvedCount > 0}
-              count={evolvedCount}
-            />
+        {/* Left: main action buttons */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <EvolvedBadge visible={evolvedCount > 0} count={evolvedCount} />
 
+          {/* Questions button — opens cross-cutting panel */}
+          <ToolbarButton
+            active={questionsOpen}
+            onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
+            data-testid="cross-cutting-qs-btn"
+          >
+            Questions
+          </ToolbarButton>
+
+          {/* Filter dropdown — contains Expand, Questions Only, Legend, Activity filter, Role filter */}
+          <div ref={filterRef} style={{ position: 'relative' }}>
             <ToolbarButton
-              active={expandAll}
-              onClick={() => setExpandAll(!expandAll)}
-              data-testid="expand-all-btn"
+              active={filterOpen || expandAll || questionsOnly}
+              accent={expandAll || questionsOnly}
+              onClick={() => { setFilterOpen(!filterOpen); setMoreOpen(false); }}
             >
-              {expandAll ? 'Collapse All' : 'Expand All'}
+              Filter ▾
             </ToolbarButton>
-
-            <ToolbarButton
-              active={questionsOnly}
-              onClick={() => setQuestionsOnly(!questionsOnly)}
-              data-testid="questions-only-btn"
-            >
-              Questions Only
-            </ToolbarButton>
-
-            <ToolbarButton
-              active={questionsOpen}
-              onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
-              data-testid="cross-cutting-qs-btn"
-            >
-              Cross-Cutting Qs
-            </ToolbarButton>
-
-            <ToolbarButton onClick={() => window.print()} data-testid="print-btn">
-              Print
-            </ToolbarButton>
-
-            <ToolbarButton onClick={handleExportJson} data-testid="export-json-btn">
-              Export JSON
-            </ToolbarButton>
-
-            <ToolbarButton onClick={handleExportMarkdown} data-testid="export-md-btn">
-              Export MD
-            </ToolbarButton>
-
-            <ToolbarButton
-              active={!hideProposed}
-              accent
-              onClick={() => setHideProposed(!hideProposed)}
-              data-testid="hide-proposed-btn"
-            >
-              {hideProposed ? 'Show 2.0' : 'Hide 2.0'}
-            </ToolbarButton>
-
-            <ToolbarButton
-              active={chatOpen}
-              onClick={() => { setChatOpen(!chatOpen); setQuestionsOpen(false); }}
-              data-testid="chat-toggle-btn"
-            >
-              <ChatIcon className="w-3.5 h-3.5" />
-              Chat
-            </ToolbarButton>
-
-            {/* Pending Approvals badge — owner-only */}
-            {pendingItems.length > 0 && isOwner && (
-              <button
-                onClick={() => setPendingOpen(!pendingOpen)}
-                style={{
-                  padding: '4px 12px',
-                  background: 'rgba(245,158,11,.2)',
-                  color: '#fbbf24',
-                  border: '1px solid rgba(245,158,11,.3)',
-                  borderRadius: '20px',
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  letterSpacing: '0.3px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                }}
-                data-testid="pending-approvals-btn"
-              >
-                <span style={{
-                  width: '6px', height: '6px', borderRadius: '50%',
-                  background: '#fbbf24',
-                }} />
-                {pendingItems.length} Pending
-              </button>
+            {filterOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                minWidth: '200px', background: '#fff', border: '1px solid #e2e5e9',
+                borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+                zIndex: 200, padding: '4px 0', color: '#1a1a2e',
+              }}>
+                <DropdownItem
+                  label={expandAll ? 'Collapse All' : 'Expand All'}
+                  active={expandAll}
+                  onClick={() => setExpandAll(!expandAll)}
+                  data-testid="expand-all-btn"
+                />
+                <DropdownItem
+                  label="Questions Only"
+                  active={questionsOnly}
+                  onClick={() => setQuestionsOnly(!questionsOnly)}
+                  data-testid="questions-only-btn"
+                />
+                <DropdownItem
+                  label={hideProposed ? 'Show 2.0' : 'Hide 2.0'}
+                  active={!hideProposed}
+                  onClick={() => setHideProposed(!hideProposed)}
+                  data-testid="hide-proposed-btn"
+                />
+              </div>
             )}
           </div>
+
+          {/* More menu — Print, Export, Settings */}
+          <div ref={moreRef} style={{ position: 'relative' }}>
+            <ToolbarButton
+              active={moreOpen}
+              onClick={() => { setMoreOpen(!moreOpen); setFilterOpen(false); }}
+            >
+              &#x22EF;
+            </ToolbarButton>
+            {moreOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                minWidth: '180px', background: '#fff', border: '1px solid #e2e5e9',
+                borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
+                zIndex: 200, padding: '4px 0', color: '#1a1a2e',
+              }}>
+                <DropdownItem label="Print" onClick={() => { window.print(); setMoreOpen(false); }} data-testid="print-btn" />
+                <DropdownItem label="Export JSON" onClick={() => { handleExportJson(); setMoreOpen(false); }} data-testid="export-json-btn" />
+                <DropdownItem label="Export Markdown" onClick={() => { handleExportMarkdown(); setMoreOpen(false); }} data-testid="export-md-btn" />
+              </div>
+            )}
+          </div>
+
+          {/* Pending Approvals badge — owner-only */}
+          {pendingItems.length > 0 && isOwner && (
+            <button
+              onClick={() => setPendingOpen(!pendingOpen)}
+              style={{
+                padding: '4px 12px', background: 'rgba(245,158,11,.2)',
+                color: '#fbbf24', border: '1px solid rgba(245,158,11,.3)',
+                borderRadius: '20px', fontSize: '10px', fontWeight: 800,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px',
+              }}
+              data-testid="pending-approvals-btn"
+            >
+              {pendingItems.length} Pending
+            </button>
+          )}
+        </div>
+
+        {/* Right: compact stats (matching prototype) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'rgba(255,255,255,0.85)', fontSize: '14px', fontWeight: 700 }}>
+          {/* Stats are populated by StoryMap — placeholder populated via DOM */}
+          <div id="map-stats-inline" />
         </div>
       </div>
 
@@ -375,6 +398,27 @@ export function MapPage() {
           }}
           onRefresh={handleChangesetRefresh}
         />
+      )}
+
+      {/* Chat FAB — matching prototype's bottom-right floating button */}
+      {!chatOpen && (
+        <button
+          onClick={() => { setChatOpen(true); setQuestionsOpen(false); }}
+          style={{
+            position: 'fixed', bottom: '24px', right: '24px', zIndex: 100,
+            width: '56px', height: '56px', borderRadius: '50%',
+            background: '#e65100', color: '#fff', border: 'none',
+            boxShadow: '0 4px 16px rgba(230,81,0,0.35)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(230,81,0,0.45)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(230,81,0,0.35)'; }}
+          data-testid="chat-fab"
+          title="Open chat"
+        >
+          <ChatIcon className="w-6 h-6" />
+        </button>
       )}
     </div>
   );
@@ -450,5 +494,41 @@ function ChatIcon({ className }: { className?: string }) {
   );
 }
 
-// Removed unused icons: AlertTriangleIcon, EyeIcon, DownloadIcon, PrintIcon, ExpandIcon, QuestionFilterIcon
-// Toolbar buttons now use text-only labels matching prototype's hdr-actions style
+// ---------------------------------------------------------------------------
+// DropdownItem — white dropdown menu item matching prototype's hdr-dropdown-item
+// ---------------------------------------------------------------------------
+
+function DropdownItem({
+  label,
+  active,
+  onClick,
+  ...rest
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  [key: string]: any;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+        padding: '8px 14px', border: 'none', background: 'transparent',
+        color: '#1a1a2e', fontSize: '12px', fontWeight: 500,
+        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' as const,
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = '#f3f4f6'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+      {...rest}
+    >
+      {active !== undefined && (
+        <span style={{ width: '16px', fontSize: '12px', fontWeight: 700, color: '#e65100', textAlign: 'center', flexShrink: 0 }}>
+          {active ? '✓' : ''}
+        </span>
+      )}
+      {label}
+    </button>
+  );
+}
