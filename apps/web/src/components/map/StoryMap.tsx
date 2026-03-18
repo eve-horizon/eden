@@ -775,6 +775,7 @@ function ColorLegend({ personas }: { personas: Persona[] }) {
         flexWrap: 'wrap',
       }}
     >
+      <span style={{ fontWeight: 600, color: '#1a1a2e', marginRight: '-8px' }}>Legend:</span>
       <LegendItem color="#1a1a2e" label="Activity" />
       <LegendItem color="#e65100" label="Step" />
       <LegendItem color="#fff" label="Task" border="#e2e5e9" />

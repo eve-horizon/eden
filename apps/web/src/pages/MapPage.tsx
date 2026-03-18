@@ -224,102 +224,105 @@ export function MapPage() {
       {/* View tabs */}
       <MapViewTabs projectId={projectId} onApplyFilters={handleApplyViewFilters} />
 
-      {/* Toolbar — matches prototype header action buttons style */}
+      {/* Toolbar — matches prototype header: buttons left, stats right */}
       <div
-        className="flex items-center justify-between px-4 py-2 border-b border-eden-border"
-        style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }}
+        style={{
+          background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)',
+          padding: '10px 24px',
+          boxShadow: '0 4px 20px rgba(0,0,0,.25)',
+          flexShrink: 0,
+        }}
       >
-        <div className="flex items-center gap-1.5">
-          <EvolvedBadge
-            visible={evolvedCount > 0}
-            count={evolvedCount}
-          />
+        {/* Row 1: action buttons (left) + pending review (right) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <EvolvedBadge
+              visible={evolvedCount > 0}
+              count={evolvedCount}
+            />
 
-          {/* Expand All toggle */}
-          <ToolbarButton
-            active={expandAll}
-            onClick={() => setExpandAll(!expandAll)}
-            data-testid="expand-all-btn"
-          >
-            <ExpandIcon className="w-3.5 h-3.5" />
-            {expandAll ? 'Collapse All' : 'Expand All'}
-          </ToolbarButton>
-
-          {/* Questions Only toggle */}
-          <ToolbarButton
-            active={questionsOnly}
-            onClick={() => setQuestionsOnly(!questionsOnly)}
-            data-testid="questions-only-btn"
-          >
-            <QuestionFilterIcon className="w-3.5 h-3.5" />
-            Questions Only
-          </ToolbarButton>
-
-          {/* Cross-Cutting Qs */}
-          <ToolbarButton
-            active={questionsOpen}
-            onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
-            data-testid="cross-cutting-qs-btn"
-          >
-            <AlertTriangleIcon className="w-3.5 h-3.5" />
-            Cross-Cutting Qs
-          </ToolbarButton>
-
-          {/* Print */}
-          <ToolbarButton onClick={() => window.print()} data-testid="print-btn">
-            <PrintIcon className="w-3.5 h-3.5" />
-            Print
-          </ToolbarButton>
-
-          {/* Export JSON */}
-          <ToolbarButton onClick={handleExportJson} data-testid="export-json-btn">
-            <DownloadIcon className="w-3.5 h-3.5" />
-            Export JSON
-          </ToolbarButton>
-
-          {/* Export Markdown */}
-          <ToolbarButton onClick={handleExportMarkdown} data-testid="export-md-btn">
-            <DownloadIcon className="w-3.5 h-3.5" />
-            Export MD
-          </ToolbarButton>
-
-          {/* Hide/Show 2.0 toggle */}
-          <ToolbarButton
-            active={!hideProposed}
-            accent
-            onClick={() => setHideProposed(!hideProposed)}
-            data-testid="hide-proposed-btn"
-          >
-            <EyeIcon className="w-3.5 h-3.5" slash={hideProposed} />
-            {hideProposed ? 'Show 2.0' : 'Hide 2.0'}
-          </ToolbarButton>
-
-          {/* Chat */}
-          <ToolbarButton
-            active={chatOpen}
-            onClick={() => { setChatOpen(!chatOpen); setQuestionsOpen(false); }}
-            data-testid="chat-toggle-btn"
-          >
-            <ChatIcon className="w-3.5 h-3.5" />
-            Chat
-          </ToolbarButton>
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {/* Pending Approvals badge — owner-only */}
-          {pendingItems.length > 0 && isOwner && (
-            <button
-              onClick={() => setPendingOpen(!pendingOpen)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
-              data-testid="pending-approvals-btn"
+            <ToolbarButton
+              active={expandAll}
+              onClick={() => setExpandAll(!expandAll)}
+              data-testid="expand-all-btn"
             >
-              <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {pendingItems.length}
-              </span>
-              Pending Review
-            </button>
-          )}
+              {expandAll ? 'Collapse All' : 'Expand All'}
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={questionsOnly}
+              onClick={() => setQuestionsOnly(!questionsOnly)}
+              data-testid="questions-only-btn"
+            >
+              Questions Only
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={questionsOpen}
+              onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
+              data-testid="cross-cutting-qs-btn"
+            >
+              Cross-Cutting Qs
+            </ToolbarButton>
+
+            <ToolbarButton onClick={() => window.print()} data-testid="print-btn">
+              Print
+            </ToolbarButton>
+
+            <ToolbarButton onClick={handleExportJson} data-testid="export-json-btn">
+              Export JSON
+            </ToolbarButton>
+
+            <ToolbarButton onClick={handleExportMarkdown} data-testid="export-md-btn">
+              Export MD
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={!hideProposed}
+              accent
+              onClick={() => setHideProposed(!hideProposed)}
+              data-testid="hide-proposed-btn"
+            >
+              {hideProposed ? 'Show 2.0' : 'Hide 2.0'}
+            </ToolbarButton>
+
+            <ToolbarButton
+              active={chatOpen}
+              onClick={() => { setChatOpen(!chatOpen); setQuestionsOpen(false); }}
+              data-testid="chat-toggle-btn"
+            >
+              <ChatIcon className="w-3.5 h-3.5" />
+              Chat
+            </ToolbarButton>
+
+            {/* Pending Approvals badge — owner-only */}
+            {pendingItems.length > 0 && isOwner && (
+              <button
+                onClick={() => setPendingOpen(!pendingOpen)}
+                style={{
+                  padding: '4px 12px',
+                  background: 'rgba(245,158,11,.2)',
+                  color: '#fbbf24',
+                  border: '1px solid rgba(245,158,11,.3)',
+                  borderRadius: '20px',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  letterSpacing: '0.3px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                }}
+                data-testid="pending-approvals-btn"
+              >
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: '#fbbf24',
+                }} />
+                {pendingItems.length} Pending
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -447,63 +450,5 @@ function ChatIcon({ className }: { className?: string }) {
   );
 }
 
-function AlertTriangleIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  );
-}
-
-function EyeIcon({ className, slash }: { className?: string; slash?: boolean }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-      {slash && <line x1="1" y1="1" x2="23" y2="23" />}
-    </svg>
-  );
-}
-
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function PrintIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 6 2 18 2 18 9" />
-      <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-      <rect x="6" y="14" width="12" height="8" />
-    </svg>
-  );
-}
-
-function ExpandIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="15 3 21 3 21 9" />
-      <polyline points="9 21 3 21 3 15" />
-      <line x1="21" y1="3" x2="14" y2="10" />
-      <line x1="3" y1="21" x2="10" y2="14" />
-    </svg>
-  );
-}
-
-function QuestionFilterIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  );
-}
+// Removed unused icons: AlertTriangleIcon, EyeIcon, DownloadIcon, PrintIcon, ExpandIcon, QuestionFilterIcon
+// Toolbar buttons now use text-only labels matching prototype's hdr-actions style
