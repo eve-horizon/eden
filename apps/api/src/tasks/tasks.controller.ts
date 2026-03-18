@@ -114,7 +114,7 @@ export class TasksController {
   move(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { from_step_id: string; to_step_id: string; sort_order?: number },
+    @Body() body: { step_id: string; from_step_id?: string; sort_order?: number },
   ) {
     return this.tasks.move(dbContext(req), id, body);
   }

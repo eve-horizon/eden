@@ -59,6 +59,16 @@ export class ActivitiesController {
     return this.activities.update(dbContext(req), id, body);
   }
 
+  @Patch('activities/:id/reorder')
+  @UseGuards(EditorGuard)
+  reorderSingle(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { sort_order: number },
+  ) {
+    return this.activities.update(dbContext(req), id, { sort_order: body.sort_order });
+  }
+
   @Delete('activities/:id')
   @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)

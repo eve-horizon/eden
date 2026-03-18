@@ -356,30 +356,39 @@ export class TasksService {
   async move(
     ctx: DbContext,
     taskId: string,
-    data: { from_step_id: string; to_step_id: string; sort_order?: number },
+    data: { step_id: string; from_step_id?: string; sort_order?: number },
   ): Promise<StepTaskRow> {
     const task = await this.requireTask(ctx, taskId);
 
     return this.db.withClient(ctx, async (client) => {
-      // Find the step_task for this task in the source step
-      const stResult = await client.query<StepTaskRow>(
-        `SELECT * FROM step_tasks WHERE task_id = $1 AND step_id = $2`,
-        [taskId, data.from_step_id],
-      );
+      // Find the step_task — either from the specified source step or auto-discover
+      let stResult;
+      if (data.from_step_id) {
+        stResult = await client.query<StepTaskRow>(
+          `SELECT * FROM step_tasks WHERE task_id = $1 AND step_id = $2`,
+          [taskId, data.from_step_id],
+        );
+      } else {
+        // Auto-discover: find any placement of this task (first found)
+        stResult = await client.query<StepTaskRow>(
+          `SELECT * FROM step_tasks WHERE task_id = $1 ORDER BY created_at LIMIT 1`,
+          [taskId],
+        );
+      }
 
       const stepTask = stResult.rows[0];
       if (!stepTask) {
-        throw new NotFoundException(
-          `Task ${taskId} has no placement in step ${data.from_step_id}`,
-        );
+        throw new NotFoundException(`Task ${taskId} has no step placement`);
       }
+
+      const fromStepId = stepTask.step_id;
 
       // Determine sort_order — use provided or append to end
       let sortOrder = data.sort_order;
       if (sortOrder === undefined) {
         const maxResult = await client.query<{ max_sort: number }>(
           `SELECT COALESCE(MAX(sort_order), -1) AS max_sort FROM step_tasks WHERE step_id = $1`,
-          [data.to_step_id],
+          [data.step_id],
         );
         sortOrder = (maxResult.rows[0]?.max_sort ?? -1) + 1;
       }
@@ -387,7 +396,7 @@ export class TasksService {
       // Update the step_task to the new step
       const updated = await client.query<StepTaskRow>(
         `UPDATE step_tasks SET step_id = $1, sort_order = $2 WHERE id = $3 RETURNING *`,
-        [data.to_step_id, sortOrder, stepTask.id],
+        [data.step_id, sortOrder, stepTask.id],
       );
 
       // Audit log
@@ -401,8 +410,8 @@ export class TasksService {
           ctx.user_id ?? null,
           JSON.stringify({
             task_id: taskId,
-            from_step_id: data.from_step_id,
-            to_step_id: data.to_step_id,
+            from_step_id: fromStepId,
+            to_step_id: data.step_id,
             sort_order: sortOrder,
           }),
         ],

@@ -68,8 +68,8 @@ export function useDragDrop({ projectId, onMoveComplete }: UseDragDropOptions) {
         if (item.sourceStepId === targetStepId) return;
 
         await api.patch(`/tasks/${item.id}/move`, {
+          step_id: targetStepId,
           from_step_id: item.sourceStepId,
-          to_step_id: targetStepId,
         });
         onMoveComplete();
       } catch {
