@@ -59,6 +59,19 @@ export class MembersService {
   }
 
   /**
+   * Find a single member by ID.
+   */
+  async findById(ctx: DbContext, memberId: string): Promise<ProjectMemberRow> {
+    const row = await this.db.queryOne<ProjectMemberRow>(
+      ctx,
+      'SELECT * FROM project_members WHERE id = $1',
+      [memberId],
+    );
+    if (!row) throw new NotFoundException('Project member not found');
+    return row;
+  }
+
+  /**
    * List all explicit members of a project.
    */
   async list(ctx: DbContext, projectId: string): Promise<ProjectMemberRow[]> {
