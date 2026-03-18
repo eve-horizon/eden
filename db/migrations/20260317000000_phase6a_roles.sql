@@ -44,7 +44,7 @@ CREATE INDEX idx_pm_user    ON project_members(user_id);
 -- updated_at trigger (same pattern as foundation tables)
 CREATE TRIGGER trg_project_members_updated
     BEFORE UPDATE ON project_members
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ---------------------------------------------------------------------------
 -- WS2: Approval columns for two-stage review workflow
