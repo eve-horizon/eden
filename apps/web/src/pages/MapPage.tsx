@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { StoryMap } from '../components/map/StoryMap';
-import { MapViewTabs } from '../components/map/MapViewTabs';
 import { ReleaseSlices } from '../components/map/ReleaseSlices';
 import { ChatPanel } from '../components/chat/ChatPanel';
 import { CrossCuttingPanel } from '../components/questions/CrossCuttingPanel';
@@ -29,8 +28,6 @@ interface ChangesetDetail {
 
 export function MapPage() {
   const { projectId } = useParams<{ projectId: string }>();
-
-  const [, setSearchParams] = useSearchParams();
 
   // Role-based access — canEdit will gate future inline editing controls
   const projectRole = useProjectRole(projectId);
@@ -65,6 +62,13 @@ export function MapPage() {
   // Expand all / questions only
   const [expandAll, setExpandAll] = useState(false);
   const [questionsOnly, setQuestionsOnly] = useState(false);
+
+  // Stats from StoryMap
+  const [mapStats, setMapStats] = useState<{
+    activity_count: number; step_count: number; task_count: number;
+    acceptance_criteria_count: number; question_count: number;
+    answered_question_count: number; persona_counts: Record<string, number>;
+  } | null>(null);
 
   // Dropdown menus
   const [filterOpen, setFilterOpen] = useState(false);
@@ -215,32 +219,11 @@ export function MapPage() {
     }
   }, [projectId]);
 
-  // View filter handler — applies saved view filters to URL search params
-  const handleApplyViewFilters = useCallback(
-    (filters: Record<string, string>) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        // Clear existing view-managed params
-        next.delete('persona');
-        next.delete('release');
-        // Apply new filters
-        for (const [key, value] of Object.entries(filters)) {
-          if (value) next.set(key, value);
-        }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
-
   if (!projectId) return null;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* View tabs */}
-      <MapViewTabs projectId={projectId} onApplyFilters={handleApplyViewFilters} />
-
-      {/* Toolbar — matching live prototype: Questions + Filter + ... */}
+      {/* Toolbar — matching live prototype: Questions + Filter + ... + stats RHS */}
       <div
         style={{
           background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)',
@@ -342,11 +325,36 @@ export function MapPage() {
           )}
         </div>
 
-        {/* Right: compact stats (matching prototype) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'rgba(255,255,255,0.85)', fontSize: '14px', fontWeight: 700 }}>
-          {/* Stats are populated by StoryMap — placeholder populated via DOM */}
-          <div id="map-stats-inline" />
-        </div>
+        {/* Right: compact inline stats matching prototype header */}
+        {mapStats && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <InlineStat n={mapStats.activity_count} label="A" />
+            <StatDot />
+            <InlineStat n={mapStats.step_count} label="S" />
+            <StatDot />
+            <InlineStat n={mapStats.task_count} label="T" />
+            <StatDot />
+            <InlineStat n={mapStats.acceptance_criteria_count} label="AC" />
+            <StatDot />
+            <InlineStat n={mapStats.question_count} label="Q" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
+                {mapStats.answered_question_count}/{mapStats.question_count}
+              </span>
+              <div style={{ width: '50px', height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: mapStats.question_count > 0
+                    ? `${(mapStats.answered_question_count / mapStats.question_count) * 100}%`
+                    : '0%',
+                  height: '100%', background: '#10b981', borderRadius: '2px',
+                }} />
+              </div>
+              <span style={{ fontSize: '9px', fontWeight: 600, color: 'rgba(255,255,255,0.5)' }}>
+                Answered
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Story Map */}
@@ -358,6 +366,7 @@ export function MapPage() {
         hideProposed={hideProposed}
         expandAll={expandAll}
         questionsOnly={questionsOnly}
+        onStatsReady={setMapStats}
       />
 
       {/* Release Slices — below the map grid */}
@@ -492,6 +501,23 @@ function ChatIcon({ className }: { className?: string }) {
       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
     </svg>
   );
+}
+
+// ---------------------------------------------------------------------------
+// InlineStat + StatDot — compact header stats matching prototype's stats-inline
+// ---------------------------------------------------------------------------
+
+function InlineStat({ n, label }: { n: number; label: string }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'baseline', gap: '2px', fontSize: '14px', fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>
+      {n}
+      <small style={{ fontSize: '9px', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' as const }}>{label}</small>
+    </span>
+  );
+}
+
+function StatDot() {
+  return <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '10px' }}>&middot;</span>;
 }
 
 // ---------------------------------------------------------------------------

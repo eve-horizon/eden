@@ -2,10 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { MapResponse, Activity, Persona, Task, DeduplicatedTask } from './types';
-import { PersonaTabs } from './PersonaTabs';
-import { RoleFilterPills } from './RoleFilterPills';
-import { ActivityFilterBar } from './ActivityFilterBar';
-import { MapLegend } from './MapLegend';
 import { StepHeader } from './StepHeader';
 import { TaskCard } from './TaskCard';
 import { MiniMap } from './MiniMap';
@@ -26,6 +22,16 @@ import { useProjectRole } from '../../hooks/useProjectRole';
 //   - Row 3: Task cells (one per column, vertically stacking cards)
 // ---------------------------------------------------------------------------
 
+interface MapStats {
+  activity_count: number;
+  step_count: number;
+  task_count: number;
+  acceptance_criteria_count: number;
+  question_count: number;
+  answered_question_count: number;
+  persona_counts: Record<string, number>;
+}
+
 interface StoryMapProps {
   aiModifiedEntities?: Set<string>;
   aiAddedEntities?: Set<string>;
@@ -34,6 +40,8 @@ interface StoryMapProps {
   onHideProposedChange?: (value: boolean) => void;
   expandAll?: boolean;
   questionsOnly?: boolean;
+  /** Callback when map data loads — passes stats for toolbar display */
+  onStatsReady?: (stats: MapStats) => void;
 }
 
 export function StoryMap({
@@ -43,19 +51,20 @@ export function StoryMap({
   hideProposed = false,
   expandAll = false,
   questionsOnly = false,
+  onStatsReady,
 }: StoryMapProps) {
   const { projectId } = useParams<{ projectId: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
 
   // Server-side persona filter (re-fetches API)
   const personaTab = searchParams.get('persona');
   const releaseFilter = searchParams.get('release');
 
   // Client-side role highlight (dims non-matching cards)
-  const [roleHighlight, setRoleHighlight] = useState<string | null>(null);
+  const [roleHighlight] = useState<string | null>(null);
 
   // Activity filter state
-  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [selectedActivities] = useState<Set<string>>(new Set());
 
   // Mini-map collapsed state
   const [miniMapCollapsed, setMiniMapCollapsed] = useState(false);
@@ -84,14 +93,9 @@ export function StoryMap({
         `/projects/${projectId}/map${qs ? `?${qs}` : ''}`,
       );
       setData(resp);
+      onStatsReady?.(resp.stats);
 
-      // Initialize activity selection to all activities on first load
-      setSelectedActivities((prev) => {
-        if (prev.size === 0 || prev.size === data?.activities.length) {
-          return new Set(resp.activities.map((a) => a.id));
-        }
-        return prev;
-      });
+      // Activity selection not managed here — all activities shown by default
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load map');
     } finally {
@@ -124,23 +128,6 @@ export function StoryMap({
     await api.patch(`/tasks/${taskId}`, { title });
     fetchMap();
   }, [fetchMap]);
-
-  // Persona tab selection — updates the URL search param which triggers
-  // a re-fetch via the effect above.
-  const handlePersonaTabSelect = useCallback(
-    (code: string | null) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        if (code) {
-          next.set('persona', code);
-        } else {
-          next.delete('persona');
-        }
-        return next;
-      });
-    },
-    [setSearchParams],
-  );
 
   // ---------- Loading state ----------
   if (loading && !data) {
@@ -180,44 +167,6 @@ export function StoryMap({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="story-map">
-      {/* Persona tabs (server-side filter) */}
-      <PersonaTabs
-        personas={data.personas}
-        active={personaTab}
-        onSelect={handlePersonaTabSelect}
-        personaCounts={data.stats.persona_counts}
-        totalTaskCount={data.stats.task_count}
-      />
-
-      {/* Filters row — role highlight + activity filter combined (matching prototype compactness) */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '16px',
-          padding: '6px 0',
-          background: '#fff',
-          borderBottom: '1px solid #e2e5e9',
-        }}
-      >
-        <RoleFilterPills
-          personas={data.personas}
-          active={roleHighlight}
-          onToggle={setRoleHighlight}
-        />
-        <ActivityFilterBar
-          activities={data.activities}
-          selected={selectedActivities}
-          onSelectionChange={setSelectedActivities}
-        />
-      </div>
-
-      {/* Stats bar — matching prototype header counters */}
-      <MapStatsBar stats={data.stats} />
-
-      {/* Color legend — matching prototype's legend row */}
-      <ColorLegend personas={data.personas} />
-
       {/* Loading overlay for re-fetches */}
       {loading && (
         <div className="px-4 py-1">
@@ -399,9 +348,6 @@ export function StoryMap({
           </div>
         )}
       </div>
-
-      {/* Legend bar */}
-      <MapLegend stats={data.stats} personas={data.personas} />
 
       {/* Mini-Map */}
       <MiniMap
@@ -596,90 +542,6 @@ function ActivityHeader({
 }
 
 // ---------------------------------------------------------------------------
-// MapStatsBar — prominent stat counters matching prototype header style
-// ---------------------------------------------------------------------------
-
-function MapStatsBar({ stats }: { stats: MapResponse['stats'] }) {
-  return (
-    <div
-      data-testid="stats-bar"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '24px',
-        padding: '10px 24px',
-        background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
-        flexWrap: 'wrap',
-      }}
-    >
-      <StatNum n={stats.activity_count} label="Activities" />
-      <StatNum n={stats.step_count} label="Steps" />
-      <StatNum n={stats.task_count} label="Tasks" />
-      <StatNum n={stats.acceptance_criteria_count} label="ACs" />
-      <StatNum n={stats.question_count} label="Questions" />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontSize: '11px',
-          fontWeight: 600,
-          color: 'rgba(255,255,255,0.7)',
-        }}
-      >
-        <span style={{ fontSize: '18px', fontWeight: 800, color: '#fff' }}>
-          {stats.answered_question_count}/{stats.question_count}
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <div
-            style={{
-              width: '60px',
-              height: '5px',
-              background: 'rgba(255,255,255,0.15)',
-              borderRadius: '3px',
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                width: stats.question_count > 0
-                  ? `${(stats.answered_question_count / stats.question_count) * 100}%`
-                  : '0%',
-                height: '100%',
-                background: '#10b981',
-                borderRadius: '3px',
-              }}
-            />
-          </div>
-          <span style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.4)' }}>
-            Answered
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatNum({ n, label }: { n: number; label: string }) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1.1 }}>{n}</div>
-      <div
-        style={{
-          fontSize: '8px',
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-          color: 'rgba(255,255,255,0.4)',
-        }}
-      >
-        {label}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // EmptyMap — shown when there are no activities at all
 // ---------------------------------------------------------------------------
 
@@ -761,77 +623,6 @@ function MapSkeleton() {
       <div className="border-t border-eden-border px-4 py-2.5">
         <div className="h-4 w-96 bg-gray-200 rounded animate-pulse" />
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// ColorLegend — visual key matching prototype's legend row
-// ---------------------------------------------------------------------------
-
-function ColorLegend({ personas }: { personas: Persona[] }) {
-  return (
-    <div
-      style={{
-        background: '#fff',
-        borderBottom: '1px solid #e2e5e9',
-        padding: '8px 24px',
-        display: 'flex',
-        gap: '20px',
-        alignItems: 'center',
-        fontSize: '11px',
-        color: '#6b7280',
-        flexWrap: 'wrap',
-      }}
-    >
-      <span style={{ fontWeight: 600, color: '#1a1a2e', marginRight: '-8px' }}>Legend:</span>
-      <LegendItem color="#1a1a2e" label="Activity" />
-      <LegendItem color="#e65100" label="Step" />
-      <LegendItem color="#fff" label="Task" border="#e2e5e9" />
-      <LegendItem color="#fffbeb" label="Question" border="#f59e0b" />
-      <LegendItem color="#fef2f2" label="Cross-Cutting" border="#ef4444" />
-
-      {personas.length > 1 && (
-        <>
-          <div style={{ width: '1px', height: '16px', background: '#e2e5e9' }} />
-          {personas.map((p) => (
-            <LegendItem key={p.id} color={p.color} label={p.name} />
-          ))}
-        </>
-      )}
-
-      <div style={{ width: '1px', height: '16px', background: '#e2e5e9' }} />
-      <LegendItem color="#d1fae5" label="2.0 Proposed" border="#10b981" dashed />
-      <LegendItem color="#f3f4f6" label="Discontinued" border="#9ca3af" />
-    </div>
-  );
-}
-
-function LegendItem({
-  color,
-  label,
-  border,
-  dashed,
-}: {
-  color: string;
-  label: string;
-  border?: string;
-  dashed?: boolean;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-      <span
-        style={{
-          width: '20px',
-          height: '11px',
-          borderRadius: '3px',
-          backgroundColor: color,
-          border: border
-            ? `1px ${dashed ? 'dashed' : 'solid'} ${border}`
-            : '1px solid rgba(0,0,0,0.06)',
-        }}
-      />
-      <span>{label}</span>
     </div>
   );
 }
