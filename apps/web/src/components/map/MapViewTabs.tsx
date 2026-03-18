@@ -109,8 +109,29 @@ export function MapViewTabs({ projectId, onApplyFilters }: MapViewTabsProps) {
   if (loading && views.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-eden-border bg-eden-surface/50">
-      <span className="text-[10px] font-medium text-eden-text-2 uppercase tracking-wider mr-1 flex-shrink-0">
+    <div
+      style={{
+        background: '#fff',
+        borderBottom: '2px solid #e2e5e9',
+        padding: '0 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0,
+        zIndex: 99,
+        flexShrink: 0,
+      }}
+    >
+      <span
+        style={{
+          padding: '10px 18px 10px 0',
+          fontSize: '10px',
+          fontWeight: 800,
+          color: '#6b7280',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          flexShrink: 0,
+        }}
+      >
         Views
       </span>
 
@@ -120,12 +141,23 @@ export function MapViewTabs({ projectId, onApplyFilters }: MapViewTabsProps) {
           <button
             key={view.id}
             onClick={() => handleSelect(view)}
-            className={`flex-shrink-0 px-2.5 py-1 rounded-md text-xs font-medium transition-colors
-              ${
-                isActive
-                  ? 'bg-eden-accent text-white'
-                  : 'text-eden-text-2 hover:bg-eden-bg hover:text-eden-text'
-              }`}
+            style={{
+              padding: '10px 18px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: 'none',
+              background: 'transparent',
+              color: isActive ? '#1a1a2e' : '#6b7280',
+              borderBottom: isActive ? '3px solid #e65100' : '3px solid transparent',
+              transition: 'all 0.15s',
+              fontFamily: 'inherit',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
             data-testid={`view-tab-${view.id}`}
           >
             {view.name}

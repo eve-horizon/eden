@@ -63,8 +63,27 @@ export function ActivityFilterBar({
   if (activities.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-1.5" ref={containerRef}>
-      <span className="text-xs font-medium text-eden-text-2 flex-shrink-0">
+    <div
+      ref={containerRef}
+      style={{
+        padding: '0 24px',
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center',
+        background: '#fff',
+        borderBottom: '1px solid #e2e5e9',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 600,
+          color: '#6b7280',
+          flexShrink: 0,
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.3px',
+        }}
+      >
         Activity:
       </span>
 
@@ -72,12 +91,32 @@ export function ActivityFilterBar({
       <div className="relative">
         <button
           onClick={() => setOpen(!open)}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
-            border transition-colors
-            ${open
-              ? 'border-eden-accent bg-eden-accent/5 text-eden-accent'
-              : 'border-eden-border bg-white text-eden-text-2 hover:border-gray-300'
-            }`}
+          style={{
+            padding: '8px 14px',
+            border: open ? '1px solid #e65100' : '1px solid #e2e5e9',
+            background: open ? 'rgba(230,81,0,0.05)' : '#fff',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            color: open ? '#e65100' : '#6b7280',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+          onMouseEnter={(e) => {
+            if (!open) {
+              e.currentTarget.style.background = '#f3f4f6';
+              e.currentTarget.style.borderColor = '#d1d5db';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!open) {
+              e.currentTarget.style.background = '#fff';
+              e.currentTarget.style.borderColor = '#e2e5e9';
+            }
+          }}
         >
           {allSelected ? 'All activities' : `${selected.size} of ${activities.length}`}
           <DropdownChevron

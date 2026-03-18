@@ -3,9 +3,8 @@ import type { Persona } from './types';
 // ---------------------------------------------------------------------------
 // PersonaTabs — sticky tab bar for server-side persona filtering
 //
-// "Overview" shows all tasks with a total task count. Each persona tab
-// displays: persona name + colored dot (8px circle) + task count badge.
-// Active tab: bottom border in persona color (3px) instead of filled bg.
+// Matches prototype: uppercase tab text, 3px accent bottom border for active,
+// colored dots, task count badges with persona-colored background.
 // ---------------------------------------------------------------------------
 
 interface PersonaTabsProps {
@@ -26,68 +25,121 @@ export function PersonaTabs({
   totalTaskCount,
 }: PersonaTabsProps) {
   return (
-    <div className="sticky top-0 z-30 bg-eden-bg border-b border-eden-border">
-      <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto eden-scroll">
-        {/* Overview tab */}
-        <button
-          onClick={() => onSelect(null)}
-          className={`flex-shrink-0 relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-            ${
-              active === null
-                ? 'text-eden-text bg-white shadow-sm'
-                : 'text-eden-text-2 hover:bg-white hover:text-eden-text'
-            }`}
-          style={
-            active === null
-              ? { borderBottom: '3px solid #6366f1' }
-              : undefined
-          }
-        >
-          Overview
-          {totalTaskCount != null && (
-            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-gray-200 text-[10px] font-bold text-eden-text">
-              {totalTaskCount}
-            </span>
-          )}
-        </button>
+    <div
+      style={{
+        background: '#fff',
+        borderBottom: '2px solid #e2e5e9',
+        padding: '0 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0,
+        zIndex: 99,
+        flexShrink: 0,
+      }}
+    >
+      {/* Overview tab */}
+      <Tab
+        label="Overview"
+        active={active === null}
+        onClick={() => onSelect(null)}
+        count={totalTaskCount}
+        activeColor="#e65100"
+      />
 
-        {/* Per-persona tabs */}
-        {personas.map((p) => {
-          const isActive = active === p.code;
-          const count = personaCounts[p.code];
-          return (
-            <button
-              key={p.id}
-              onClick={() => onSelect(p.code)}
-              className={`flex-shrink-0 relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-                ${
-                  isActive
-                    ? 'text-eden-text bg-white shadow-sm'
-                    : 'text-eden-text-2 hover:bg-white hover:text-eden-text'
-                }`}
-              style={
-                isActive
-                  ? { borderBottom: `3px solid ${p.color}` }
-                  : undefined
-              }
-            >
-              <span
-                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: p.color }}
-              />
-              {p.name}
-              {count != null && (
-                <span
-                  className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white"
-                  style={{ backgroundColor: p.color }}
-                >
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* Per-persona tabs */}
+      {personas.map((p) => {
+        const isActive = active === p.code;
+        const count = personaCounts[p.code];
+        return (
+          <Tab
+            key={p.id}
+            label={p.name}
+            active={isActive}
+            onClick={() => onSelect(p.code)}
+            count={count}
+            dotColor={p.color}
+            activeColor={p.color}
+          />
+        );
+      })}
     </div>
+  );
+}
+
+function Tab({
+  label,
+  active,
+  onClick,
+  count,
+  dotColor,
+  activeColor,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  count?: number;
+  dotColor?: string;
+  activeColor: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '10px 18px',
+        fontSize: '12px',
+        fontWeight: 700,
+        cursor: 'pointer',
+        border: 'none',
+        background: 'transparent',
+        color: active ? '#1a1a2e' : '#6b7280',
+        borderBottom: active ? `3px solid ${activeColor}` : '3px solid transparent',
+        transition: 'all 0.15s',
+        fontFamily: 'inherit',
+        textTransform: 'uppercase' as const,
+        letterSpacing: '0.5px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        whiteSpace: 'nowrap',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = '#1a1a2e';
+          e.currentTarget.style.background = 'rgba(0,0,0,0.03)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.color = '#6b7280';
+          e.currentTarget.style.background = 'transparent';
+        }
+      }}
+    >
+      {dotColor && (
+        <span
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: dotColor,
+            flexShrink: 0,
+          }}
+        />
+      )}
+      {label}
+      {count != null && (
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 800,
+            background: 'rgba(0,0,0,0.08)',
+            padding: '1px 6px',
+            borderRadius: '8px',
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </button>
   );
 }

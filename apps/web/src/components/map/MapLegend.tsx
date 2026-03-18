@@ -1,10 +1,10 @@
 import type { MapStats, Persona } from './types';
-import { AnswerProgress } from '../questions/AnswerProgress';
 
 // ---------------------------------------------------------------------------
-// MapLegend — sticky stats bar showing aggregate counts + persona legend
+// MapLegend — bottom stats bar matching prototype aggregate display
 //
-// Includes an inline AnswerProgress bar for question answered/total progress.
+// Shows aggregate counts + persona color dots with task counts.
+// Includes answer progress when questions exist.
 // ---------------------------------------------------------------------------
 
 interface MapLegendProps {
@@ -13,58 +13,97 @@ interface MapLegendProps {
 }
 
 export function MapLegend({ stats, personas }: MapLegendProps) {
+  const pct = stats.question_count > 0
+    ? Math.round((stats.answered_question_count / stats.question_count) * 100)
+    : 0;
+
   return (
-    <div className="sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-eden-border px-4 py-2.5">
-      <div className="flex items-center justify-between gap-4 text-xs">
-        {/* Aggregate stats + question progress */}
-        <div className="flex items-center gap-4 text-eden-text-2">
-          <Stat label="activities" count={stats.activity_count} />
-          <Stat label="steps" count={stats.step_count} />
-          <Stat label="tasks" count={stats.task_count} />
-          {stats.question_count > 0 && (
-            <div className="flex items-center gap-2 min-w-[160px]">
-              <AnswerProgress
-                answered={stats.answered_question_count}
-                total={stats.question_count}
+    <div
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        zIndex: 30,
+        background: 'rgba(255,255,255,0.95)',
+        backdropFilter: 'blur(4px)',
+        borderTop: '1px solid #e2e5e9',
+        padding: '8px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '16px',
+        fontSize: '11px',
+        color: '#6b7280',
+      }}
+    >
+      {/* Left: Aggregate stats */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <Stat count={stats.activity_count} label="activities" />
+        <Stat count={stats.step_count} label="steps" />
+        <Stat count={stats.task_count} label="tasks" />
+        {stats.question_count > 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontWeight: 600, color: '#1a1a2e' }}>
+              {stats.answered_question_count}/{stats.question_count}
+            </span>
+            <span>answered</span>
+            <div
+              style={{
+                width: '50px',
+                height: '4px',
+                background: '#e2e5e9',
+                borderRadius: '2px',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${pct}%`,
+                  height: '100%',
+                  background: '#10b981',
+                  borderRadius: '2px',
+                }}
               />
             </div>
-          )}
-          {stats.question_count === 0 && (
-            <span className="flex items-center gap-1.5">
-              <span className="font-semibold text-eden-text">0</span>
-              <span>questions</span>
-            </span>
-          )}
-        </div>
-
-        {/* Persona color legend */}
-        {personas.length > 0 && (
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {personas.map((p) => (
-              <span key={p.id} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: p.color }}
-                />
-                <span className="text-eden-text-2">{p.name}</span>
-                {stats.persona_counts[p.code] != null && (
-                  <span className="text-eden-text font-medium">
-                    ({stats.persona_counts[p.code]})
-                  </span>
-                )}
-              </span>
-            ))}
           </div>
+        ) : (
+          <span>
+            <span style={{ fontWeight: 600, color: '#1a1a2e' }}>0</span> questions
+          </span>
         )}
       </div>
+
+      {/* Right: Persona legend with counts */}
+      {personas.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+          {personas.map((p) => (
+            <span key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: p.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span>{p.name}</span>
+              {stats.persona_counts[p.code] != null && (
+                <span style={{ fontWeight: 600, color: '#1a1a2e' }}>
+                  ({stats.persona_counts[p.code]})
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Stat({ label, count }: { label: string; count: number }) {
+function Stat({ count, label }: { count: number; label: string }) {
   return (
-    <span className="flex items-center gap-1.5">
-      <span className="font-semibold text-eden-text">{count}</span>
+    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+      <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{count}</span>
       <span>{count === 1 ? label.replace(/s$/, '') : label}</span>
     </span>
   );
