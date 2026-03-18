@@ -30,8 +30,23 @@ export function RoleFilterPills({
   if (personas.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2">
-      <span className="text-xs font-medium text-eden-text-2 mr-1">
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        paddingLeft: '24px',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '11px',
+          fontWeight: 600,
+          color: '#6b7280',
+          marginRight: '-2px',
+          flexShrink: 0,
+        }}
+      >
         Highlight:
       </span>
 

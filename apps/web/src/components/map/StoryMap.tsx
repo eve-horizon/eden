@@ -189,19 +189,28 @@ export function StoryMap({
         totalTaskCount={data.stats.task_count}
       />
 
-      {/* Role filter pills (client-side highlight) */}
-      <RoleFilterPills
-        personas={data.personas}
-        active={roleHighlight}
-        onToggle={setRoleHighlight}
-      />
-
-      {/* Activity filter bar */}
-      <ActivityFilterBar
-        activities={data.activities}
-        selected={selectedActivities}
-        onSelectionChange={setSelectedActivities}
-      />
+      {/* Filters row — role highlight + activity filter combined (matching prototype compactness) */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          padding: '6px 0',
+          background: '#fff',
+          borderBottom: '1px solid #e2e5e9',
+        }}
+      >
+        <RoleFilterPills
+          personas={data.personas}
+          active={roleHighlight}
+          onToggle={setRoleHighlight}
+        />
+        <ActivityFilterBar
+          activities={data.activities}
+          selected={selectedActivities}
+          onSelectionChange={setSelectedActivities}
+        />
+      </div>
 
       {/* Stats bar — matching prototype header counters */}
       <MapStatsBar stats={data.stats} />

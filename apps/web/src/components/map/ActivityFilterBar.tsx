@@ -66,12 +66,9 @@ export function ActivityFilterBar({
     <div
       ref={containerRef}
       style={{
-        padding: '0 24px',
         display: 'flex',
         gap: '8px',
         alignItems: 'center',
-        background: '#fff',
-        borderBottom: '1px solid #e2e5e9',
       }}
     >
       <span
