@@ -224,105 +224,94 @@ export function MapPage() {
       {/* View tabs */}
       <MapViewTabs projectId={projectId} onApplyFilters={handleApplyViewFilters} />
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-eden-border bg-eden-surface">
-        <div className="flex items-center gap-3">
+      {/* Toolbar — matches prototype header action buttons style */}
+      <div
+        className="flex items-center justify-between px-4 py-2 border-b border-eden-border"
+        style={{ background: 'linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)' }}
+      >
+        <div className="flex items-center gap-1.5">
           <EvolvedBadge
             visible={evolvedCount > 0}
             count={evolvedCount}
           />
 
           {/* Expand All toggle */}
-          <button
+          <ToolbarButton
+            active={expandAll}
             onClick={() => setExpandAll(!expandAll)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              border transition-colors
-              ${expandAll
-                ? 'bg-eden-accent text-white border-eden-accent'
-                : 'bg-eden-bg text-eden-text-2 border-eden-border hover:text-eden-text'
-              }`}
             data-testid="expand-all-btn"
           >
             <ExpandIcon className="w-3.5 h-3.5" />
             {expandAll ? 'Collapse All' : 'Expand All'}
-          </button>
+          </ToolbarButton>
 
           {/* Questions Only toggle */}
-          <button
+          <ToolbarButton
+            active={questionsOnly}
             onClick={() => setQuestionsOnly(!questionsOnly)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              border transition-colors
-              ${questionsOnly
-                ? 'bg-amber-500 text-white border-amber-500'
-                : 'bg-eden-bg text-eden-text-2 border-eden-border hover:text-eden-text'
-              }`}
             data-testid="questions-only-btn"
           >
             <QuestionFilterIcon className="w-3.5 h-3.5" />
             Questions Only
-          </button>
+          </ToolbarButton>
+
+          {/* Cross-Cutting Qs */}
+          <ToolbarButton
+            active={questionsOpen}
+            onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
+            data-testid="cross-cutting-qs-btn"
+          >
+            <AlertTriangleIcon className="w-3.5 h-3.5" />
+            Cross-Cutting Qs
+          </ToolbarButton>
+
+          {/* Print */}
+          <ToolbarButton onClick={() => window.print()} data-testid="print-btn">
+            <PrintIcon className="w-3.5 h-3.5" />
+            Print
+          </ToolbarButton>
+
+          {/* Export JSON */}
+          <ToolbarButton onClick={handleExportJson} data-testid="export-json-btn">
+            <DownloadIcon className="w-3.5 h-3.5" />
+            Export JSON
+          </ToolbarButton>
+
+          {/* Export Markdown */}
+          <ToolbarButton onClick={handleExportMarkdown} data-testid="export-md-btn">
+            <DownloadIcon className="w-3.5 h-3.5" />
+            Export MD
+          </ToolbarButton>
 
           {/* Hide/Show 2.0 toggle */}
-          <button
+          <ToolbarButton
+            active={!hideProposed}
+            accent
             onClick={() => setHideProposed(!hideProposed)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              border transition-colors
-              ${hideProposed
-                ? 'bg-emerald-500 text-white border-emerald-500'
-                : 'bg-white text-emerald-600 border-emerald-300 hover:bg-emerald-50'
-              }`}
             data-testid="hide-proposed-btn"
           >
             <EyeIcon className="w-3.5 h-3.5" slash={hideProposed} />
             {hideProposed ? 'Show 2.0' : 'Hide 2.0'}
-          </button>
+          </ToolbarButton>
+
+          {/* Chat */}
+          <ToolbarButton
+            active={chatOpen}
+            onClick={() => { setChatOpen(!chatOpen); setQuestionsOpen(false); }}
+            data-testid="chat-toggle-btn"
+          >
+            <ChatIcon className="w-3.5 h-3.5" />
+            Chat
+          </ToolbarButton>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Export JSON */}
-          <button
-            onClick={handleExportJson}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              bg-eden-bg text-eden-text-2 hover:text-eden-text transition-colors"
-            title="Export as JSON"
-            data-testid="export-json-btn"
-          >
-            <DownloadIcon className="w-3.5 h-3.5" />
-            JSON
-          </button>
-
-          {/* Export Markdown */}
-          <button
-            onClick={handleExportMarkdown}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              bg-eden-bg text-eden-text-2 hover:text-eden-text transition-colors"
-            title="Export as Markdown"
-            data-testid="export-md-btn"
-          >
-            <DownloadIcon className="w-3.5 h-3.5" />
-            MD
-          </button>
-
-          {/* Print */}
-          <button
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-              bg-eden-bg text-eden-text-2 hover:text-eden-text transition-colors"
-            title="Print story map"
-            data-testid="print-btn"
-          >
-            <PrintIcon className="w-3.5 h-3.5" />
-            Print
-          </button>
-
-          <div className="w-px h-5 bg-eden-border" />
-
+        <div className="flex items-center gap-1.5">
           {/* Pending Approvals badge — owner-only */}
           {pendingItems.length > 0 && isOwner && (
             <button
               onClick={() => setPendingOpen(!pendingOpen)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
               data-testid="pending-approvals-btn"
             >
               <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
@@ -331,28 +320,6 @@ export function MapPage() {
               Pending Review
             </button>
           )}
-
-          {/* Cross-Cutting Qs */}
-          <button
-            onClick={() => { setQuestionsOpen(!questionsOpen); setChatOpen(false); }}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-              ${questionsOpen ? 'bg-red-100 text-red-700' : 'bg-eden-bg text-eden-text-2 hover:text-eden-text'}`}
-            data-testid="cross-cutting-qs-btn"
-          >
-            <AlertTriangleIcon className="w-3.5 h-3.5" />
-            Cross-Cutting Qs
-          </button>
-
-          {/* Chat */}
-          <button
-            onClick={() => { setChatOpen(!chatOpen); setQuestionsOpen(false); }}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
-              ${chatOpen ? 'bg-eden-accent/10 text-eden-accent' : 'bg-eden-bg text-eden-text-2 hover:text-eden-text'}`}
-            data-testid="chat-toggle-btn"
-          >
-            <ChatIcon className="w-3.5 h-3.5" />
-            Chat
-          </button>
         </div>
       </div>
 
@@ -407,6 +374,64 @@ export function MapPage() {
         />
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ToolbarButton — dark-header button matching prototype's hdr-actions style
+// ---------------------------------------------------------------------------
+
+function ToolbarButton({
+  children,
+  active,
+  accent,
+  onClick,
+  ...rest
+}: {
+  children: React.ReactNode;
+  active?: boolean;
+  accent?: boolean;
+  onClick?: () => void;
+  [key: string]: any;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 12px',
+        border: active
+          ? (accent ? '1px solid #e65100' : '1px solid rgba(255,255,255,0.5)')
+          : '1px solid rgba(255,255,255,0.2)',
+        background: active
+          ? (accent ? '#e65100' : 'rgba(255,255,255,0.15)')
+          : 'rgba(255,255,255,0.07)',
+        color: '#fff',
+        borderRadius: '7px',
+        fontSize: '11px',
+        fontWeight: 600,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        whiteSpace: 'nowrap',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.35)';
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+        }
+      }}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }
 

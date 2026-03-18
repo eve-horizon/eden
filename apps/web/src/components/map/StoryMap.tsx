@@ -206,6 +206,9 @@ export function StoryMap({
       {/* Stats bar — matching prototype header counters */}
       <MapStatsBar stats={data.stats} />
 
+      {/* Color legend — matching prototype's legend row */}
+      <ColorLegend personas={data.personas} />
+
       {/* Loading overlay for re-fetches */}
       {loading && (
         <div className="px-4 py-1">
@@ -749,6 +752,76 @@ function MapSkeleton() {
       <div className="border-t border-eden-border px-4 py-2.5">
         <div className="h-4 w-96 bg-gray-200 rounded animate-pulse" />
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ColorLegend — visual key matching prototype's legend row
+// ---------------------------------------------------------------------------
+
+function ColorLegend({ personas }: { personas: Persona[] }) {
+  return (
+    <div
+      style={{
+        background: '#fff',
+        borderBottom: '1px solid #e2e5e9',
+        padding: '8px 24px',
+        display: 'flex',
+        gap: '20px',
+        alignItems: 'center',
+        fontSize: '11px',
+        color: '#6b7280',
+        flexWrap: 'wrap',
+      }}
+    >
+      <LegendItem color="#1a1a2e" label="Activity" />
+      <LegendItem color="#e65100" label="Step" />
+      <LegendItem color="#fff" label="Task" border="#e2e5e9" />
+      <LegendItem color="#fffbeb" label="Question" border="#f59e0b" />
+      <LegendItem color="#fef2f2" label="Cross-Cutting" border="#ef4444" />
+
+      {personas.length > 1 && (
+        <>
+          <div style={{ width: '1px', height: '16px', background: '#e2e5e9' }} />
+          {personas.map((p) => (
+            <LegendItem key={p.id} color={p.color} label={p.name} />
+          ))}
+        </>
+      )}
+
+      <div style={{ width: '1px', height: '16px', background: '#e2e5e9' }} />
+      <LegendItem color="#d1fae5" label="2.0 Proposed" border="#10b981" dashed />
+      <LegendItem color="#f3f4f6" label="Discontinued" border="#9ca3af" />
+    </div>
+  );
+}
+
+function LegendItem({
+  color,
+  label,
+  border,
+  dashed,
+}: {
+  color: string;
+  label: string;
+  border?: string;
+  dashed?: boolean;
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+      <span
+        style={{
+          width: '20px',
+          height: '11px',
+          borderRadius: '3px',
+          backgroundColor: color,
+          border: border
+            ? `1px ${dashed ? 'dashed' : 'solid'} ${border}`
+            : '1px solid rgba(0,0,0,0.06)',
+        }}
+      />
+      <span>{label}</span>
     </div>
   );
 }
