@@ -63,12 +63,30 @@ export function MapPage() {
   const [expandAll, setExpandAll] = useState(false);
   const [questionsOnly, setQuestionsOnly] = useState(false);
 
-  // Stats from StoryMap
+  // Data from StoryMap
   const [mapStats, setMapStats] = useState<{
     activity_count: number; step_count: number; task_count: number;
     acceptance_criteria_count: number; question_count: number;
     answered_question_count: number; persona_counts: Record<string, number>;
   } | null>(null);
+  const [mapActivities, setMapActivities] = useState<{ id: string; display_id: string; name: string }[]>([]);
+  const [mapPersonas, setMapPersonas] = useState<{ id: string; code: string; name: string; color: string }[]>([]);
+
+  // Filter state for activity and role (managed here, applied via URL params)
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [roleHighlight, setRoleHighlight] = useState<string | null>(null);
+
+  const handleDataReady = useCallback((data: {
+    stats: typeof mapStats extends infer T ? NonNullable<T> : never;
+    activities: typeof mapActivities;
+    personas: typeof mapPersonas;
+  }) => {
+    setMapStats(data.stats);
+    setMapActivities(data.activities);
+    setMapPersonas(data.personas);
+    // Initialize all activities selected on first load
+    setSelectedActivities(prev => prev.size === 0 ? new Set(data.activities.map(a => a.id)) : prev);
+  }, []);
 
   // Dropdown menus
   const [filterOpen, setFilterOpen] = useState(false);
@@ -260,7 +278,8 @@ export function MapPage() {
             {filterOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 6px)', left: 0,
-                minWidth: '200px', background: '#fff', border: '1px solid #e2e5e9',
+                minWidth: '220px', maxHeight: '70vh', overflowY: 'auto',
+                background: '#fff', border: '1px solid #e2e5e9',
                 borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,.18)',
                 zIndex: 200, padding: '4px 0', color: '#1a1a2e',
               }}>
@@ -282,6 +301,53 @@ export function MapPage() {
                   onClick={() => setHideProposed(!hideProposed)}
                   data-testid="hide-proposed-btn"
                 />
+
+                {/* Filter by Activity */}
+                {mapActivities.length > 0 && (
+                  <>
+                    <DropdownLabel>Filter by Activity</DropdownLabel>
+                    <DropdownItem
+                      label="All Activities"
+                      active={selectedActivities.size === mapActivities.length}
+                      onClick={() => setSelectedActivities(new Set(mapActivities.map(a => a.id)))}
+                    />
+                    {mapActivities.map((a, i) => (
+                      <DropdownItem
+                        key={a.id}
+                        label={`${i + 1}. ${a.name}`}
+                        active={selectedActivities.has(a.id)}
+                        onClick={() => {
+                          const next = new Set(selectedActivities);
+                          if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
+                          setSelectedActivities(next);
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Filter by Role */}
+                {mapPersonas.length > 0 && (
+                  <>
+                    <DropdownLabel>Filter by Role</DropdownLabel>
+                    <div style={{ display: 'flex', gap: '6px', padding: '6px 14px', flexWrap: 'wrap' }}>
+                      {mapPersonas.map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => setRoleHighlight(roleHighlight === p.code ? null : p.code)}
+                          style={{
+                            padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700,
+                            cursor: 'pointer', transition: 'all 0.15s', border: `2px solid ${p.color}`,
+                            background: roleHighlight === p.code ? p.color : 'transparent',
+                            color: roleHighlight === p.code ? '#fff' : p.color,
+                          }}
+                        >
+                          {p.code}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -366,7 +432,7 @@ export function MapPage() {
         hideProposed={hideProposed}
         expandAll={expandAll}
         questionsOnly={questionsOnly}
-        onStatsReady={setMapStats}
+        onDataReady={handleDataReady}
       />
 
       {/* Release Slices — below the map grid */}
@@ -518,6 +584,22 @@ function InlineStat({ n, label }: { n: number; label: string }) {
 
 function StatDot() {
   return <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '10px' }}>&middot;</span>;
+}
+
+// ---------------------------------------------------------------------------
+// DropdownLabel — section header in dropdown matching prototype's hdr-dropdown-label
+// ---------------------------------------------------------------------------
+
+function DropdownLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      padding: '8px 14px 4px', fontSize: '9px', fontWeight: 800,
+      textTransform: 'uppercase', letterSpacing: '0.5px', color: '#6b7280',
+      borderTop: '1px solid #e2e5e9', marginTop: '4px',
+    }}>
+      {children}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------

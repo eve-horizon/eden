@@ -40,8 +40,8 @@ interface StoryMapProps {
   onHideProposedChange?: (value: boolean) => void;
   expandAll?: boolean;
   questionsOnly?: boolean;
-  /** Callback when map data loads — passes stats for toolbar display */
-  onStatsReady?: (stats: MapStats) => void;
+  /** Callback when map data loads — passes stats, activities, personas for toolbar display */
+  onDataReady?: (data: { stats: MapStats; activities: { id: string; display_id: string; name: string }[]; personas: { id: string; code: string; name: string; color: string }[] }) => void;
 }
 
 export function StoryMap({
@@ -51,7 +51,7 @@ export function StoryMap({
   hideProposed = false,
   expandAll = false,
   questionsOnly = false,
-  onStatsReady,
+  onDataReady,
 }: StoryMapProps) {
   const { projectId } = useParams<{ projectId: string }>();
   const [searchParams] = useSearchParams();
@@ -93,7 +93,11 @@ export function StoryMap({
         `/projects/${projectId}/map${qs ? `?${qs}` : ''}`,
       );
       setData(resp);
-      onStatsReady?.(resp.stats);
+      onDataReady?.({
+        stats: resp.stats,
+        activities: resp.activities.map(a => ({ id: a.id, display_id: a.display_id, name: a.name })),
+        personas: resp.personas.map(p => ({ id: p.id, code: p.code, name: p.name, color: p.color })),
+      });
 
       // Activity selection not managed here — all activities shown by default
     } catch (err) {
