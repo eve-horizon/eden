@@ -1,12 +1,15 @@
 import { useParams } from 'react-router-dom';
 import { useProjectRole } from '../hooks/useProjectRole';
 import { useMembers, type ProjectMember } from '../hooks/useMembers';
+import { useInvite } from '../hooks/useInvite';
+import { usePendingInvites, type PendingInvite } from '../hooks/usePendingInvites';
 import { useState } from 'react';
 import { InviteModal } from '../components/projects/InviteModal';
 
 // ---------------------------------------------------------------------------
 // MembersPage — full-page project member management.
-// Owners can invite, change roles, and remove. Others see read-only list.
+// Owners can invite, change roles, remove, and manage pending invites.
+// Others see read-only member list.
 // ---------------------------------------------------------------------------
 
 const ROLE_OPTIONS = ['owner', 'editor', 'viewer'] as const;
@@ -22,42 +25,58 @@ function roleColor(role: string) {
   return ROLE_COLORS[role] ?? DEFAULT_ROLE_COLOR;
 }
 
+function timeAgo(dateStr: string): string {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export function MembersPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const { isOwner } = useProjectRole(projectId);
-  const { members, loading, invite, updateRole, remove } = useMembers(projectId);
+  const { members, loading, refetch: refetchMembers, updateRole, remove } = useMembers(projectId);
+  const { invite } = useInvite(projectId);
+  const {
+    invites: pendingInvites,
+    loading: pendingLoading,
+    refetch: refetchPending,
+    cancel: cancelInvite,
+  } = usePendingInvites(isOwner ? projectId : undefined);
 
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteUserId, setInviteUserId] = useState('');
-  const [inviteRole, setInviteRole] = useState<string>('editor');
-  const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
-
-  // InviteModal state
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
 
   if (!projectId) return null;
 
-  const handleInvite = async () => {
-    if (!inviteEmail.trim() && !inviteUserId.trim()) return;
-    setInviting(true);
-    setInviteError(null);
-    try {
-      await invite(inviteUserId.trim(), inviteEmail.trim(), inviteRole);
-      setInviteEmail('');
-      setInviteUserId('');
-      setInviteRole('editor');
-    } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'Failed to invite');
-    } finally {
-      setInviting(false);
-    }
+  const handleInvite = async (email: string, role: string) => {
+    const result = await invite(email, role);
+    // Refetch both lists after any invite action
+    refetchMembers();
+    refetchPending();
+    return result;
   };
 
   const handleRemove = async (member: ProjectMember) => {
     const label = member.email || member.user_id;
     if (!confirm(`Remove ${label} from this project?`)) return;
-    try { await remove(member.id); } catch { /* */ }
+    try {
+      await remove(member.id);
+    } catch {
+      /* */
+    }
+  };
+
+  const handleCancelInvite = async (inv: PendingInvite) => {
+    if (!confirm(`Cancel invite for ${inv.email}?`)) return;
+    try {
+      await cancelInvite(inv.id);
+    } catch {
+      /* */
+    }
   };
 
   return (
@@ -124,7 +143,9 @@ export function MembersPage() {
                         data-testid={`role-select-${member.id}`}
                       >
                         {ROLE_OPTIONS.map((r) => (
-                          <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
+                          <option key={r} value={r}>
+                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -154,51 +175,50 @@ export function MembersPage() {
               })}
             </div>
 
-            {/* Invite form — owner only */}
-            {isOwner && (
-              <div className="p-4 bg-eden-bg rounded-xl border border-eden-border">
-                <h3 className="text-sm font-bold text-eden-text mb-3">Invite Member</h3>
+            {/* Pending Invites — owner only */}
+            {isOwner && !pendingLoading && pendingInvites.length > 0 && (
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-eden-text mb-3 flex items-center gap-2">
+                  Pending Invites
+                  <span className="text-xs font-normal text-eden-text-2 bg-eden-bg px-1.5 py-0.5 rounded">
+                    {pendingInvites.length}
+                  </span>
+                </h3>
                 <div className="space-y-2">
-                  <input
-                    type="text"
-                    placeholder="User ID"
-                    value={inviteUserId}
-                    onChange={(e) => setInviteUserId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-eden-border text-sm outline-none focus:border-eden-accent"
-                    data-testid="invite-user-id"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-eden-border text-sm outline-none focus:border-eden-accent"
-                    data-testid="invite-email"
-                  />
-                  <div className="flex gap-2">
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-lg border border-eden-border text-sm cursor-pointer"
-                      data-testid="invite-role"
-                    >
-                      {ROLE_OPTIONS.map((r) => (
-                        <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={handleInvite}
-                      disabled={inviting || (!inviteEmail.trim() && !inviteUserId.trim())}
-                      className="px-4 py-2 rounded-lg bg-eden-accent text-white text-sm font-semibold
-                        disabled:opacity-50 hover:opacity-90 transition-opacity whitespace-nowrap"
-                      data-testid="invite-btn"
-                    >
-                      {inviting ? 'Inviting...' : 'Invite'}
-                    </button>
-                  </div>
-                  {inviteError && (
-                    <div className="text-xs text-red-600 mt-1">{inviteError}</div>
-                  )}
+                  {pendingInvites.map((inv) => {
+                    const rc = roleColor(inv.role);
+                    return (
+                      <div
+                        key={inv.id}
+                        className="flex items-center gap-3 p-3 bg-eden-bg/50 border border-eden-border border-dashed rounded-lg"
+                        data-testid={`pending-invite-${inv.id}`}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-eden-border flex items-center justify-center text-xs font-bold text-eden-text-2 flex-shrink-0">
+                          {inv.email[0]?.toUpperCase() ?? '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-eden-text truncate">{inv.email}</div>
+                          <div className="text-[10px] text-eden-text-2 mt-0.5">
+                            Invited {timeAgo(inv.created_at)}
+                          </div>
+                        </div>
+                        <span
+                          className="text-xs font-semibold px-2 py-1 rounded-md flex-shrink-0"
+                          style={{ background: rc.bg, color: rc.text }}
+                        >
+                          {inv.role.charAt(0).toUpperCase() + inv.role.slice(1)}
+                        </span>
+                        <button
+                          onClick={() => handleCancelInvite(inv)}
+                          className="text-xs text-eden-text-2 hover:text-red-500 transition-colors px-2 py-1 flex-shrink-0"
+                          title="Cancel invite"
+                          data-testid={`cancel-invite-${inv.id}`}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -210,7 +230,7 @@ export function MembersPage() {
       <InviteModal
         open={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
-        onInvite={invite}
+        onInvite={handleInvite}
       />
     </div>
   );

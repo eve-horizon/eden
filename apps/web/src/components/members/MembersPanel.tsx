@@ -1,11 +1,11 @@
-import { useState } from 'react';
 import { useMembers, type ProjectMember } from '../../hooks/useMembers';
 
 // ---------------------------------------------------------------------------
 // MembersPanel — slide-over panel for viewing and managing project members.
 //
-// Owners see role-change dropdowns, remove buttons, and an invite form.
+// Owners see role-change dropdowns and remove buttons.
 // Editors and viewers see a read-only member list.
+// Invite action is handled by the InviteModal (not duplicated here).
 // ---------------------------------------------------------------------------
 
 interface MembersPanelProps {
@@ -24,32 +24,9 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export function MembersPanel({ projectId, open, onClose, isOwner }: MembersPanelProps) {
-  const { members, loading, invite, updateRole, remove } = useMembers(projectId);
-
-  // Invite form state
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteUserId, setInviteUserId] = useState('');
-  const [inviteRole, setInviteRole] = useState<string>('editor');
-  const [inviting, setInviting] = useState(false);
-  const [inviteError, setInviteError] = useState<string | null>(null);
+  const { members, loading, updateRole, remove } = useMembers(projectId);
 
   if (!open) return null;
-
-  const handleInvite = async () => {
-    if (!inviteEmail.trim() && !inviteUserId.trim()) return;
-    setInviting(true);
-    setInviteError(null);
-    try {
-      await invite(inviteUserId.trim(), inviteEmail.trim(), inviteRole);
-      setInviteEmail('');
-      setInviteUserId('');
-      setInviteRole('editor');
-    } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'Failed to invite member');
-    } finally {
-      setInviting(false);
-    }
-  };
 
   const handleRemove = async (member: ProjectMember) => {
     const label = member.email || member.user_id;
@@ -57,7 +34,7 @@ export function MembersPanel({ projectId, open, onClose, isOwner }: MembersPanel
     try {
       await remove(member.id);
     } catch {
-      // Silently fail — could add toast later
+      // Silently fail
     }
   };
 
@@ -149,127 +126,30 @@ export function MembersPanel({ projectId, open, onClose, isOwner }: MembersPanel
               Loading members...
             </div>
           ) : (
-            <>
-              {/* Member list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {members.length === 0 && (
-                  <div
-                    style={{
-                      textAlign: 'center',
-                      padding: '24px 0',
-                      color: '#9ca3af',
-                      fontSize: '13px',
-                    }}
-                  >
-                    No members yet.
-                  </div>
-                )}
-
-                {members.map((member) => (
-                  <MemberRow
-                    key={member.id}
-                    member={member}
-                    isOwner={isOwner}
-                    onRoleChange={(role) => updateRole(member.id, role)}
-                    onRemove={() => handleRemove(member)}
-                  />
-                ))}
-              </div>
-
-              {/* Invite form — owner only */}
-              {isOwner && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {members.length === 0 && (
                 <div
                   style={{
-                    marginTop: '24px',
-                    padding: '16px',
-                    background: '#f9fafb',
-                    borderRadius: '10px',
-                    border: '1px solid #e2e5e9',
+                    textAlign: 'center',
+                    padding: '24px 0',
+                    color: '#9ca3af',
+                    fontSize: '13px',
                   }}
                 >
-                  <h3
-                    style={{
-                      margin: '0 0 12px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: '#1a1a2e',
-                    }}
-                  >
-                    Invite Member
-                  </h3>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder="User ID"
-                      value={inviteUserId}
-                      onChange={(e) => setInviteUserId(e.target.value)}
-                      style={inputStyle}
-                      data-testid="invite-user-id"
-                    />
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      style={inputStyle}
-                      data-testid="invite-email"
-                    />
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <select
-                        value={inviteRole}
-                        onChange={(e) => setInviteRole(e.target.value)}
-                        style={{
-                          ...inputStyle,
-                          flex: 1,
-                          cursor: 'pointer',
-                        }}
-                        data-testid="invite-role"
-                      >
-                        {ROLE_OPTIONS.map((r) => (
-                          <option key={r} value={r}>
-                            {r.charAt(0).toUpperCase() + r.slice(1)}
-                          </option>
-                        ))}
-                      </select>
-
-                      <button
-                        onClick={handleInvite}
-                        disabled={inviting || (!inviteEmail.trim() && !inviteUserId.trim())}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: '#e65100',
-                          color: '#fff',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          cursor: inviting ? 'wait' : 'pointer',
-                          opacity: inviting || (!inviteEmail.trim() && !inviteUserId.trim()) ? 0.5 : 1,
-                          whiteSpace: 'nowrap',
-                        }}
-                        data-testid="invite-btn"
-                      >
-                        {inviting ? 'Inviting...' : 'Invite'}
-                      </button>
-                    </div>
-
-                    {inviteError && (
-                      <div
-                        style={{
-                          fontSize: '11px',
-                          color: '#dc2626',
-                          marginTop: '4px',
-                        }}
-                      >
-                        {inviteError}
-                      </div>
-                    )}
-                  </div>
+                  No members yet.
                 </div>
               )}
-            </>
+
+              {members.map((member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  isOwner={isOwner}
+                  onRoleChange={(role) => updateRole(member.id, role)}
+                  onRemove={() => handleRemove(member)}
+                />
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -307,7 +187,6 @@ function MemberRow({
       }}
       data-testid={`member-row-${member.id}`}
     >
-      {/* Avatar placeholder */}
       <div
         style={{
           width: '32px',
@@ -326,7 +205,6 @@ function MemberRow({
         {(member.email?.[0] ?? member.user_id[0] ?? '?').toUpperCase()}
       </div>
 
-      {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -353,7 +231,6 @@ function MemberRow({
         )}
       </div>
 
-      {/* Role */}
       {isOwner ? (
         <select
           value={member.role}
@@ -393,7 +270,6 @@ function MemberRow({
         </span>
       )}
 
-      {/* Remove button — owner only */}
       {isOwner && (
         <button
           onClick={onRemove}
@@ -416,19 +292,3 @@ function MemberRow({
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Shared styles
-// ---------------------------------------------------------------------------
-
-const inputStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  borderRadius: '8px',
-  border: '1px solid #e2e5e9',
-  fontSize: '12px',
-  outline: 'none',
-  color: '#1a1a2e',
-  background: '#fff',
-  width: '100%',
-  boxSizing: 'border-box',
-};

@@ -1,5 +1,6 @@
 import { EveAuthProvider, useEveAuth } from '@eve-horizon/auth-react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { ProjectsPage } from './pages/ProjectsPage';
@@ -12,6 +13,8 @@ import { ReviewsPage } from './pages/ReviewsPage';
 import { AuditPage } from './pages/AuditPage';
 import { MembersPage } from './pages/MembersPage';
 import { useProject } from './hooks/useProjects';
+import { useClaimInvite } from './hooks/useClaimInvite';
+import { useProjectRole } from './hooks/useProjectRole';
 
 // ---------------------------------------------------------------------------
 // ProjectShell — wraps project-scoped routes with project context in AppShell
@@ -28,6 +31,12 @@ function ProjectShell({
 }) {
   const { projectId } = useParams<{ projectId: string }>();
   const { project } = useProject(projectId);
+  const { refetch: refetchRole } = useProjectRole(projectId);
+
+  // Auto-claim any pending invite on first project access
+  useClaimInvite(projectId, () => {
+    refetchRole();
+  });
 
   return (
     <AppShell
@@ -39,6 +48,25 @@ function ProjectShell({
       {children}
     </AppShell>
   );
+}
+
+// ---------------------------------------------------------------------------
+// DeepLinkRedirect — handles ?project=<id> from invite onboarding flow
+// ---------------------------------------------------------------------------
+
+function DeepLinkRedirect({ children }: { children: React.ReactNode }) {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const deepLinkProject = searchParams.get('project');
+
+  useEffect(() => {
+    if (deepLinkProject) {
+      navigate(`/projects/${deepLinkProject}/map`, { replace: true });
+    }
+  }, [deepLinkProject, navigate]);
+
+  if (deepLinkProject) return null; // Will redirect
+  return <>{children}</>;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,11 +120,14 @@ function AuthGate() {
     <BrowserRouter>
       <Routes>
         {/* Projects list — no project context */}
+        {/* DeepLinkRedirect handles ?project=<id> from invite onboarding flow */}
         <Route
           path="/"
           element={
             <AppShell user={user} onLogout={logout}>
-              <ProjectsPage />
+              <DeepLinkRedirect>
+                <ProjectsPage />
+              </DeepLinkRedirect>
             </AppShell>
           }
         />
