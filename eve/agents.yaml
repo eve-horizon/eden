@@ -245,6 +245,11 @@ agents:
     with_apis:
       - service: api
         description: Eden Story Map API for creating personas, activities, steps, tasks, and changesets
+    access:
+      permissions:
+        - projects:write
+        - envdb:write
+        - envs:write
     gateway:
       policy: none
     policies:
