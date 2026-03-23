@@ -7,7 +7,7 @@ test.describe('Phase 3 — Intelligence Layer', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto(BASE);
     await page.evaluate((token) => {
-      localStorage.setItem('eve_token', token);
+      sessionStorage.setItem('eve_access_token', token);
     }, process.env.TOKEN);
     await page.reload();
   });

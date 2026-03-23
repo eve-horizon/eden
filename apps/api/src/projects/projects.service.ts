@@ -63,6 +63,17 @@ export class ProjectsService {
       );
       const project = rows[0];
 
+      // Auto-add the creator as project owner so they pass EditorGuard
+      // on subsequent write operations (source uploads, map generation, etc.)
+      if (ctx.user_id) {
+        await client.query(
+          `INSERT INTO project_members (org_id, project_id, user_id, role)
+                VALUES ($1, $2, $3, 'owner')
+             ON CONFLICT (project_id, user_id) DO NOTHING`,
+          [ctx.org_id, project.id, ctx.user_id],
+        );
+      }
+
       await client.query(
         `INSERT INTO audit_log (org_id, project_id, entity_type, entity_id, action, actor, details)
               VALUES ($1, $2, 'project', $3, 'create', $4, $5)`,

@@ -39,6 +39,12 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
   const [changesetId, setChangesetId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Track whether a project was created so we can notify the parent at the
+  // right time (on navigation away) rather than mid-generation — calling
+  // onProjectCreated during generation triggers a parent re-render that
+  // unmounts this component and resets wizard state back to step 1.
+  const projectCreatedRef = useRef(false);
+
   const deriveSlug = (value: string) =>
     value
       .toLowerCase()
@@ -53,11 +59,14 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
     }
   };
 
-  // Clean up polling on unmount
+  // Clean up polling on unmount; notify parent if a project was created
+  // so the project list refreshes once the wizard is gone.
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      if (projectCreatedRef.current) onProjectCreated();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close on Escape key
@@ -81,7 +90,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
         slug: slug.trim(),
       });
       setProjectId(project.id);
-      onProjectCreated();
+      projectCreatedRef.current = true;
 
       // Trigger map generation
       setGenStatus('Starting map generation...');
@@ -126,7 +135,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
       );
       setGenerating(false);
     }
-  }, [name, slug, description, audience, capabilities, constraints, onProjectCreated]);
+  }, [name, slug, description, audience, capabilities, constraints]);
 
   const handleSkipToCreate = useCallback(async () => {
     setGenerating(true);
