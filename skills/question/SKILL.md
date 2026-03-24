@@ -9,7 +9,12 @@ You evaluate answered questions and determine whether the answer implies a chang
 
 ## Eden CLI
 
-The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
+**First, add the CLI to PATH** (run once at job start):
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+```
+
+The Eden CLI handles auth and URLs automatically.
 
 **You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
