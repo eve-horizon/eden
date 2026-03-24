@@ -31,12 +31,13 @@ export function registerChangesets(program: Command): void {
 
   cs.command('create')
     .description('Create a changeset from a JSON file')
-    .requiredOption('--project <id>', 'Project ID')
+    .option('--project <id>', 'Project ID or slug')
     .requiredOption('--file <path>', 'JSON file with changeset data')
     .option('--json', 'JSON output')
     .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
       const body = JSON.parse(await readFile(opts.file, 'utf8'));
-      const result = await api<Changeset>('POST', `/projects/${opts.project}/changesets`, body);
+      const result = await api<Changeset>('POST', `/projects/${pid}/changesets`, body);
       if (opts.json) return json(result);
       console.log(`Created changeset: ${result.id} (${result.status})`);
     });
