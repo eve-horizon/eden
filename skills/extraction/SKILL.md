@@ -67,12 +67,7 @@ Return a JSON object matching this structure:
 
 ## After Extraction: Update Source Status
 
-**First, add the CLI to PATH** (run once at job start):
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-```
-
-Update the source status so the UI reflects progress.
+The Eden CLI is available as `eden` on PATH. Update the source status so the UI reflects progress.
 
 **CRITICAL: `payload.project_id` in the workflow input is the Eve project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Discover the Eden UUID first:
 

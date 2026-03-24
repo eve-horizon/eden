@@ -9,12 +9,7 @@ You are the intelligent coordinator for a PM expert panel. You receive every mes
 
 ## Eden CLI
 
-**First, add the CLI to PATH** (run once at job start):
-```bash
-export PATH="$PWD/cli/bin:$PATH"
-```
-
-The Eden CLI handles auth and URLs automatically.
+The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
 
 **You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
