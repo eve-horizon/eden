@@ -10,6 +10,13 @@ Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + Po
 - **Database**: `db/migrations/` — 15 tables, never edit existing migrations
 - **Config**: `.eve/manifest.yaml` — deployment, pipelines, managed Postgres
 
+## API Access Policy for Agents
+
+- All agent documentation, runbooks, and skill workflows that touch Eden API data MUST call the `eden` CLI.
+- Never call Eden REST endpoints directly from skills or agent workflows (`curl`, `fetch`, or manual URLs).
+- Use `eden` (not `./cli/bin/eden`) so path handling remains stable across directories.
+- If an agent needs an API operation the CLI does not expose, add the command in CLI first, then update skills.
+
 ## CRITICAL: Staging Deployment
 
 **You MUST sync the manifest before every deploy.** Failure to do so causes "Manifest missing services" errors because the platform uses a stale server-side manifest for routing.
