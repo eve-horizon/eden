@@ -1,5 +1,20 @@
 # Eden — AI-First Requirements Platform
 
+## CRITICAL: Agent Bootstrap (run FIRST in every job)
+
+If you are an Eve agent running a job, do this **before anything else**:
+
+```bash
+export PATH="$PWD/cli/bin:$PATH"
+```
+
+Then read your skill file for instructions:
+```bash
+cat skills/<your-agent-slug>/SKILL.md
+```
+
+**You MUST use `eden` CLI for ALL API interactions.** Do NOT use curl, fetch, or raw HTTP endpoints. Do NOT explore the codebase for API patterns. Do NOT write shell scripts. Your SKILL.md has the exact commands you need.
+
 ## What This Is
 
 A full-stack Eve Horizon application: NestJS API + React SPA + PostgreSQL database + 14 AI agents. Users interact via Slack (`@eve pm`) or the web UI. The expert panel reviews documents, the intelligence layer keeps the story map alive, and the web app renders it all as an interactive grid.
@@ -120,6 +135,12 @@ Every query runs in a transaction with `SET LOCAL app.org_id`. RLS policies enfo
 - **RLS at query time** — `app.org_id` set per-transaction, policies enforce isolation
 - **Dual auth** — Eve SSO (users) + Eve job tokens (agents), normalized to `req.user`
 - **Display IDs** — Human-readable refs (TSK-1.2.1, ACT-3, Q-5) used across agents and UI
+
+## Agent API Access Standard
+
+- Agents and skill workflows must use `eden` CLI for API interactions.
+- Do not use direct HTTP calls (`curl`, `fetch`, raw endpoint URLs, manual `POST/GET`) in skills or agent scripts.
+- If a required operation is missing from CLI, add CLI support first, then update SKILL docs.
 
 ## CRITICAL: Deploying to Staging
 
