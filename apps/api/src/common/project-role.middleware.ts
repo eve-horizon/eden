@@ -26,6 +26,12 @@ export class ProjectRoleMiddleware implements NestMiddleware {
       return next();
     }
 
+    // No authenticated user — skip role resolution; AuthGuard will return 401
+    if (!(req as any).user) {
+      (req as any).projectRole = null;
+      return next();
+    }
+
     // Agents bypass role checks entirely
     if ((req as any).user?.type === 'job_token') {
       (req as any).projectRole = null;

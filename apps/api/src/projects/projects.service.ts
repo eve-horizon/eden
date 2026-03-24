@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService, DbContext } from '../common/database.service';
 
 // ---------------------------------------------------------------------------
@@ -55,13 +55,21 @@ export class ProjectsService {
     data: { name: string; slug: string },
   ): Promise<Project> {
     return this.db.withClient(ctx, async (client) => {
-      const { rows } = await client.query<Project>(
-        `INSERT INTO projects (org_id, name, slug)
-              VALUES ($1, $2, $3)
-           RETURNING *`,
-        [ctx.org_id, data.name, data.slug],
-      );
-      const project = rows[0];
+      let project: Project;
+      try {
+        const { rows } = await client.query<Project>(
+          `INSERT INTO projects (org_id, name, slug)
+                VALUES ($1, $2, $3)
+             RETURNING *`,
+          [ctx.org_id, data.name, data.slug],
+        );
+        project = rows[0];
+      } catch (err: unknown) {
+        if ((err as { code?: string }).code === '23505') {
+          throw new ConflictException(`Project with slug "${data.slug}" already exists`);
+        }
+        throw err;
+      }
 
       // Auto-add the creator as project owner so they pass EditorGuard
       // on subsequent write operations (source uploads, map generation, etc.)
