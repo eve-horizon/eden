@@ -108,11 +108,15 @@ eve agents sync --local --allow-dirty
 
 ### Agent permission model
 
-Eve job tokens are standard `type: "user"` JWTs with org membership (`role: "member"`). The `EditorGuard`/`OwnerGuard` bypass for `type === 'job_token'` does **not** apply — agents authenticate like regular org members.
+Eden uses `eveAuth()` from `@eve-horizon/auth@0.1.3` — the unified middleware that handles both user and agent tokens. It sets `req.eveIdentity` with an `isAgent` boolean.
 
-**How agents get write access:** The `ProjectRoleMiddleware` gives org `member` users `editor` rights by default on all projects (unless an explicit `viewer` row exists in `project_members`). This means agents can create changesets, upload sources, and send chat messages without needing explicit project membership.
+**How it works:**
+- Platform mints agent job tokens with `type: "job"` (not `"user"`) and includes `agent_slug` and stable email (`{slug}@eve.agent`)
+- `eveAuth()` detects `type: "job"` and sets `isAgent: true`
+- The bridge middleware maps `isAgent` → `type: 'job_token'` on `req.user`
+- `EditorGuard`/`OwnerGuard` check `type === 'job_token'` and bypass role checks
 
-**If you see 403 errors from agents:** Check that the token's org membership role is at least `member` and that no explicit `viewer` project_members row exists for the agent's user_id.
+**If you see 403 errors from agents:** The job token's `type` claim might not be `"job"`. Check `eve job logs <id>` for the `/auth/me` response to see what identity the agent has. Tokens minted via `eve auth mint` are `type: "user"` and will NOT get agent bypass — only platform-spawned job tokens work.
 
 ### Fixtures
 
@@ -188,6 +192,7 @@ For each testware fix, add a brief entry to this log so we can see how the plan 
 | 2026-03-24 | 1.4 | Eden CLI `changeset create --project <slug>` passed slug into URL; API expects UUID → 500 | Fixed `autoDetectProject` to resolve slugs to UUIDs (commit cf4cc87) |
 | 2026-03-24 | 1.4 | Eve job tokens have `type:user`, org role `member` → agents default to `viewer` → 403 | sp_ prefix detection wrong (reverted). Fixed: org members default to `editor` in ProjectRoleMiddleware (ef8820b) |
 | 2026-03-24 | 2.2 | Eve platform ingestion callback may not reach API after a redeploy (webhook routing stale) | If source stays at `processing` after 5min despite Eve ingestion showing `done`, redeploy or wait for pod cycling |
+| 2026-03-24 | 1.4 | Platform shipped `type:"job"` tokens + `eveAuth()` unified middleware | Migrated to `@eve-horizon/auth@0.1.3`, replaced 3-layer auth with single `eveAuth()` (commit 8d3717f) |
 
 ## Agent Efficiency Protocol
 
