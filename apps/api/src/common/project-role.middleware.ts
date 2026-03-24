@@ -11,7 +11,8 @@ import { dbContext } from './request.util';
  *  2. Agent (job_token)                → null (agents bypass role checks)
  *  3. Org-level owner or admin         → 'owner' (inherited privilege)
  *  4. Explicit project_members row     → row.role
- *  5. Fallback                         → 'viewer'
+ *  5. Org-level member (no explicit)   → 'editor' (org membership implies contribution rights)
+ *  6. No org role                      → 'viewer'
  */
 @Injectable()
 export class ProjectRoleMiddleware implements NestMiddleware {
@@ -47,7 +48,10 @@ export class ProjectRoleMiddleware implements NestMiddleware {
       [projectId, ctx.user_id],
     );
 
-    (req as any).projectRole = row?.role ?? 'viewer';
+    // Explicit membership takes precedence. Otherwise, org members get editor
+    // rights (org membership implies contribution access — use explicit 'viewer'
+    // rows to restrict). Users with no org role default to viewer.
+    (req as any).projectRole = row?.role ?? (orgRole === 'member' ? 'editor' : 'viewer');
     return next();
   }
 }

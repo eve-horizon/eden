@@ -51,12 +51,6 @@ async function bootstrap() {
     if ((req as any).eveUser) {
       (req as any).user = { ...(req as any).eveUser };
 
-      // Eve service principals (agents) have type:'user' tokens but their
-      // user_id starts with 'sp_'. Mark them as job_token so guards bypass.
-      if ((req as any).user.id?.startsWith('sp_')) {
-        (req as any).user.type = 'job_token';
-      }
-
       // Allow the SPA to override the active org via header (org switcher).
       // The user is already authenticated — the frontend only sends org IDs
       // from the user's own membership list.
