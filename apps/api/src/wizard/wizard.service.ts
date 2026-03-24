@@ -131,14 +131,35 @@ export class WizardService {
 
     // Map Eve job phase to wizard status
     if (job.phase === 'done') {
-      // Look for the most recent changeset for this project with source 'map-generator'
-      const changeset = await this.db.queryOne<{ id: string }>(
+      // Look for the changeset created by this wizard run.
+      // Prefer source='map-generator', fall back to any draft changeset with items
+      // created after the job's audit log entry (wizard always logs generate_map).
+      let changeset = await this.db.queryOne<{ id: string }>(
         ctx,
         `SELECT id FROM changesets
          WHERE project_id = $1 AND source = 'map-generator'
          ORDER BY created_at DESC LIMIT 1`,
         [projectId],
       );
+
+      if (!changeset) {
+        // Fall back: find the most recent draft changeset with items created
+        // after the wizard job was triggered
+        changeset = await this.db.queryOne<{ id: string }>(
+          ctx,
+          `SELECT c.id FROM changesets c
+           WHERE c.project_id = $1 AND c.status = 'draft'
+             AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
+             AND c.created_at >= (
+               SELECT created_at FROM audit_log
+               WHERE project_id = $1 AND action = 'generate_map'
+                 AND details->>'job_id' = $2
+               LIMIT 1
+             )
+           ORDER BY c.created_at DESC LIMIT 1`,
+          [projectId, jobId],
+        );
+      }
 
       return {
         status: 'complete',
