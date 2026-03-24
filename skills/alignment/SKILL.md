@@ -9,22 +9,22 @@ You scan the Eden story map after a changeset is accepted, looking for conflicts
 
 ## Eden CLI
 
-All Eden API calls go through the CLI at `./cli/bin/eden`. It handles auth and URLs automatically.
+The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
 
-**You MUST use `./cli/bin/eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
+**You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
 ## Workflow
 
 1. Read the full map:
    ```bash
-   ./cli/bin/eden map --project $PID --json
+   eden map --project $PID --json
    ```
 2. Read all open questions (for dedup):
    ```bash
-   ./cli/bin/eden question list --project $PID --status open --json
+   eden question list --project $PID --status open --json
    ```
 3. Scan for issues across all categories
-4. Create questions via `./cli/bin/eden question create` for each issue found
+4. Create questions via `eden question create` for each issue found
 
 ## Issue Categories
 
@@ -47,10 +47,9 @@ Each question must include:
 
 ## Storm Prevention & Semantic Deduplication
 
-Before creating ANY question, you MUST check for semantic overlap with existing questions:
+Before creating ANY question, check for semantic overlap with the open questions fetched in step 2 of the Workflow above:
 
-1. **Fetch ALL open questions** via `./cli/bin/eden question list --project $PID --status open --json` (not just last 24h)
-2. **For each candidate question**, compare against every existing question:
+1. **For each candidate question**, compare against every existing question:
    - If the core concern is the same (even phrased differently), DO NOT create it
    - "Are persona assignments complete?" overlaps with "Which personas own which tasks?"
    - "Is the task scope clear?" overlaps with "What are the boundaries of this task?"
@@ -67,27 +66,20 @@ Before creating ANY question, you MUST check for semantic overlap with existing 
 The workflow input contains `payload.project_id` — this is the Eden project UUID. If null:
 
 ```bash
-PID=$(./cli/bin/eden projects list --json | jq -r '.[0].id')
+PID=$(eden projects list --json | jq -r '.[0].id')
 ```
 
 ## CLI Command Reference
 
-```bash
-# List projects
-./cli/bin/eden projects list --json
-
-# Full map state
-./cli/bin/eden map --project $PID --json
-
-# Open questions (for dedup)
-./cli/bin/eden question list --project $PID --status open --json
-
-# Create question from JSON file (best for questions with references)
-./cli/bin/eden question create --project $PID --file /tmp/q.json --json
-
-# Create question inline (simple questions without references)
-./cli/bin/eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
-```
+| Command | Purpose |
+|---------|---------|
+| `eden projects list --json` | List projects (get Eden project UUID) |
+| `eden map --project $PID --json` | Full map state (activities→steps→tasks tree) |
+| `eden question list --project $PID --status open --json` | Open questions (for dedup check) |
+| `eden question create --project $PID --file <path> --json` | Create question from JSON file |
+| `eden question create --project $PID --question "..." --priority <p> --category <c>` | Create question inline |
+| `eden task list --project $PID --json` | List tasks (for targeted lookups) |
+| `eden activity list --project $PID --json` | List activities |
 
 ## Creating Questions
 
@@ -101,18 +93,18 @@ cat > /tmp/question.json << 'PAYLOAD'
   "references": [{ "entity_type": "activity", "entity_id": "ACT-1" }]
 }
 PAYLOAD
-./cli/bin/eden question create --project $PID --file /tmp/question.json --json
+eden question create --project $PID --file /tmp/question.json --json
 
 # Option B: Inline (simple questions without references)
-./cli/bin/eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
+eden question create --project $PID --question "Is the login flow fully specified?" --priority medium --category gap
 ```
 
 ## Multi-Step Bootstrap
 
 ```bash
-PID="${PAYLOAD_PROJECT_ID:-$(./cli/bin/eden projects list --json | jq -r '.[0].id')}"
-./cli/bin/eden map --project "$PID" --json > /tmp/map.json
-./cli/bin/eden question list --project "$PID" --status open --json > /tmp/questions.json
+PID="${PAYLOAD_PROJECT_ID:-$(eden projects list --json | jq -r '.[0].id')}"
+eden map --project "$PID" --json > /tmp/map.json
+eden question list --project "$PID" --status open --json > /tmp/questions.json
 ```
 
 ## Rules

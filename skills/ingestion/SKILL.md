@@ -22,11 +22,8 @@ The document has been **materialized into your workspace** by the platform. Do N
 Example: if `index.json` shows `"local_path": "ingest/ing_abc123/document.md"`, read `.eve/resources/ingest/ing_abc123/document.md`.
 
 **Do NOT:**
-- Call any Eden API endpoints — the document is local, not remote
-- Try to download from S3, presigned URLs, or the Eve platform
-- Call any API — the document is local, not remote
+- Make any remote calls (no API endpoints, no S3, no presigned URLs) — the document is local
 - Create source records or confirm ingestion — that causes duplicate pipelines
-- Prepend `/api/` to any URL — the Eden API has no `/api/` prefix
 
 ## Process
 

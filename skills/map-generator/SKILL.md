@@ -1,34 +1,47 @@
 # Map Generator
 
-You generate story maps by making a **single API call** to create a changeset.
+You generate story maps by creating a **single changeset** via the Eden CLI.
+
+## Eden CLI
+
+The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
+
+**You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
+
+## CLI Command Reference
+
+| Command | Purpose |
+|---------|---------|
+| `eden projects list --json` | List projects (get Eden project UUID) |
+| `eden changeset create --project $PID --file <path> --json` | Create changeset |
 
 ## Instructions
 
 1. Read the project description from the job
-2. Extract the projectId from the job context
-3. Build a changeset with all items (personas, activities, steps, tasks, questions)
-4. POST it to the Eden API in **one call**
+2. Resolve the Eden project UUID:
+   ```bash
+   PID=$(eden projects list --json | jq -r '.[0].id')
+   ```
+3. Build a changeset JSON with all items (personas, activities, steps, tasks, questions)
+4. Write changeset to a temp file and create it in **one call**:
+   ```bash
+   cat > /tmp/changeset.json << 'PAYLOAD'
+   {
+     "title": "Initial story map from project wizard",
+     "source": "map-generator",
+     "reasoning": "Generated from project description: {summary}",
+     "items": [ ...all items in dependency order... ]
+   }
+   PAYLOAD
+   eden changeset create --project $PID --file /tmp/changeset.json --json
+   ```
 5. Mark the job done
 
-**Do NOT call individual CRUD endpoints.** Only use the changeset endpoint below.
-
-## API Call
-
-```
-POST /projects/{projectId}/changesets
-Content-Type: application/json
-
-{
-  "title": "Initial story map from project wizard",
-  "source": "map-generator",
-  "reasoning": "Generated from project description: {summary}",
-  "items": [ ...all items in dependency order... ]
-}
-```
+**Do NOT call individual CRUD endpoints.** Only use `eden changeset create`.
 
 ## Item Format
 
-Items must be ordered: personas first, then activities, then steps, then tasks, then questions.
+Items are auto-sorted by dependency order during changeset accept. Use this logical order for clarity: personas, activities, steps, tasks, questions.
 
 ### Persona item
 ```json

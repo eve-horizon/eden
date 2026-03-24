@@ -84,7 +84,7 @@ eden source update-status --source "$SRC_ID" --status extracted
 ```
 
 **Do NOT:**
-- Use `./cli/bin/eden` — it's just `eden` on PATH
+- Use anything other than `eden` on PATH for CLI commands
 - Use Eve project IDs directly with Eden CLI commands — always resolve the Eden UUID first
 - Try commands like `eden ingestion` — they don't exist. Available: `eden projects`, `eden source`, `eden map`, `eden changeset`, `eden question`
 

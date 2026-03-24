@@ -3638,6 +3638,16 @@ ${data.synthesis}`);
 // src/commands/sources.ts
 function registerSources(program3) {
   const src = program3.command("source").description("Manage ingestion sources");
+  src.command("show").description("Show source details").argument("<id>", "Source ID").option("--json", "JSON output").action(async (id, opts) => {
+    const data = await api("GET", `/sources/${id}`);
+    if (opts.json) return json(data);
+    console.log(`Source: ${data.id}`);
+    console.log(`Filename: ${data.filename}`);
+    console.log(`Status: ${data.status}`);
+    if (data.content_type) console.log(`Type: ${data.content_type}`);
+    if (data.file_size) console.log(`Size: ${data.file_size}`);
+    console.log(`Created: ${data.created_at}`);
+  });
   src.command("list").description("List ingestion sources").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/sources`);
@@ -3653,6 +3663,52 @@ function registerSources(program3) {
   });
 }
 
+// src/commands/tasks.ts
+function registerTasks(program3) {
+  const tasks = program3.command("task").description("Manage tasks");
+  tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const params = new URLSearchParams();
+    if (opts.status) params.set("status", opts.status);
+    if (opts.priority) params.set("priority", opts.priority);
+    if (opts.releaseId) params.set("release_id", opts.releaseId);
+    const qs = params.toString() ? `?${params}` : "";
+    const data = await api("GET", `/projects/${pid}/tasks${qs}`);
+    if (opts.json) return json(data);
+    table(data, ["id", "display_id", "title", "status", "priority"]);
+  });
+  tasks.command("show").description("Show task details").argument("<id>", "Task ID").option("--json", "JSON output").action(async (id, opts) => {
+    const data = await api("GET", `/tasks/${id}`);
+    if (opts.json) return json(data);
+    console.log(`Task: ${data.display_id} (${data.id})`);
+    console.log(`Title: ${data.title}`);
+    console.log(`Status: ${data.status}`);
+    console.log(`Priority: ${data.priority}`);
+    if (data.release_id) console.log(`Release: ${data.release_id}`);
+  });
+}
+
+// src/commands/activities.ts
+function registerActivities(program3) {
+  const activities = program3.command("activity").description("Manage activities");
+  activities.command("list").description("List activities").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/activities`);
+    if (opts.json) return json(data);
+    table(data, ["id", "display_id", "name", "sort_order"]);
+  });
+}
+
+// src/commands/steps.ts
+function registerSteps(program3) {
+  const steps = program3.command("step").description("Manage steps");
+  steps.command("list").description("List steps for an activity").requiredOption("--activity <id>", "Activity ID").option("--json", "JSON output").action(async (opts) => {
+    const data = await api("GET", `/activities/${opts.activity}/steps`);
+    if (opts.json) return json(data);
+    table(data, ["id", "display_id", "name", "sort_order"]);
+  });
+}
+
 // src/index.ts
 var program2 = new Command();
 program2.name("eden").description("Eden story map CLI \u2014 agent-friendly interface to the Eden API").version("1.0.0");
@@ -3665,4 +3721,7 @@ registerSearch(program2);
 registerExport(program2);
 registerReviews(program2);
 registerSources(program2);
+registerTasks(program2);
+registerActivities(program2);
+registerSteps(program2);
 program2.parse();

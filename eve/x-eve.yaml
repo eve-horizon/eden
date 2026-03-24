@@ -11,7 +11,7 @@ agents:
     expert:
       - harness: claude
         model: sonnet
-        reasoning_effort: medium
+        reasoning_effort: high
 
     # Monitor — lightweight classification
     monitor:

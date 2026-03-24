@@ -15,6 +15,21 @@ interface Source {
 export function registerSources(program: Command): void {
   const src = program.command('source').description('Manage ingestion sources');
 
+  src.command('show')
+    .description('Show source details')
+    .argument('<id>', 'Source ID')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const data = await api<Source>('GET', `/sources/${id}`);
+      if (opts.json) return json(data);
+      console.log(`Source: ${data.id}`);
+      console.log(`Filename: ${data.filename}`);
+      console.log(`Status: ${data.status}`);
+      if (data.content_type) console.log(`Type: ${data.content_type}`);
+      if (data.file_size) console.log(`Size: ${data.file_size}`);
+      console.log(`Created: ${data.created_at}`);
+    });
+
   src.command('list')
     .description('List ingestion sources')
     .option('--project <id>', 'Project ID')

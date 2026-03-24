@@ -8,6 +8,9 @@ import { registerSearch } from './commands/search.js';
 import { registerExport } from './commands/export.js';
 import { registerReviews } from './commands/reviews.js';
 import { registerSources } from './commands/sources.js';
+import { registerTasks } from './commands/tasks.js';
+import { registerActivities } from './commands/activities.js';
+import { registerSteps } from './commands/steps.js';
 
 const program = new Command();
 program
@@ -24,5 +27,8 @@ registerSearch(program);
 registerExport(program);
 registerReviews(program);
 registerSources(program);
+registerTasks(program);
+registerActivities(program);
+registerSteps(program);
 
 program.parse();
