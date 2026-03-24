@@ -237,6 +237,25 @@ export class SourcesService {
   }
 
   /**
+   * List tasks created from a specific source document.
+   */
+  async listTasks(
+    ctx: DbContext,
+    sourceId: string,
+  ): Promise<
+    { id: string; display_id: string; title: string; priority: string; status: string }[]
+  > {
+    return this.db.query(
+      ctx,
+      `SELECT id, display_id, title, priority, status
+         FROM tasks
+        WHERE source_id = $1
+        ORDER BY created_at`,
+      [sourceId],
+    );
+  }
+
+  /**
    * Find a source by its Eve ingest ID (used by the callback webhook).
    * Uses a direct query without RLS since callbacks arrive without org context.
    */

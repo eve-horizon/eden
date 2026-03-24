@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -52,6 +53,17 @@ export class WizardService {
     }>(ctx, 'SELECT id, name, slug FROM projects WHERE id = $1', [projectId]);
 
     if (!project) throw new NotFoundException('Project not found');
+
+    // At least a description is required to generate a meaningful map
+    if (
+      !data.description?.trim() &&
+      !data.audience?.trim() &&
+      !data.capabilities?.trim()
+    ) {
+      throw new BadRequestException(
+        'At least one of description, audience, or capabilities is required',
+      );
+    }
 
     this.assertAvailable();
 
@@ -109,15 +121,16 @@ export class WizardService {
 
     this.assertAvailable();
 
+    // Eve jobs use `phase` for lifecycle state (not `status`)
     const job = await this.proxy<{
       id: string;
-      status: string;
+      phase: string;
       result?: unknown;
       error?: string;
     }>('GET', `/jobs/${jobId}`);
 
-    // Map Eve job status to wizard status
-    if (job.status === 'completed' || job.status === 'done') {
+    // Map Eve job phase to wizard status
+    if (job.phase === 'done') {
       // Look for the most recent changeset for this project with source 'map-generator'
       const changeset = await this.db.queryOne<{ id: string }>(
         ctx,
@@ -133,14 +146,15 @@ export class WizardService {
       };
     }
 
-    if (job.status === 'failed' || job.status === 'error') {
+    if (job.phase === 'cancelled') {
+      const result = job.result as Record<string, unknown> | undefined;
       return {
         status: 'failed',
-        error: job.error ?? 'Map generation failed',
+        error: (result?.error as string) ?? job.error ?? 'Map generation failed',
       };
     }
 
-    // Still running
+    // Still running (active, backlog, ready, review, etc.)
     return { status: 'running' };
   }
 

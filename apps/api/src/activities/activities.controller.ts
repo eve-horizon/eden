@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '../common/auth.guard';
+import { ChangesetOnlyGuard } from '../common/changeset-only.guard';
 import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
 import { ActivitiesService } from './activities.service';
@@ -29,7 +30,7 @@ export class ActivitiesController {
   }
 
   @Post('projects/:projectId/activities')
-  @UseGuards(EditorGuard)
+  @UseGuards(ChangesetOnlyGuard, EditorGuard)
   @HttpCode(HttpStatus.CREATED)
   create(
     @Req() req: Request,
@@ -50,7 +51,7 @@ export class ActivitiesController {
   }
 
   @Patch('activities/:id')
-  @UseGuards(EditorGuard)
+  @UseGuards(ChangesetOnlyGuard, EditorGuard)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -70,7 +71,7 @@ export class ActivitiesController {
   }
 
   @Delete('activities/:id')
-  @UseGuards(EditorGuard)
+  @UseGuards(ChangesetOnlyGuard, EditorGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Req() req: Request, @Param('id') id: string) {
     await this.activities.remove(dbContext(req), id);

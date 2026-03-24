@@ -51,6 +51,12 @@ export class SourcesController {
     return this.sources.findById(dbContext(req), id);
   }
 
+  @Get('sources/:id/tasks')
+  @UseGuards(AuthGuard)
+  listTasks(@Req() req: Request, @Param('id') id: string) {
+    return this.sources.listTasks(dbContext(req), id);
+  }
+
   @Post('sources/:id/confirm')
   @UseGuards(AuthGuard, EditorGuard)
   @HttpCode(HttpStatus.OK)

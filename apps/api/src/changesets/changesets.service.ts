@@ -420,7 +420,20 @@ export class ChangesetsService {
         ],
       );
 
-      return { ...updatedRows[0], items: allItems };
+      const result = { ...updatedRows[0], items: allItems };
+
+      // Emit changeset.accepted event when per-item review fully accepts
+      if (finalStatus === 'accepted') {
+        this.events.emit('changeset.accepted', {
+          changeset_id: result.id,
+          project_id: result.project_id,
+          title: result.title,
+          source: result.source,
+          items_accepted: allItems.filter((i) => i.status === 'accepted').length,
+        });
+      }
+
+      return result;
     });
   }
 
