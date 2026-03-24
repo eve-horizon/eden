@@ -51,6 +51,13 @@ async function bootstrap() {
     if ((req as any).eveUser) {
       (req as any).user = { ...(req as any).eveUser };
 
+      // Eve agent job tokens have type:'user' and are indistinguishable from
+      // human users in the JWT. Detect them by their synthetic @eve.agent email
+      // and mark as job_token so guards bypass role checks.
+      if ((req as any).user.email?.endsWith('@eve.agent')) {
+        (req as any).user.type = 'job_token';
+      }
+
       // Allow the SPA to override the active org via header (org switcher).
       // The user is already authenticated — the frontend only sends org IDs
       // from the user's own membership list.
