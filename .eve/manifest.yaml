@@ -103,9 +103,6 @@ workflows:
     trigger:
       system:
         event: doc.ingest
-    with_apis:
-      - service: api
-        description: Eden Story Map API for reading map state and creating changesets
     steps:
       - name: extract
         agent:
@@ -114,6 +111,9 @@ workflows:
         depends_on: [extract]
         agent:
           name: synthesis
+        with_apis:
+          - service: api
+            description: Eden Story Map API for reading map state and creating changesets
     hints:
       timeout_seconds: 600
       permission_policy: yolo
