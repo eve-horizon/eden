@@ -175,7 +175,7 @@ agents:
     name: "Map Chat"
     description: "Conversational map editing — interprets natural language requests and proposes changesets"
     skill: map-chat
-    harness_profile: fast
+    harness_profile: coordinator
     workflow: assistant
     with_apis:
       - service: api
@@ -240,7 +240,7 @@ agents:
     name: "Map Generator"
     description: "Generates initial story map structures from project descriptions"
     skill: map-generator
-    harness_profile: fast
+    harness_profile: coordinator
     workflow: assistant
     with_apis:
       - service: api
