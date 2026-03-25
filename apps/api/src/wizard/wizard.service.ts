@@ -68,7 +68,7 @@ export class WizardService {
     this.assertAvailable();
 
     // Build the prompt for the map-generator agent
-    const prompt = this.buildPrompt(project.name, data);
+    const prompt = this.buildPrompt(project.name, projectId, data);
 
     // Create Eve job targeting map-generator agent
     const result = await this.proxy<{ id: string }>(
@@ -237,27 +237,29 @@ export class WizardService {
 
   private buildPrompt(
     projectName: string,
+    projectId: string,
     data: GenerateMapInput,
   ): string {
     const parts = [
-      `Generate an initial story map for the project "${projectName}".`,
+      `Generate a story map for "${projectName}".`,
+      `\nEden project UUID: ${projectId}`,
     ];
 
     if (data.description) {
-      parts.push(`\nProject description: ${data.description}`);
+      parts.push(`\nDescription: ${data.description}`);
     }
     if (data.audience) {
-      parts.push(`\nTarget audience / personas: ${data.audience}`);
+      parts.push(`\nAudience: ${data.audience}`);
     }
     if (data.capabilities) {
-      parts.push(`\nKey capabilities / goals: ${data.capabilities}`);
+      parts.push(`\nCapabilities: ${data.capabilities}`);
     }
     if (data.constraints) {
-      parts.push(`\nConstraints or requirements: ${data.constraints}`);
+      parts.push(`\nConstraints: ${data.constraints}`);
     }
 
     parts.push(
-      `\nCreate a comprehensive story map as a changeset. Include 3-6 personas, 4-8 activities, 2-5 steps per activity, 1-3 tasks per step (with user stories and acceptance criteria), and 5-10 clarifying questions.`,
+      `\nCreate a changeset with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 1-2 tasks per step (brief user stories), and 5-8 questions.`,
     );
 
     return parts.join('\n');
