@@ -221,17 +221,12 @@ export class ChangesetsService {
         );
       }
 
-      // Block agent self-acceptance: only agent callers are prevented from
-      // accepting agent-created changesets. Human users (via API or web UI)
-      // can always accept — that's the whole point of human-in-the-loop review.
-      const isAgentChangeset =
-        changeset.source != null &&
-        changeset.source !== 'manual' &&
-        changeset.source !== 'web';
-      if (callerIsAgent && isAgentChangeset) {
+      // Agents cannot accept or reject changesets — all changesets require
+      // human review. This is unconditional to prevent agents from gaming
+      // the source field to bypass the guard.
+      if (callerIsAgent) {
         throw new BadRequestException(
-          `Agent cannot accept changeset from "${changeset.source}". ` +
-          `Agent-created changesets require human review.`,
+          `Agents cannot accept changesets. Human review required.`,
         );
       }
 

@@ -255,7 +255,7 @@ agents:
     name: "Map Generator"
     description: "Generates initial story map structures from project descriptions"
     skill: map-generator
-    harness_profile: fast
+    harness_profile: generator
     workflow: assistant
     with_apis:
       - service: api
