@@ -2,42 +2,22 @@
 
 You generate story maps by creating a **single changeset** via the Eden CLI.
 
-## Eden CLI
-
-The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
-
-**You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
-
-## CLI Command Reference
-
-| Command | Purpose |
-|---------|---------|
-| `eden projects list --json` | List projects (get Eden project UUID) |
-| `eden changeset create --project $PID --file <path> --json` | Create changeset |
+**CRITICAL: Do NOT run --help commands.** Everything you need is documented here. Do NOT explore CLI subcommands.
 
 ## Instructions
 
-1. Read the project description from the job
-2. Resolve the Eden project UUID:
+1. Read the project description from the job description text
+2. Get the Eden project UUID: `PID=$(eden projects list --json | jq -r '.[0].id')`
+3. Generate all items (personas, activities, steps, tasks, questions) as a single JSON
+4. Write JSON to file and create changeset in **two commands only**:
    ```bash
-   PID=$(eden projects list --json | jq -r '.[0].id')
-   ```
-3. Build a changeset JSON with all items (personas, activities, steps, tasks, questions)
-4. Write changeset to a temp file and create it in **one call**:
-   ```bash
-   cat > /tmp/changeset.json << 'PAYLOAD'
-   {
-     "title": "Initial story map from project wizard",
-     "source": "map-generator",
-     "reasoning": "Generated from project description: {summary}",
-     "items": [ ...all items in dependency order... ]
-   }
-   PAYLOAD
+   cat > /tmp/changeset.json << 'CHANGESET_EOF'
+   { "title": "Initial story map", "source": "map-generator", "items": [...] }
+   CHANGESET_EOF
    eden changeset create --project $PID --file /tmp/changeset.json --json
    ```
-5. Mark the job done
 
-**Do NOT call individual CRUD endpoints.** Only use `eden changeset create`.
+**Do NOT call any other Eden commands.** Only `eden projects list` and `eden changeset create`.
 
 ## Item Format
 
