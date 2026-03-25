@@ -20,7 +20,7 @@ services:
       cli:
         name: eden
         bin: cli/bin/eden
-      permissions: [jobs:write, events:write, threads:write]
+      permissions: [jobs:write, events:write, threads:write, projects:write]
     environment:
       NODE_ENV: production
       DATABASE_URL: ${managed.db.url}
