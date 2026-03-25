@@ -14,10 +14,19 @@ export class EveEventsService {
   private readonly eveApiUrl = process.env.EVE_API_URL;
   private readonly eveProjectId = process.env.EVE_PROJECT_ID;
   private readonly eveServiceToken = process.env.EVE_SERVICE_TOKEN;
+  private startupWarned = false;
 
   async emit(event: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.eveApiUrl || !this.eveProjectId) {
-      this.logger.log(`Event (local): ${event} ${JSON.stringify(payload)}`);
+      if (!this.startupWarned) {
+        this.logger.warn(
+          `Eve events DISABLED — EVE_API_URL and/or EVE_PROJECT_ID not set. ` +
+          `Workflows (alignment-check, question-evolution, ingestion-pipeline) will NOT auto-trigger. ` +
+          `Set secrets via: eve secrets set EVE_API_URL <url> --project <id>`,
+        );
+        this.startupWarned = true;
+      }
+      this.logger.log(`Event (local-only): ${event}`);
       return;
     }
 
