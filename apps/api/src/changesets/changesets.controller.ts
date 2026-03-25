@@ -65,7 +65,8 @@ export class ChangesetsController {
   @HttpCode(HttpStatus.OK)
   accept(@Req() req: Request, @Param('id') id: string) {
     const projectRole = (req as any).projectRole as string | null;
-    return this.changesets.accept(dbContext(req), id, projectRole);
+    const callerIsAgent = (req as any).user?.type === 'job_token';
+    return this.changesets.accept(dbContext(req), id, projectRole, callerIsAgent);
   }
 
   @Post('changesets/:id/reject')

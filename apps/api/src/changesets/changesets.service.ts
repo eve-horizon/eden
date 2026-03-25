@@ -209,6 +209,7 @@ export class ChangesetsService {
     ctx: DbContext,
     id: string,
     projectRole?: string | null,
+    callerIsAgent = false,
   ): Promise<ChangesetDetail> {
     return this.db.withClient(ctx, async (client) => {
       const changeset = await this.lockChangeset(client, id);
@@ -220,16 +221,17 @@ export class ChangesetsService {
         );
       }
 
-      // Block self-acceptance: agent-created changesets require human review.
-      // Changesets from agents always have a `source` field (e.g., "map-chat",
-      // "expert-panel"). Human-created changesets via the web UI have source=null.
-      // Allow accept only if the changeset has no source (human-created) or if
-      // the source is explicitly "manual" or "web".
-      const humanSources = new Set([null, undefined, 'manual', 'web']);
-      if (!humanSources.has(changeset.source)) {
+      // Block agent self-acceptance: only agent callers are prevented from
+      // accepting agent-created changesets. Human users (via API or web UI)
+      // can always accept — that's the whole point of human-in-the-loop review.
+      const isAgentChangeset =
+        changeset.source != null &&
+        changeset.source !== 'manual' &&
+        changeset.source !== 'web';
+      if (callerIsAgent && isAgentChangeset) {
         throw new BadRequestException(
-          `Changeset from "${changeset.source}" requires human review via the web UI. ` +
-          `Agent-created changesets cannot be accepted programmatically.`,
+          `Agent cannot accept changeset from "${changeset.source}". ` +
+          `Agent-created changesets require human review.`,
         );
       }
 
