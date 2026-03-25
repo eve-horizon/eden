@@ -1,15 +1,15 @@
-resolved_at: 2026-03-25T21:14:59.472Z
+resolved_at: 2026-03-25T21:22:41.360Z
 project_slug: eden
 packs:
   - id: eden
     source: ./
-    ref: 0b00eec2ded03be937975250f5a0df5cebc4e73a
+    ref: 6c1c7b8330b6dcc4196fb7fe8118582bf9dc0a73
     pack_version: 1
 effective:
   agents_count: 16
   teams_count: 1
   routes_count: 1
-  profiles_count: 4
-  agents_hash: 77dcb280
+  profiles_count: 5
+  agents_hash: 6e070f25
   teams_hash: 32e0a8af
   chat_hash: 09f8d663

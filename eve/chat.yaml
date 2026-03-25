@@ -1,5 +1,8 @@
 version: 1
 routes:
+  - id: route_map_edit
+    match: "(add|remove|create|delete|update|change|rename|move|modify|edit).*(persona|activity|step|task|question)"
+    target: agent:map-chat
   - id: route_default
     match: ".*"
     target: team:expert-panel

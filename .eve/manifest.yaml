@@ -106,7 +106,7 @@ workflows:
 
   ingestion-pipeline:
     trigger:
-      app:
+      system:
         event: doc.ingest
     steps:
       - name: extract
