@@ -148,7 +148,25 @@ Handle the request directly using your PM expertise:
 - **Decision capture** → acknowledge and confirm: `Noted: decision — [summary]`
 - **Action items** → acknowledge: `Noted: action — [summary]`
 - **File + simple question** → read the file, answer the specific question
-- **Comprehensive multi-perspective review** → when you cover multiple expert domains in a solo response, **also create a review record** using the same JSON format as the panel path (see Phase 3 above) so results appear in the Eden Reviews page. Only create a review record when your response actually covers multiple expert domains — not for simple Q&A, search, or action items.
+
+**CRITICAL: If your solo response covers 2+ expert domains (e.g., technical feasibility AND UX AND business impact), you MUST create a review record before returning.** Use the same format as Phase 3:
+
+```bash
+cat > /tmp/review.json << 'PAYLOAD'
+{
+  "title": "Expert Panel Review: <topic>",
+  "synthesis": "<your multi-perspective analysis>",
+  "status": "complete",
+  "expert_opinions": [
+    { "expert_slug": "<domain-1>", "summary": "<perspective>" },
+    { "expert_slug": "<domain-2>", "summary": "<perspective>" }
+  ]
+}
+PAYLOAD
+eden review create --project $PID --file /tmp/review.json --json
+```
+
+This ensures the Reviews page shows all substantive analysis, not just chat messages.
 
 Return the result signal:
 ````
