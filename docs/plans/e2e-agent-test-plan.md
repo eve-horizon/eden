@@ -193,6 +193,9 @@ For each testware fix, add a brief entry to this log so we can see how the plan 
 | 2026-03-24 | 1.4 | Eve job tokens have `type:user`, org role `member` → agents default to `viewer` → 403 | sp_ prefix detection wrong (reverted). Fixed: org members default to `editor` in ProjectRoleMiddleware (ef8820b) |
 | 2026-03-24 | 2.2 | Eve platform not calling ingest-complete webhook (callback_url not honoured by platform) | Set `EDEN_API_URL` secret. If source stays at `processing`, manually fire webhook (see Phase 2 workaround) |
 | 2026-03-24 | 1.4 | Platform shipped `type:"job"` tokens + `eveAuth()` unified middleware | Migrated to `@eve-horizon/auth@0.1.3`, replaced 3-layer auth with single `eveAuth()` (commit 8d3717f) |
+| 2026-03-25 | 2.3 | `eve job list` JSON uses `.jobs` wrapper, not raw array; jq filters failed | Fixed all jq to use `.jobs | [...]` instead of `[.[] | ...]` |
+| 2026-03-25 | 2.2 | `eve event emit` requires Eve project UUID, not slug; 404 on `--project eden` | Use `proj_01kkh30080e00rw62jqhkchwbk` (or resolve via `eve project list`) |
+| 2026-03-25 | 2.3 | `doc.ingest` system event not auto-fired by platform on ingest confirm; manual `eve workflow run` doesn't materialize resources into workspace | **Platform bug** (bead eden-i8k). Workaround: skip Phase 2/7 ingestion pipeline until platform fixes resource materialization |
 
 ## Agent Efficiency Protocol
 

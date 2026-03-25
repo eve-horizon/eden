@@ -1,9 +1,9 @@
-resolved_at: 2026-03-24T21:46:35.078Z
+resolved_at: 2026-03-25T08:28:50.171Z
 project_slug: eden
 packs:
   - id: eden
     source: ./
-    ref: 6b9f48f0781d346cd7abf07346ea53e430f55545
+    ref: 3586f8bd120b3db355eb3566bafa530e0db83733
     pack_version: 1
 effective:
   agents_count: 15
