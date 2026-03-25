@@ -196,6 +196,12 @@ For each testware fix, add a brief entry to this log so we can see how the plan 
 | 2026-03-25 | 2.3 | `eve job list` JSON uses `.jobs` wrapper, not raw array; jq filters failed | Fixed all jq to use `.jobs | [...]` instead of `[.[] | ...]` |
 | 2026-03-25 | 2.2 | `eve event emit` requires Eve project UUID, not slug; 404 on `--project eden` | Use `proj_01kkh30080e00rw62jqhkchwbk` (or resolve via `eve project list`) |
 | 2026-03-25 | 2.3 | `doc.ingest` system event not auto-fired by platform on ingest confirm; manual `eve workflow run` doesn't materialize resources into workspace | **Platform bug** (bead eden-i8k). Workaround: skip Phase 2/7 ingestion pipeline until platform fixes resource materialization |
+| 2026-03-25 | 1.3 | `EVE_SERVICE_TOKEN` lacked `jobs:write` permission → 403 on generate-map | Added `permissions: [jobs:write, events:write, threads:write]` to manifest `services.api.x-eve` |
+| 2026-03-25 | 1.6 | Self-acceptance guard blocked ALL callers (including human users) from accepting agent changesets | Fixed guard to check `req.user.type === 'job_token'` — only agents are blocked, humans can accept (commit 7da23bb) |
+| 2026-03-25 | 2.1 | `EVE_SERVICE_TOKEN` lacked `projects:write` → ingest API 403 → placeholder upload URLs | Added `projects:write` to manifest permissions (commit e2f57fe) |
+| 2026-03-25 | 5.1 | Changeset source filter `select(.source == "map-chat")` missed changesets where source is the job ID | Changeset `source` is sometimes the job ID (e.g., `eden-205991ec`) instead of agent slug. Filter should check both patterns |
+| 2026-03-25 | 3.1 | `changeset.accepted` event emitted by Eden API but platform did not trigger alignment-check workflow | **Platform bug**: app-emitted events via `EveEventsService` do not trigger workflow jobs |
+| 2026-03-25 | 6.3 | `question.answered` event emitted but no question-evolution workflow triggered | Same platform event→workflow bug as alignment-check |
 
 ## Agent Efficiency Protocol
 
