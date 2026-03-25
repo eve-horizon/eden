@@ -2,7 +2,7 @@ version: 1
 workflows:
   ingestion-pipeline:
     trigger:
-      system:
+      app:
         event: doc.ingest
     with_apis:
       - service: api
