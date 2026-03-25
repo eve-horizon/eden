@@ -13,6 +13,12 @@ agents:
         model: sonnet
         reasoning_effort: high
 
+    # Fast — quick tasks (map-chat simple edits, map generator initial pass)
+    fast:
+      - harness: claude
+        model: sonnet
+        reasoning_effort: low
+
     # Monitor — lightweight classification
     monitor:
       - harness: claude

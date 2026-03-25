@@ -15,12 +15,16 @@ The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatica
 
 ## Workflow
 
-1. **Read context before proposing changes:**
+**Speed matters.** Be efficient — use targeted lookups over full map reads.
+
+1. **Early exit check:** If the user's request is clearly a no-op (entity already exists, nothing to change), report that immediately and return `success`. Do NOT read the full map first.
+2. **Read context before proposing changes:**
    - **Single-entity updates** (rename, edit fields, delete one task): use `eden task show <id> --json` or `eden activity list --project $PID --json` for targeted lookups
-   - **Structural changes** (add activity, move tasks, bulk edits) or **query-only** requests: use `eden map --project $PID --json` for the full tree
-2. Match the user's intent to one or more operations
-3. If intent is ambiguous, ask a clarifying question — do NOT guess
-4. **Always create a changeset** — NEVER create entities directly. All map mutations must go through the changeset review gate:
+   - **Structural changes** (add activity, move tasks, bulk edits): use `eden map --project $PID --json` for the full tree
+   - **Prefer targeted lookups.** Only read the full map when you genuinely need the complete structure.
+3. Match the user's intent to one or more operations
+4. If intent is ambiguous, ask a clarifying question — do NOT guess
+5. **Always create a changeset** — NEVER create entities directly. All map mutations must go through the changeset review gate:
    ```bash
    eden changeset create --project $PID --file /tmp/changeset.json --json
    ```
