@@ -216,6 +216,21 @@ agents:
         commit: never
         push: never
 
+  question-triage:
+    slug: question-triage
+    name: "Question Triage"
+    description: "Fast classification — determines if an answered question implies a map change"
+    skill: question-triage
+    harness_profile: fast
+    workflow: assistant
+    gateway:
+      policy: none
+    policies:
+      permission_policy: yolo
+      git:
+        commit: never
+        push: never
+
   question-agent:
     slug: question-agent
     name: "Question Agent"

@@ -76,7 +76,12 @@ workflows:
       - service: api
         description: Eden Story Map API for reading questions/tasks and creating changesets
     steps:
+      - name: triage
+        agent:
+          name: question-triage
       - name: evolve
+        depends_on: [triage]
+        condition: "triage.status == 'needs_changes'"
         agent:
           name: question-agent
     hints:
