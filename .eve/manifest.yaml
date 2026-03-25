@@ -24,10 +24,9 @@ services:
       NODE_ENV: production
       DATABASE_URL: ${managed.db.url}
       CORS_ORIGIN: "https://eden.eh1.incept5.dev,https://web.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
-      EVE_API_URL: ${secret.EVE_API_URL}
-      EVE_PROJECT_ID: ${secret.EVE_PROJECT_ID}
-      EVE_SERVICE_TOKEN: ${secret.EVE_SERVICE_TOKEN}
-      EDEN_API_URL: ${secret.EDEN_API_URL}
+      # EVE_API_URL, EVE_PROJECT_ID, EVE_SERVICE_TOKEN are auto-injected by the platform.
+      # EDEN_API_URL is the app's own internal API — derived from K8s service naming.
+      EDEN_API_URL: "http://${ENV_NAME}-api:3000"
 
   web:
     build:
