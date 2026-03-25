@@ -44,6 +44,14 @@ export class ChangesetsController {
     @Param('projectId') projectId: string,
     @Body() body: CreateChangesetInput,
   ) {
+    // Auto-derive source and actor from agent identity when not provided.
+    // Agent emails follow the pattern {slug}@eve.agent (e.g., map-chat@eve.agent).
+    const user = (req as any).user;
+    if (user?.email?.endsWith('@eve.agent')) {
+      const agentSlug = user.email.replace('@eve.agent', '');
+      if (!body.source) body.source = agentSlug;
+      if (!body.actor) body.actor = agentSlug;
+    }
     return this.changesets.create(dbContext(req), projectId, body);
   }
 
