@@ -139,3 +139,4 @@ eden source update-status --source "$SRC_ID" --status failed --error "Synthesis 
 - When in doubt, create a question rather than making assumptions
 - Keep the changeset focused — one changeset per source document
 - **Items are auto-sorted by dependency order** (persona -> activity -> step -> task -> question) during accept, so ordering in the changeset doesn't matter
+- **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.

@@ -82,3 +82,4 @@ PID=$(eden projects list --json | jq -r '.[0].id')
 - Include the full context (question text + answer) in the changeset reasoning
 - Reference the original question in changeset item descriptions
 - Prefer minimal changes — update existing entities rather than creating new ones
+- **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.

@@ -129,3 +129,7 @@ Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
 - User stories in "As a [persona], I want to [action], so that [benefit]" format
 - Acceptance criteria as testable statements
 - Activities flow logically left to right
+
+## Rules
+
+- **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.

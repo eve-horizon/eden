@@ -220,6 +220,19 @@ export class ChangesetsService {
         );
       }
 
+      // Block self-acceptance: agent-created changesets require human review.
+      // Changesets from agents always have a `source` field (e.g., "map-chat",
+      // "expert-panel"). Human-created changesets via the web UI have source=null.
+      // Allow accept only if the changeset has no source (human-created) or if
+      // the source is explicitly "manual" or "web".
+      const humanSources = new Set([null, undefined, 'manual', 'web']);
+      if (!humanSources.has(changeset.source)) {
+        throw new BadRequestException(
+          `Changeset from "${changeset.source}" requires human review via the web UI. ` +
+          `Agent-created changesets cannot be accepted programmatically.`,
+        );
+      }
+
       const { rows: rawItems } = await client.query<ChangesetItemRow>(
         `SELECT * FROM changeset_items
           WHERE changeset_id = $1 AND status = 'pending'

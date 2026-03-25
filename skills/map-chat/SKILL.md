@@ -100,6 +100,7 @@ eden changeset create --project $PID --file /tmp/changeset.json --json
 
 - Always read the current map before proposing changes
 - **NEVER create entities directly** — always use `eden changeset create`. All map mutations must go through changesets.
+- **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.
 - Prefer updating existing entities over creating duplicates
 - Reference entities by display_id (e.g. `TSK-1.2.1`, `ACT-3`)
 - Include `device` badge when creating tasks (default: `all`)

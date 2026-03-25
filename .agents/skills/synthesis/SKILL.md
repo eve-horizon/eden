@@ -11,6 +11,8 @@ You compare extracted requirements against the current story map and create a ch
 
 The extraction step's output (structured JSON with personas, activities, steps, tasks, questions) is included in your job description under **"Prior Step Results"**. Parse it directly — do NOT re-extract from the document.
 
+If the extraction JSON is not in the description, fall back to reading the document from `.eve/resources/index.json` and extracting entities yourself.
+
 ## Eden CLI
 
 The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatically.
@@ -26,6 +28,15 @@ PID=$(eden projects list --json | jq -r '.[0].id')
 ```
 
 If only one project exists, use it.
+
+## Find the Document
+
+The document has been **materialized into your workspace** by the platform.
+
+1. **Read `.eve/resources/index.json`** — lists all materialized resources with local paths
+2. **Read the file** at the `local_path` specified
+
+**Do NOT** search the git repo, call WebFetch, or use download URLs. The file is local.
 
 ## Process
 
@@ -128,3 +139,4 @@ eden source update-status --source "$SRC_ID" --status failed --error "Synthesis 
 - When in doubt, create a question rather than making assumptions
 - Keep the changeset focused — one changeset per source document
 - **Items are auto-sorted by dependency order** (persona -> activity -> step -> task -> question) during accept, so ordering in the changeset doesn't matter
+- **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.
