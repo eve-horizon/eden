@@ -88,8 +88,9 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
         const list = threads ?? [];
         setThreads(list);
         // Auto-select the most recent thread (if any) and we don't already have one
-        if (list.length > 0 && !activeThread) {
-          setActiveThread(list[0].id);
+        const first = list[0];
+        if (first && !activeThread) {
+          setActiveThread(first.id);
         }
       })
       .catch(() => setError('Failed to load threads'));
