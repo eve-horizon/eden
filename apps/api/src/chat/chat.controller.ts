@@ -27,8 +27,8 @@ export class ChatController {
   constructor(private readonly chat: ChatGatewayService) {}
 
   @Get('projects/:projectId/chat/threads')
-  listThreads(@Req() req: Request) {
-    return this.chat.listThreads(bearerToken(req));
+  listThreads(@Req() req: Request, @Param('projectId') projectId: string) {
+    return this.chat.listThreads(bearerToken(req), projectId);
   }
 
   @Post('projects/:projectId/chat/threads')

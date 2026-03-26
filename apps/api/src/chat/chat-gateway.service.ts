@@ -95,18 +95,22 @@ export class ChatGatewayService {
   // Threads
   // -------------------------------------------------------------------------
 
-  async listThreads(token?: string): Promise<EveThread[]> {
+  async listThreads(token?: string, edenProjectId?: string): Promise<EveThread[]> {
     const result = await this.proxy<{ threads: EveThread[] }>(
       'GET',
       `/projects/${this.eveProjectId}/threads`,
       undefined,
       token,
     );
-    // Filter to user-facing threads (key starts with "api:" or "slack:"),
-    // excluding internal coordination threads
-    return (result.threads ?? []).filter(
-      (t) => !t.key.startsWith('coord:'),
-    );
+    // Filter to user-facing threads for the specific Eden project.
+    // Thread keys include the Eden project ID as channel_id:
+    //   api:eden-web:<edenProjectId>
+    // Exclude internal coordination threads (coord:*).
+    return (result.threads ?? []).filter((t) => {
+      if (t.key.startsWith('coord:')) return false;
+      if (edenProjectId && !t.key.includes(edenProjectId)) return false;
+      return true;
+    });
   }
 
   async createThread(
@@ -129,6 +133,9 @@ export class ChatGatewayService {
         provider: 'api',
         user_id: userId,
         external_email: email,
+        // Include Eden project ID as channel_id so the platform thread key
+        // is scoped per Eden project: "api:eden-web:<edenProjectId>"
+        channel_id: edenProjectId,
       },
       token,
     );
@@ -169,6 +176,7 @@ export class ChatGatewayService {
         user_id: userId,
         external_email: email,
         thread_id: threadId,
+        channel_id: edenProjectId,
       },
       token,
     );
