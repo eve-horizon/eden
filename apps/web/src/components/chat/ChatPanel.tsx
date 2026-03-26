@@ -85,10 +85,11 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
     if (!open) return;
     api.get<EveThread[]>(`/projects/${projectId}/chat/threads`)
       .then((threads) => {
-        setThreads(threads);
+        const list = threads ?? [];
+        setThreads(list);
         // Auto-select the most recent thread (if any) and we don't already have one
-        if (threads.length > 0 && !activeThread) {
-          setActiveThread(threads[0].id);
+        if (list.length > 0 && !activeThread) {
+          setActiveThread(list[0].id);
         }
       })
       .catch(() => setError('Failed to load threads'));
