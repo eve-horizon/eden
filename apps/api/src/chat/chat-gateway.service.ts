@@ -119,11 +119,19 @@ export class ChatGatewayService {
     email?: string,
     token?: string,
     edenProjectId?: string,
+    forceNewThread?: boolean,
   ): Promise<SimulateResponse> {
     // Include Eden project context so agents know which project to modify
     const context = edenProjectId
       ? `[eden-project:${edenProjectId}] `
       : '';
+
+    // Channel ID scopes threads per Eden project. When forceNewThread is set,
+    // append a timestamp to create a genuinely new thread (different key).
+    const channelId = edenProjectId && forceNewThread
+      ? `${edenProjectId}:${Date.now()}`
+      : edenProjectId;
+
     return this.proxy<SimulateResponse>(
       'POST',
       `/projects/${this.eveProjectId}/chat/simulate`,
@@ -133,9 +141,7 @@ export class ChatGatewayService {
         provider: 'api',
         user_id: userId,
         external_email: email,
-        // Include Eden project ID as channel_id so the platform thread key
-        // is scoped per Eden project: "api:eden-web:<edenProjectId>"
-        channel_id: edenProjectId,
+        channel_id: channelId,
       },
       token,
     );

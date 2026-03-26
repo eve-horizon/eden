@@ -71,6 +71,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [forceNew, setForceNew] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -79,13 +80,19 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load threads when panel opens
+  // Load threads when panel opens — auto-select the most recent one
   useEffect(() => {
     if (!open) return;
     api.get<EveThread[]>(`/projects/${projectId}/chat/threads`)
-      .then(setThreads)
+      .then((threads) => {
+        setThreads(threads);
+        // Auto-select the most recent thread (if any) and we don't already have one
+        if (threads.length > 0 && !activeThread) {
+          setActiveThread(threads[0].id);
+        }
+      })
       .catch(() => setError('Failed to load threads'));
-  }, [projectId, open]);
+  }, [projectId, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load messages when thread selected
   useEffect(() => {
@@ -147,12 +154,13 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
       };
 
       if (!activeThread) {
-        // Create new thread
+        // Create new thread (pass new_thread flag if user explicitly clicked "New thread")
         const result = await api.post<SimulateResponse>(
           `/projects/${projectId}/chat/threads`,
-          { message },
+          { message, new_thread: forceNew || undefined },
         );
         setActiveThread(result.thread_id);
+        setForceNew(false);
         setMessages([userMsg]);
         startPolling(result.thread_id, 1); // Poll for AI response (> 1 message)
       } else {
@@ -172,6 +180,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
     setActiveThread(null);
     setMessages([]);
     setPolling(false);
+    setForceNew(true);
     if (pollRef.current) clearInterval(pollRef.current);
   };
 

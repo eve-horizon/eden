@@ -37,7 +37,7 @@ export class ChatController {
   createThread(
     @Req() req: Request,
     @Param('projectId') projectId: string,
-    @Body() body: { message: string },
+    @Body() body: { message: string; new_thread?: boolean },
   ) {
     const ctx = dbContext(req);
     const user = (req as any).user;
@@ -47,6 +47,7 @@ export class ChatController {
       user?.email,
       bearerToken(req),
       projectId,
+      body.new_thread,
     );
   }
 
