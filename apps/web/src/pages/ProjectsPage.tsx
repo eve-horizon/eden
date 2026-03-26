@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects, type ProjectWithCounts } from '../hooks/useProjects';
 import { ProjectWizard } from '../components/projects/ProjectWizard';
@@ -8,8 +8,9 @@ import { ProjectWizard } from '../components/projects/ProjectWizard';
 // ---------------------------------------------------------------------------
 
 export function ProjectsPage() {
-  const { projects, loading, error, refetch } = useProjects();
+  const { projects, loading, error, refetch, deleteProject } = useProjects();
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectWithCounts | null>(null);
 
   if (loading) return <PageSkeleton />;
 
@@ -53,9 +54,24 @@ export function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={() => setDeleteTarget(project)}
+            />
           ))}
         </div>
+      )}
+
+      {deleteTarget && (
+        <DeleteProjectModal
+          project={deleteTarget}
+          onConfirm={async () => {
+            await deleteProject(deleteTarget.id);
+            setDeleteTarget(null);
+          }}
+          onClose={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );
@@ -65,38 +81,189 @@ export function ProjectsPage() {
 // ProjectCard
 // ---------------------------------------------------------------------------
 
-function ProjectCard({ project }: { project: ProjectWithCounts }) {
+function ProjectCard({
+  project,
+  onDelete,
+}: {
+  project: ProjectWithCounts;
+  onDelete: () => void;
+}) {
   const navigate = useNavigate();
 
   return (
-    <button
-      onClick={() => navigate(`/projects/${project.id}/map`)}
-      className="eden-card p-5 text-left w-full group"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="text-base font-semibold text-eden-text group-hover:text-eden-accent transition-colors">
-          {project.name}
-        </h3>
-        <ArrowIcon className="w-4 h-4 text-eden-text-2 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
-      </div>
+    <div className="eden-card p-5 group relative">
+      <button
+        onClick={() => navigate(`/projects/${project.id}/map`)}
+        className="text-left w-full"
+      >
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="text-base font-semibold text-eden-text group-hover:text-eden-accent transition-colors pr-8">
+            {project.name}
+          </h3>
+          <ArrowIcon className="w-4 h-4 text-eden-text-2 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
+        </div>
 
-      <p className="text-xs font-mono text-eden-text-2 mb-4">{project.slug}</p>
+        <p className="text-xs font-mono text-eden-text-2 mb-4">{project.slug}</p>
 
-      <div className="flex items-center gap-4 text-xs text-eden-text-2">
-        <span className="flex items-center gap-1">
-          <CountDot className="bg-eden-activity" />
-          {project.activity_count} {project.activity_count === 1 ? 'activity' : 'activities'}
-        </span>
-        <span className="flex items-center gap-1">
-          <CountDot className="bg-eden-accent" />
-          {project.task_count} {project.task_count === 1 ? 'task' : 'tasks'}
-        </span>
-        <span className="flex items-center gap-1">
-          <CountDot className="bg-eden-green" />
-          {project.persona_count} {project.persona_count === 1 ? 'persona' : 'personas'}
-        </span>
+        <div className="flex items-center gap-4 text-xs text-eden-text-2">
+          <span className="flex items-center gap-1">
+            <CountDot className="bg-eden-activity" />
+            {project.activity_count} {project.activity_count === 1 ? 'activity' : 'activities'}
+          </span>
+          <span className="flex items-center gap-1">
+            <CountDot className="bg-eden-accent" />
+            {project.task_count} {project.task_count === 1 ? 'task' : 'tasks'}
+          </span>
+          <span className="flex items-center gap-1">
+            <CountDot className="bg-eden-green" />
+            {project.persona_count} {project.persona_count === 1 ? 'persona' : 'personas'}
+          </span>
+        </div>
+      </button>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        className="absolute top-3 right-3 p-1.5 rounded-md text-eden-text-2 opacity-0 group-hover:opacity-100
+                   hover:bg-red-50 hover:text-red-600 transition-all"
+        title="Delete project"
+      >
+        <TrashIcon className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DeleteProjectModal
+// ---------------------------------------------------------------------------
+
+function DeleteProjectModal({
+  project,
+  onConfirm,
+  onClose,
+}: {
+  project: ProjectWithCounts;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirmed = confirmText === project.slug;
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !deleting) onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose, deleting]);
+
+  const handleDelete = useCallback(async () => {
+    if (!confirmed) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete project');
+      setDeleting(false);
+    }
+  }, [confirmed, onConfirm]);
+
+  const totalEntities =
+    project.activity_count + project.task_count + project.persona_count;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50 transition-opacity"
+        onClick={deleting ? undefined : onClose}
+      />
+      <div className="relative w-full max-w-md bg-eden-surface rounded-eden shadow-modal border border-eden-border">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-eden-border">
+          <h3 className="text-base font-semibold text-red-600">Delete Project</h3>
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="p-1 rounded-md text-eden-text-2 hover:bg-eden-hover transition-colors disabled:opacity-50"
+          >
+            <CloseIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm text-eden-text">
+            This will permanently delete{' '}
+            <span className="font-semibold">{project.name}</span>
+            {totalEntities > 0 && (
+              <>
+                {' '}and all its data ({project.activity_count} activities,{' '}
+                {project.task_count} tasks, {project.persona_count} personas)
+              </>
+            )}
+            . This action cannot be undone.
+          </p>
+
+          <div>
+            <label
+              htmlFor="delete-confirm"
+              className="block text-sm text-eden-text-2 mb-1.5"
+            >
+              Type <span className="font-mono font-semibold text-eden-text">{project.slug}</span> to confirm
+            </label>
+            <input
+              id="delete-confirm"
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={project.slug}
+              autoFocus
+              disabled={deleting}
+              className="w-full rounded-lg border border-eden-border bg-eden-surface
+                         px-3 py-2 text-sm font-mono text-eden-text placeholder:text-eden-text-2
+                         focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500
+                         transition-colors disabled:opacity-50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && confirmed) handleDelete();
+              }}
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-eden-border">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className="eden-btn-secondary disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={!confirmed || deleting}
+            className="px-4 py-2 text-sm font-medium rounded-lg text-white
+                       bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed
+                       transition-colors"
+          >
+            {deleting ? 'Deleting...' : 'Delete Project'}
+          </button>
+        </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -297,6 +464,36 @@ function ArrowIcon({ className }: { className?: string }) {
         d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z"
         clipRule="evenodd"
       />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.519.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
     </svg>
   );
 }

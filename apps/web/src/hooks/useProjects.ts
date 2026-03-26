@@ -63,7 +63,15 @@ export function useProjects() {
     [fetchProjects],
   );
 
-  return { projects, loading, error, refetch: fetchProjects, createProject };
+  const deleteProject = useCallback(
+    async (id: string): Promise<void> => {
+      await api.delete(`/projects/${id}`);
+      await fetchProjects();
+    },
+    [fetchProjects],
+  );
+
+  return { projects, loading, error, refetch: fetchProjects, createProject, deleteProject };
 }
 
 // ---------------------------------------------------------------------------
