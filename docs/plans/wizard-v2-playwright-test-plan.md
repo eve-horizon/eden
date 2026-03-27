@@ -16,7 +16,7 @@ export TOKEN=<owner-token>           # eve auth token
 export EDITOR_TOKEN=<editor-token>   # optional: for preview-vs-approved assertions
 export ORG_ID=org_Incept5
 export EDEN_URL="https://eden-app.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
-export EDEN_API="https://api.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev/api"
+export EDEN_API="https://api.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
 ```
 
 > **Note:** `EDEN_URL` uses the `eden-app.` subdomain to match the existing `phase3.spec.ts` base URL. The `web.` subdomain is also valid but would require updating phase3 for consistency.
@@ -26,7 +26,7 @@ export EDEN_API="https://api.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev/api"
 const EDEN_URL = process.env.EDEN_URL
   ?? `https://eden-app.${process.env.ORG_SLUG}-eden-sandbox.eh1.incept5.dev`;
 const EDEN_API = process.env.EDEN_API
-  ?? `https://api.${process.env.ORG_SLUG}-eden-sandbox.eh1.incept5.dev/api`;
+  ?? `https://api.${process.env.ORG_SLUG}-eden-sandbox.eh1.incept5.dev`;
 const TOKEN = process.env.TOKEN!;
 const ORG_ID = process.env.ORG_ID ?? 'org_Incept5';
 
@@ -91,15 +91,15 @@ Assert: at least 1 `[data-testid^="activity-ACT-"]` is visible
 Assert: at least 1 `[data-testid^="task-card-"]` is visible
 
 API verification:
-  GET /api/projects/{id}/map
+  GET /projects/{id}/map
   Assert: activities.length >= 3
   Assert: personas.length >= 2
   Assert: stats.task_count >= 5
 
-  GET /api/projects/{id}/changesets
+  GET /projects/{id}/changesets
   Assert: latest changeset status === "accepted" (NOT "draft")
 
-Cleanup: DELETE /api/projects/{id}
+Cleanup: DELETE /projects/{id}
 ```
 
 ### A.2 Auto-accept is idempotent on re-poll
@@ -108,7 +108,7 @@ Verifies that polling the status endpoint multiple times after completion doesn'
 
 ```
 Create project via API
-POST /api/projects/{id}/generate-map { description: "Idempotent test" }
+POST /projects/{id}/generate-map { description: "Idempotent test" }
 Wait for job to complete (poll status endpoint)
 
 Once status === "complete":
@@ -117,7 +117,7 @@ Once status === "complete":
   Assert: all 3 return { status: "complete", changeset_id: same_id }
   Assert: no 500 errors
 
-  GET /api/changesets/{changeset_id}
+  GET /changesets/{changeset_id}
   Assert: status === "accepted" (not double-accepted or errored)
 
 Cleanup: DELETE project
@@ -129,7 +129,7 @@ Cleanup: DELETE project
 Complete wizard flow (name: "PW Audit ${Date.now()}")
 Wait for map to be populated
 
-GET /api/projects/{id}/audit
+GET /projects/{id}/audit
 Assert: entries include action === "generate_map"
 Assert: entries include action === "accept" with entity_type === "changeset"
 Assert: accept entry actor is the user's ID (not null / not agent)
@@ -164,7 +164,7 @@ Assert: URL contains the SAME project ID as the first run
 Assert: Map has activities and tasks (populated, not empty)
 
 API verification:
-  GET /api/projects/{id}/changesets
+  GET /projects/{id}/changesets
   Assert: 2 changesets (both with source = "map-generator")
   Assert: both have status === "accepted"
   Assert: second changeset created_at > first changeset created_at
@@ -182,14 +182,14 @@ Authenticate with EDITOR_TOKEN
 Create project + generate map through the wizard
 Wait for completion
 
-GET /api/projects/{id}/changesets
+GET /projects/{id}/changesets
 Assert: latest changeset status === "accepted"
 
-GET /api/projects/{id}/audit
+GET /projects/{id}/audit
 Assert: latest "accept" entry exists
 Assert: accept entry details.approval === "preview"
 
-GET /api/projects/{id}/pending-approvals
+GET /projects/{id}/pending-approvals
 Assert: pending approval items are present
 
 Cleanup: DELETE project using owner token if needed
@@ -397,7 +397,7 @@ Click "View Story Map"
 Assert: Map has activities and tasks
 
 API verification:
-  GET /api/projects/{id}/map
+  GET /projects/{id}/map
   Assert: personas.length >= 2
   Assert: activities.length >= 3
 
@@ -407,7 +407,7 @@ API verification:
   Assert: at least one activity relates to coffee/ordering/inventory
 
   Source verification:
-  GET /api/projects/{id}/sources
+  GET /projects/{id}/sources
   Assert: at least 1 source with filename "coffeeshop-pos.md"
   Assert: source status is "uploaded"
 
@@ -476,7 +476,7 @@ Open wizard, fill basics, navigate to Context
 Select a test document
 
 Intercept the create-source response or captured upload_url:
-  - let the app call POST /api/projects/{id}/sources
+  - let the app call POST /projects/{id}/sources
   - capture `upload_url` from the response
   - route that exact URL and fulfill the PUT with 500
 
@@ -704,7 +704,7 @@ Assert: Modal closes
 
 Navigate to projects page
 Assert: Project was created (card visible)
-Poll `/api/projects/{id}/generate-map/status` or refresh `/projects/{id}/map`
+Poll `/projects/{id}/generate-map/status` or refresh `/projects/{id}/map`
 Assert: project eventually becomes populated once the background job completes
 Assert: no UI errors during the eventual navigation
 
