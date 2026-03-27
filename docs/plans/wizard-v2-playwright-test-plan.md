@@ -15,12 +15,21 @@ export ORG_SLUG=incept5
 export TOKEN=<owner-token>           # eve auth token
 export EDITOR_TOKEN=<editor-token>   # optional: for preview-vs-approved assertions
 export ORG_ID=org_Incept5
-export EDEN_URL="https://web.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
+export EDEN_URL="https://eden-app.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
 export EDEN_API="https://api.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev/api"
 ```
 
+> **Note:** `EDEN_URL` uses the `eden-app.` subdomain to match the existing `phase3.spec.ts` base URL. The `web.` subdomain is also valid but would require updating phase3 for consistency.
+
 ```typescript
-// Auth setup (matches tests/e2e/phase3.spec.ts plus org scoping)
+// Auth setup (extends tests/e2e/phase3.spec.ts with org scoping)
+const EDEN_URL = process.env.EDEN_URL
+  ?? `https://eden-app.${process.env.ORG_SLUG}-eden-sandbox.eh1.incept5.dev`;
+const EDEN_API = process.env.EDEN_API
+  ?? `https://api.${process.env.ORG_SLUG}-eden-sandbox.eh1.incept5.dev/api`;
+const TOKEN = process.env.TOKEN!;
+const ORG_ID = process.env.ORG_ID ?? 'org_Incept5';
+
 test.beforeEach(async ({ page }) => {
   await page.goto(EDEN_URL);
   await page.evaluate(({ token, orgId }) => {
@@ -133,9 +142,11 @@ Cleanup: DELETE project
 
 ### A.4 Regenerate creates new changeset and auto-accepts it
 
+**Prerequisite:** Depends on the WS1 regenerate project-reuse fix. Without it, `startGeneration()` creates a new project on regenerate instead of reusing the existing one, and the assertions below about 2 changesets on the same project would fail.
+
 ```
 Complete wizard through to review step
-Record first project URL
+Record project ID from the URL
 
 Click "Regenerate"
 Assert: Step indicator shows "Context"
@@ -144,10 +155,12 @@ Assert: Previous context field values preserved
 Modify one field (add text to #wiz-caps)
 Click "Generate Story Map"
 
+Assert: Status does NOT show "Creating project..." (project already exists)
 Wait for review step again (timeout 180s):
   Assert: "Story map generated!" heading visible
 
 Click "View Story Map"
+Assert: URL contains the SAME project ID as the first run
 Assert: Map has activities and tasks (populated, not empty)
 
 API verification:
@@ -607,7 +620,7 @@ Cleanup: DELETE project
 Create project via API
 POST /projects/{id}/generate-map {}
 Assert: 400 response
-Assert: body.message mentions "at least one of description, audience, capabilities, or source_id"
+Assert: body.message mentions required inputs (currently: "at least one of description, audience, or capabilities"; after WS2: also accepts source_id)
 
 Cleanup: DELETE project
 ```
@@ -719,7 +732,7 @@ Assert: File still selected (name visible in drop zone)
 
 ### Test Documents
 
-Store in `tests/e2e/fixtures/`:
+Store in `tests/fixtures/`:
 
 **`coffeeshop-pos.md`** (used in C.1):
 ```markdown
@@ -820,8 +833,9 @@ function uniqueName(prefix: string) {
 - **Parallelism:** Groups B and D are parallel-safe. Groups A, C, and E must run serial within their group.
 - **Serial dependency:** Run Group A before Group C (auto-accept must work for document upload tests to validate map content).
 - **Cleanup:** Every test that creates a project deletes it in `afterEach` / `afterAll`.
-- **Fixtures:** Test documents in `tests/e2e/fixtures/` — checked into repo.
+- **Fixtures:** Test documents in `tests/fixtures/` — checked into repo.
 - **Agent dependency:** Groups A.1, A.4, C.1, C.2, C.3 depend on the map-generator agent being available. If the agent is down, these will fail. Groups B and D (except D.4) are agent-independent.
+- **Code dependency:** Test A.4 requires the WS1 regenerate project-reuse fix (see design plan). Without it, regeneration creates a new project and the "2 changesets on same project" assertion fails.
 - **Upload dependency:** Group C.4/C.5 should intercept the concrete presigned URL returned by the API rather than assume an S3 hostname.
 - **Non-E2E gap:** True accept-failure handling should be covered in an API/Nest integration test because Playwright cannot force a DB-side apply error reliably.
 - **Recommended execution order:** B (fast UI) → D (fast API) → A (auto-accept) → C (doc upload + generation) → E (regression)

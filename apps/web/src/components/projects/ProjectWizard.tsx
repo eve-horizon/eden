@@ -13,6 +13,30 @@ interface ProjectWizardProps {
 
 type WizardStep = 'basics' | 'context' | 'generate' | 'review';
 
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'text/markdown',
+  'text/x-markdown',
+  'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+];
+
+const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.txt', '.docx', '.doc', '.markdown'];
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function isAcceptedFile(file: File): string | null {
+  const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+  if (!ACCEPTED_TYPES.includes(file.type) && !ACCEPTED_EXTENSIONS.includes(ext)) {
+    return 'Unsupported file type. Accepted: PDF, Markdown, Word, text.';
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // ProjectWizard — multi-step modal for creating projects with AI map gen
 // ---------------------------------------------------------------------------
@@ -30,13 +54,18 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
   const [audience, setAudience] = useState('');
   const [capabilities, setCapabilities] = useState('');
   const [constraints, setConstraints] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   // Step 3: Generation state
   const [generating, setGenerating] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [genStatus, setGenStatus] = useState('');
   const [genError, setGenError] = useState<string | null>(null);
-  const [changesetId, setChangesetId] = useState<string | null>(null);
+  // changesetId is tracked for potential future use (e.g. changeset link)
+  // but not displayed in the current auto-accept flow
+  const [, setChangesetId] = useState<string | null>(null);
+  const [uploadedSourceId, setUploadedSourceId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Track whether a project was created so we can notify the parent at the
@@ -57,6 +86,20 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
     if (!slug || slug === deriveSlug(name)) {
       setSlug(deriveSlug(value));
     }
+  };
+
+  const handleFileChange = (f: File | null) => {
+    setFileError(null);
+    if (f) {
+      const error = isAcceptedFile(f);
+      if (error) {
+        setFileError(error);
+        return;
+      }
+    }
+    setFile(f);
+    // Clear cached source_id when file changes (force re-upload)
+    setUploadedSourceId(null);
   };
 
   // Clean up polling on unmount; notify parent if a project was created
@@ -81,30 +124,61 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
   const startGeneration = useCallback(async () => {
     setGenerating(true);
     setGenError(null);
-    setGenStatus('Creating project...');
 
     try {
-      // Create the project
-      const project = await api.post<{ id: string }>('/projects', {
-        name: name.trim(),
-        slug: slug.trim(),
-      });
-      setProjectId(project.id);
-      projectCreatedRef.current = true;
+      // Reuse existing project on regenerate
+      let pid = projectId;
+      if (!pid) {
+        setGenStatus('Creating project...');
+        const project = await api.post<{ id: string }>('/projects', {
+          name: name.trim(),
+          slug: slug.trim(),
+        });
+        pid = project.id;
+        setProjectId(pid);
+        projectCreatedRef.current = true;
+      }
+
+      // Upload document if selected (and not already uploaded)
+      let sourceId: string | undefined;
+      if (uploadedSourceId) {
+        sourceId = uploadedSourceId;
+      } else if (file) {
+        setGenStatus('Uploading document...');
+        const source = await api.post<{ id: string; upload_url: string }>(
+          `/projects/${pid}/sources`,
+          {
+            filename: file.name,
+            content_type: file.type || 'application/octet-stream',
+            file_size: file.size,
+          },
+        );
+
+        if (source.upload_url) {
+          await fetch(source.upload_url, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file,
+          });
+        }
+
+        sourceId = source.id;
+        setUploadedSourceId(source.id);
+      }
 
       // Trigger map generation
-      setGenStatus('Starting map generation...');
+      setGenStatus('Generating story map...');
       const body: Record<string, string> = {};
       if (description.trim()) body.description = description.trim();
       if (audience.trim()) body.audience = audience.trim();
       if (capabilities.trim()) body.capabilities = capabilities.trim();
       if (constraints.trim()) body.constraints = constraints.trim();
+      if (sourceId) body.source_id = sourceId;
 
       const result = await api.post<{ job_id: string }>(
-        `/projects/${project.id}/generate-map`,
+        `/projects/${pid}/generate-map`,
         body,
       );
-      setGenStatus('Generating story map...');
 
       // Poll for completion
       pollRef.current = setInterval(async () => {
@@ -113,7 +187,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
             status: string;
             changeset_id?: string;
             error?: string;
-          }>(`/projects/${project.id}/generate-map/status?job_id=${result.job_id}`);
+          }>(`/projects/${pid}/generate-map/status?job_id=${result.job_id}`);
 
           if (status.status === 'complete') {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -135,7 +209,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
       );
       setGenerating(false);
     }
-  }, [name, slug, description, audience, capabilities, constraints]);
+  }, [name, slug, description, audience, capabilities, constraints, file, projectId, uploadedSourceId]);
 
   const handleSkipToCreate = useCallback(async () => {
     setGenerating(true);
@@ -214,9 +288,12 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
               audience={audience}
               capabilities={capabilities}
               constraints={constraints}
+              file={file}
+              fileError={fileError}
               onAudienceChange={setAudience}
               onCapabilitiesChange={setCapabilities}
               onConstraintsChange={setConstraints}
+              onFileChange={handleFileChange}
               onBack={() => setStep('basics')}
               onGenerate={() => {
                 setStep('generate');
@@ -236,8 +313,6 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
 
           {step === 'review' && (
             <ReviewStep
-              projectId={projectId!}
-              changesetId={changesetId}
               onDone={() => navigate(`/projects/${projectId}/map`)}
               onRegenerate={() => {
                 setStep('context');
@@ -410,25 +485,31 @@ function BasicsStep({
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: Context
+// Step 2: Context (with FileDropZone)
 // ---------------------------------------------------------------------------
 
 function ContextStep({
   audience,
   capabilities,
   constraints,
+  file,
+  fileError,
   onAudienceChange,
   onCapabilitiesChange,
   onConstraintsChange,
+  onFileChange,
   onBack,
   onGenerate,
 }: {
   audience: string;
   capabilities: string;
   constraints: string;
+  file: File | null;
+  fileError: string | null;
   onAudienceChange: (v: string) => void;
   onCapabilitiesChange: (v: string) => void;
   onConstraintsChange: (v: string) => void;
+  onFileChange: (f: File | null) => void;
   onBack: () => void;
   onGenerate: () => void;
 }) {
@@ -440,6 +521,8 @@ function ContextStep({
       </p>
 
       <div className="space-y-4">
+        <FileDropZone file={file} error={fileError} onChange={onFileChange} />
+
         <div>
           <label
             htmlFor="wiz-audience"
@@ -519,6 +602,112 @@ function ContextStep({
 }
 
 // ---------------------------------------------------------------------------
+// FileDropZone — drag-and-drop / click-to-browse file picker
+// ---------------------------------------------------------------------------
+
+function FileDropZone({
+  file,
+  error,
+  onChange,
+}: {
+  file: File | null;
+  error: string | null;
+  onChange: (f: File | null) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) onChange(dropped);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  return (
+    <div>
+      <div
+        data-testid="wizard-file-dropzone"
+        className={`relative rounded-lg border-2 border-dashed transition-colors ${
+          dragOver
+            ? 'border-eden-accent bg-eden-accent/5'
+            : error
+              ? 'border-red-300 bg-red-50/50'
+              : file
+                ? 'border-eden-accent/50 bg-eden-accent/5'
+                : 'border-eden-border hover:border-eden-accent/50'
+        } px-4 py-3`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={() => setDragOver(false)}
+      >
+        <input
+          data-testid="wizard-file-input"
+          type="file"
+          accept=".pdf,.md,.txt,.docx,.doc,.markdown"
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            onChange(f);
+            // Reset so re-selecting the same file still fires onChange
+            e.target.value = '';
+          }}
+        />
+
+        {file ? (
+          <div className="flex items-center gap-2">
+            <DocumentIcon className="w-5 h-5 text-eden-accent flex-shrink-0" />
+            <span
+              data-testid="wizard-file-name"
+              className="text-sm text-eden-text truncate flex-1"
+            >
+              {file.name}
+            </span>
+            <button
+              data-testid="wizard-file-remove"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(null);
+              }}
+              className="text-eden-text-2 hover:text-red-500 transition-colors flex-shrink-0"
+              aria-label="Remove file"
+            >
+              <CloseIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-1">
+            <p className="text-sm text-eden-text-2">
+              <span className="text-eden-accent font-medium">
+                Attach a document
+              </span>{' '}
+              (optional)
+            </p>
+            <p className="text-xs text-eden-text-2 mt-0.5">
+              Drop a file here or click to browse — PDF, Markdown, Word, text — up to 10MB
+            </p>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <p
+          data-testid="wizard-file-error"
+          className="text-xs text-red-600 mt-1"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Step 3: Generate (loading / error state)
 // ---------------------------------------------------------------------------
 
@@ -567,17 +756,13 @@ function GenerateStep({
 }
 
 // ---------------------------------------------------------------------------
-// Step 4: Review
+// Step 4: Review (WS1: auto-accepted, no changeset link)
 // ---------------------------------------------------------------------------
 
 function ReviewStep({
-  projectId,
-  changesetId,
   onDone,
   onRegenerate,
 }: {
-  projectId: string;
-  changesetId: string | null;
   onDone: () => void;
   onRegenerate: () => void;
 }) {
@@ -590,23 +775,13 @@ function ReviewStep({
         Story map generated!
       </h3>
       <p className="text-sm text-eden-text-2 mb-6 max-w-md mx-auto">
-        {changesetId
-          ? 'Your story map has been created as a changeset. Review it on the Changes page or view the map directly.'
-          : 'Your project has been created. View the story map to see what was generated.'}
+        Your story map is ready! View it now, or regenerate with different context.
       </p>
 
       <div className="flex items-center justify-center gap-3">
         <button onClick={onDone} className="eden-btn-primary shadow-md">
           View Story Map
         </button>
-        {changesetId && (
-          <a
-            href={`/projects/${projectId}/changes`}
-            className="eden-btn-secondary"
-          >
-            Review Changeset
-          </a>
-        )}
         <button onClick={onRegenerate} className="eden-btn-secondary">
           Regenerate
         </button>
@@ -658,6 +833,23 @@ function SparklesIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M10 1a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 1zM5.05 3.05a.75.75 0 011.06 0l1.062 1.06a.75.75 0 11-1.061 1.061l-1.06-1.06a.75.75 0 010-1.06zm9.9 0a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 01-1.061-1.06l1.06-1.061a.75.75 0 011.061 0zM10 7a3 3 0 100 6 3 3 0 000-6zm-6.25 3a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5H4.5a.75.75 0 01-.75-.75zm11.5 0a.75.75 0 01.75-.75h1.5a.75.75 0 010 1.5h-1.5a.75.75 0 01-.75-.75zm-8.139 3.889a.75.75 0 011.06 0l1.061 1.06a.75.75 0 11-1.06 1.061l-1.061-1.06a.75.75 0 010-1.061zm6.878 0a.75.75 0 010 1.06l-1.06 1.061a.75.75 0 01-1.061-1.06l1.06-1.061a.75.75 0 011.061 0zM10 15a.75.75 0 01.75.75v1.5a.75.75 0 01-1.5 0v-1.5A.75.75 0 0110 15z" />
+    </svg>
+  );
+}
+
+function DocumentIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        fillRule="evenodd"
+        d="M4.5 2A1.5 1.5 0 003 3.5v13A1.5 1.5 0 004.5 18h11a1.5 1.5 0 001.5-1.5V7.621a1.5 1.5 0 00-.44-1.06l-4.12-4.122A1.5 1.5 0 0011.378 2H4.5zm2.25 8.5a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5zm0 3a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z"
+        clipRule="evenodd"
+      />
     </svg>
   );
 }

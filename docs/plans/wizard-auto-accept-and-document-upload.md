@@ -52,7 +52,7 @@ Two implementation details matter here:
 
 In `generateMap()`:
 - Include `source_id` in the audit log details alongside `job_id`
-- Treat `source_id` as valid input for the "at least one input" validation
+- Treat `source_id` as valid input for the "at least one input" validation (current validation checks `description`, `audience`, `capabilities` — `constraints` is intentionally excluded since it's modifier context, not primary input)
 
 In `getGenerateStatus()`, after finding the changeset for a completed job:
 
@@ -71,7 +71,7 @@ if (changeset) {
 }
 ```
 
-Changeset lookup should use the wizard's audit log as the lower bound even when `source = 'map-generator'` exists, for example:
+**Implementation gap:** The current `getGenerateStatus()` primary lookup (`WHERE source = 'map-generator' ORDER BY created_at DESC`) does not filter by `job_id`, so it can match a changeset from a *different* generation run on the same project. Replace the primary lookup with the audit-bounded query below, and keep the existing fallback for changesets without a `source` tag:
 
 ```sql
 SELECT c.id
@@ -97,6 +97,22 @@ LIMIT 1
 - Remove the "Review Changeset" link from the ReviewStep (changeset is already accepted)
 - Change ReviewStep copy: "Your story map is ready!" instead of "created as a changeset"
 - Keep "Regenerate" button, but do not describe it as replacing the first run unless we add explicit replace semantics. Current behavior is additive.
+- **Fix regenerate project-reuse bug:** `startGeneration()` currently always calls `POST /projects` — even on regenerate when `projectId` is already set. This creates an orphaned duplicate project. Fix: check if `projectId` is already populated and skip project creation if so, generating directly on the existing project.
+
+```typescript
+// In startGeneration(), before creating the project:
+let pid = projectId;
+if (!pid) {
+  const project = await api.post<{ id: string }>('/projects', {
+    name: name.trim(),
+    slug: slug.trim(),
+  });
+  pid = project.id;
+  setProjectId(pid);
+  projectCreatedRef.current = true;
+}
+// Continue with generation on `pid`
+```
 
 #### Edge cases
 
@@ -106,6 +122,7 @@ LIMIT 1
 | Changeset apply fails | Return `status: "failed"` with a user-visible error; do not claim success while leaving the map empty |
 | Multiple changesets from same source | Filter by the triggering `job_id` audit entry, not just the most recent source match |
 | Regenerate after first generation | New changeset is auto-accepted on completion. Until replace semantics exist, treat regenerate as additive |
+| Regenerate project reuse | `startGeneration()` must check `projectId` state and skip `POST /projects` if a project already exists. Without this, regenerate creates an orphaned duplicate project and the new changeset lands on a different project than expected. |
 | Editor-triggered generation | Auto-accept still runs, but the audit `approval` should remain `preview` for editors and `approved` for owners |
 
 #### Audit trail
@@ -276,7 +293,10 @@ ContextStep additions:
 
 startGeneration() additions:
 ```typescript
-// After project creation, before triggering generation:
+// Reuse existing project on regenerate (see WS1 regenerate fix):
+// `pid` is the existing or newly-created project ID.
+
+// After project creation (or reuse), before triggering generation:
 let sourceId: string | undefined;
 
 if (uploadedSourceId) {
@@ -314,10 +334,12 @@ const result = await api.post(`/projects/${project.id}/generate-map`, body);
 
 GenerateStep status messages update:
 ```
-"Creating project..."        → project POST
+"Creating project..."        → project POST (skipped on regenerate)
 "Uploading document..."      → source upload (if file attached)
-"Generating story map..."    → agent working
+"Generating story map..."    → generate-map POST + agent working
 ```
+
+Note: The current code has an intermediate "Starting map generation..." message between project creation and "Generating story map...". Collapse these into a single "Generating story map..." for WS2 — the distinction between "starting" and "running" adds no user value.
 
 ---
 
@@ -325,10 +347,10 @@ GenerateStep status messages update:
 
 1. **WS1: Auto-accept** (small, high-impact)
    - `wizard.controller.ts` — pass `projectRole` through to the service
-   - `wizard.service.ts` — add auto-accept logic in `getGenerateStatus()` and tighten changeset/job correlation
+   - `wizard.service.ts` — add auto-accept logic in `getGenerateStatus()` and tighten changeset/job correlation (replace unfiltered primary lookup with audit-bounded query)
    - `wizard.module.ts` — import `ChangesetsModule`
-   - `ProjectWizard.tsx` — update ReviewStep copy, remove "Review Changeset" link
-   - Test: verify Estm8-like flow results in populated map
+   - `ProjectWizard.tsx` — update ReviewStep copy, remove "Review Changeset" link, fix regenerate to reuse existing `projectId`
+   - Test: verify Estm8-like flow results in populated map; verify regenerate adds a second changeset to the *same* project
 
 2. **WS2: Document upload** (medium, builds on WS1)
    - `ProjectWizard.tsx` — add FileDropZone to ContextStep, upload logic in startGeneration
@@ -347,7 +369,7 @@ GenerateStep status messages update:
 | `apps/api/src/wizard/wizard.service.ts` | 1+2 | Auto-accept logic, source validation, audit enrichment, prompt enrichment |
 | `apps/api/src/wizard/wizard.module.ts` | 1+2 | Import ChangesetsModule, SourcesModule |
 | `apps/api/src/wizard/wizard.controller.ts` | 1+2 | Add `source_id` to generate-map body and pass `projectRole` |
-| `apps/web/src/components/projects/ProjectWizard.tsx` | 1+2 | Update ReviewStep, add FileDropZone, upload validation, upload reuse on regenerate |
+| `apps/web/src/components/projects/ProjectWizard.tsx` | 1+2 | Fix regenerate project reuse, update ReviewStep, add FileDropZone, upload validation, upload reuse on regenerate |
 
 ---
 

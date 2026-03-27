@@ -34,6 +34,7 @@ export class WizardController {
       audience?: string;
       capabilities?: string;
       constraints?: string;
+      source_id?: string;
     },
   ) {
     return this.wizard.generateMap(dbContext(req), projectId, body);
@@ -45,6 +46,12 @@ export class WizardController {
     @Param('projectId') projectId: string,
     @Query('job_id') jobId: string,
   ) {
-    return this.wizard.getGenerateStatus(dbContext(req), projectId, jobId);
+    const projectRole = (req as any).projectRole as string | null;
+    return this.wizard.getGenerateStatus(
+      dbContext(req),
+      projectId,
+      jobId,
+      projectRole,
+    );
   }
 }
