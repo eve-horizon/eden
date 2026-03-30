@@ -25,6 +25,8 @@ const ACCEPTED_TYPES = [
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.txt', '.docx', '.doc', '.markdown'];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_POLL_DURATION_MS = 600_000; // 10 minutes
+const SLOW_POLL_THRESHOLD_MS = 90_000; // 90 seconds — show "taking longer" message
 
 function isAcceptedFile(file: File): string | null {
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -67,6 +69,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
   const [, setChangesetId] = useState<string | null>(null);
   const [uploadedSourceId, setUploadedSourceId] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartRef = useRef<number>(0);
 
   // Track whether a project was created so we can notify the parent at the
   // right time (on navigation away) rather than mid-generation — calling
@@ -180,8 +183,26 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
         body,
       );
 
-      // Poll for completion
+      // Poll for completion (with timeout)
+      pollStartRef.current = Date.now();
       pollRef.current = setInterval(async () => {
+        const elapsed = Date.now() - pollStartRef.current;
+
+        // Hard timeout — stop polling, show recoverable message
+        if (elapsed >= MAX_POLL_DURATION_MS) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setGenError(
+            'Map generation is taking longer than expected. The job may still be running \u2014 check the Changes page for results.',
+          );
+          setGenerating(false);
+          return;
+        }
+
+        // Soft threshold — update progress message but keep polling
+        if (elapsed >= SLOW_POLL_THRESHOLD_MS) {
+          setGenStatus('Still working \u2014 this is taking longer than usual...');
+        }
+
         try {
           const status = await api.get<{
             status: string;

@@ -216,6 +216,65 @@ export class WizardService {
     }
 
     if (job.phase === 'cancelled') {
+      // The agent may have created a changeset before being cancelled (e.g. by
+      // watchdog or manual cancellation). Attempt to recover it so the user
+      // still gets their map populated.
+      let recoveredChangeset = await this.db.queryOne<{ id: string }>(
+        ctx,
+        `SELECT c.id FROM changesets c
+         WHERE c.project_id = $1
+           AND c.source = 'map-generator'
+           AND c.created_at >= (
+             SELECT created_at FROM audit_log
+             WHERE project_id = $1
+               AND action = 'generate_map'
+               AND details->>'job_id' = $2
+             LIMIT 1
+           )
+         ORDER BY c.created_at DESC LIMIT 1`,
+        [projectId, jobId],
+      );
+
+      if (!recoveredChangeset) {
+        recoveredChangeset = await this.db.queryOne<{ id: string }>(
+          ctx,
+          `SELECT c.id FROM changesets c
+           WHERE c.project_id = $1 AND c.status = 'draft'
+             AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
+             AND c.created_at >= (
+               SELECT created_at FROM audit_log
+               WHERE project_id = $1 AND action = 'generate_map'
+                 AND details->>'job_id' = $2
+               LIMIT 1
+             )
+           ORDER BY c.created_at DESC LIMIT 1`,
+          [projectId, jobId],
+        );
+      }
+
+      if (recoveredChangeset) {
+        try {
+          const detail = await this.changesetsService.findById(ctx, recoveredChangeset.id);
+          if (detail.status === 'draft') {
+            await this.changesetsService.accept(
+              ctx,
+              recoveredChangeset.id,
+              projectRole,
+              false,
+            );
+          }
+          return {
+            status: 'complete',
+            changeset_id: recoveredChangeset.id,
+          };
+        } catch (err) {
+          this.logger.error(
+            `Auto-accept of recovered changeset ${recoveredChangeset.id} failed: ${err}`,
+          );
+          // Fall through to the failure return below
+        }
+      }
+
       const result = job.result as Record<string, unknown> | undefined;
       return {
         status: 'failed',
