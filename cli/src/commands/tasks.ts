@@ -82,13 +82,14 @@ export function registerTasks(program: Command): void {
   tasks
     .command('list')
     .description('List tasks')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--status <status>', 'Filter by status')
     .option('--priority <priority>', 'Filter by priority')
     .option('--release-id <id>', 'Filter by release ID')
     .option('--step <id>', 'Filter by step ID or display ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
+    .action(async (project, opts) => {
       const parentOpts = tasks.opts<{
         json?: boolean;
         priority?: string;
@@ -100,7 +101,7 @@ export function registerTasks(program: Command): void {
       await listTasks({
         json: opts.json ?? parentOpts.json,
         priority: opts.priority ?? parentOpts.priority,
-        project: opts.project ?? parentOpts.project,
+        project: opts.project ?? project ?? parentOpts.project,
         releaseId: opts.releaseId ?? parentOpts.releaseId,
         status: opts.status ?? parentOpts.status,
         step: opts.step ?? parentOpts.step,

@@ -19,11 +19,12 @@ export function registerChangesets(program: Command): void {
 
   cs.command('list')
     .description('List changesets')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--status <status>', 'Filter by status (pending/accepted/rejected)')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
+    .action(async (project, opts) => {
+      const pid = await autoDetectProject(opts.project ?? project);
       const params = opts.status ? `?status=${opts.status}` : '';
       const data = await api<Changeset[]>('GET', `/projects/${pid}/changesets${params}`);
       if (opts.json) return json(data);

@@ -26,10 +26,11 @@ export function registerReviews(program: Command): void {
   reviews
     .command('list')
     .description('List reviews')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
+    .action(async (project, opts) => {
+      const pid = await autoDetectProject(opts.project ?? project);
       const data = await api<Review[]>('GET', `/projects/${pid}/reviews`);
       if (opts.json) return json(data);
       table(data, ['id', 'title', 'status', 'expert_count', 'created_at']);

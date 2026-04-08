@@ -28,13 +28,14 @@ export function registerPersonas(program: Command): void {
   personas
     .command('list')
     .description('List personas')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
+    .action(async (project, opts) => {
       const parentOpts = personas.opts<{ json?: boolean; project?: string }>();
       await listPersonas({
         json: opts.json ?? parentOpts.json,
-        project: opts.project ?? parentOpts.project,
+        project: opts.project ?? project ?? parentOpts.project,
       });
     });
 

@@ -16,10 +16,11 @@ export function registerActivities(program: Command): void {
   activities
     .command('list')
     .description('List activities')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
+    .action(async (project, opts) => {
+      const pid = await autoDetectProject(opts.project ?? project);
       const data = await api<Activity[]>('GET', `/projects/${pid}/activities`);
       if (opts.json) return json(data);
       table(data, ['id', 'display_id', 'name', 'sort_order']);

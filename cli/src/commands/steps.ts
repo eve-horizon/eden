@@ -55,11 +55,21 @@ export function registerSteps(program: Command): void {
   steps
     .command('list')
     .description('List steps for an activity or project')
+    .argument('[project]', 'Project ID or slug')
     .option('--activity <id>', 'Activity ID')
     .option('--project <id>', 'Project ID or slug')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      await listSteps(opts);
+    .action(async (project, _opts, command: Command) => {
+      const mergedOpts = command.optsWithGlobals() as {
+        activity?: string;
+        json?: boolean;
+        project?: string;
+      };
+      await listSteps({
+        activity: mergedOpts.activity,
+        json: mergedOpts.json,
+        project: mergedOpts.project ?? project,
+      });
     });
 
   steps

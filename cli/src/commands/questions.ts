@@ -34,18 +34,25 @@ export function registerQuestions(program: Command): void {
   questions
     .command('list')
     .description('List questions')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID')
     .option('--status <status>', 'Filter by status (open/answered/dismissed)')
     .option('--category <cat>', 'Filter by category')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
+    .action(async (project, _opts, command: Command) => {
+      const mergedOpts = command.optsWithGlobals() as {
+        category?: string;
+        json?: boolean;
+        project?: string;
+        status?: string;
+      };
+      const pid = await autoDetectProject(mergedOpts.project ?? project);
       const params = new URLSearchParams();
-      if (opts.status) params.set('status', opts.status);
-      if (opts.category) params.set('category', opts.category);
+      if (mergedOpts.status) params.set('status', mergedOpts.status);
+      if (mergedOpts.category) params.set('category', mergedOpts.category);
       const qs = params.toString() ? `?${params}` : '';
       const data = await api<Question[]>('GET', `/projects/${pid}/questions${qs}`);
-      if (opts.json) return json(data);
+      if (mergedOpts.json) return json(data);
       table(
         data.map((question) => ({
           id: question.id,

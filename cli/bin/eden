@@ -3550,8 +3550,8 @@ function printMap(map) {
 var import_promises = require("fs/promises");
 function registerChangesets(program3) {
   const cs = program3.command("changeset").alias("changesets").description("Manage changesets");
-  cs.command("list").description("List changesets").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (pending/accepted/rejected)").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
+  cs.command("list").description("List changesets").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (pending/accepted/rejected)").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
     const params = opts.status ? `?status=${opts.status}` : "";
     const data = await api("GET", `/projects/${pid}/changesets${params}`);
     if (opts.json) return json(data);
@@ -3603,11 +3603,11 @@ function registerPersonas(program3) {
     }
     await listPersonas(opts);
   });
-  personas.command("list").description("List personas").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
+  personas.command("list").description("List personas").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (project, opts) => {
     const parentOpts = personas.opts();
     await listPersonas({
       json: opts.json ?? parentOpts.json,
-      project: opts.project ?? parentOpts.project
+      project: opts.project ?? project ?? parentOpts.project
     });
   });
   personas.command("create").description("Create a persona").requiredOption("--project <id>", "Project ID or slug").requiredOption("--code <code>", "Persona code").requiredOption("--name <name>", "Persona name").requiredOption("--color <color>", "Hex color").option("--json", "JSON output").action(async (opts) => {
@@ -3638,14 +3638,15 @@ function registerQuestions(program3) {
     }
     await showQuestion(id, opts);
   });
-  questions.command("list").description("List questions").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (open/answered/dismissed)").option("--category <cat>", "Filter by category").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
+  questions.command("list").description("List questions").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (open/answered/dismissed)").option("--category <cat>", "Filter by category").option("--json", "JSON output").action(async (project, _opts, command) => {
+    const mergedOpts = command.optsWithGlobals();
+    const pid = await autoDetectProject(mergedOpts.project ?? project);
     const params = new URLSearchParams();
-    if (opts.status) params.set("status", opts.status);
-    if (opts.category) params.set("category", opts.category);
+    if (mergedOpts.status) params.set("status", mergedOpts.status);
+    if (mergedOpts.category) params.set("category", mergedOpts.category);
     const qs = params.toString() ? `?${params}` : "";
     const data = await api("GET", `/projects/${pid}/questions${qs}`);
-    if (opts.json) return json(data);
+    if (mergedOpts.json) return json(data);
     table(
       data.map((question) => ({
         id: question.id,
@@ -3751,8 +3752,8 @@ function registerExport(program3) {
 var import_promises3 = require("fs/promises");
 function registerReviews(program3) {
   const reviews = program3.command("review").alias("reviews").description("Manage expert panel reviews");
-  reviews.command("list").description("List reviews").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
+  reviews.command("list").description("List reviews").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
     const data = await api("GET", `/projects/${pid}/reviews`);
     if (opts.json) return json(data);
     table(data, ["id", "title", "status", "expert_count", "created_at"]);
@@ -3888,12 +3889,12 @@ function registerTasks(program3) {
     }
     await listTasks(opts);
   });
-  tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (opts) => {
+  tasks.command("list").description("List tasks").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (project, opts) => {
     const parentOpts = tasks.opts();
     await listTasks({
       json: opts.json ?? parentOpts.json,
       priority: opts.priority ?? parentOpts.priority,
-      project: opts.project ?? parentOpts.project,
+      project: opts.project ?? project ?? parentOpts.project,
       releaseId: opts.releaseId ?? parentOpts.releaseId,
       status: opts.status ?? parentOpts.status,
       step: opts.step ?? parentOpts.step
@@ -4005,8 +4006,8 @@ async function resolveTaskId(id, project) {
 // src/commands/activities.ts
 function registerActivities(program3) {
   const activities = program3.command("activity").alias("activities").description("Manage activities");
-  activities.command("list").description("List activities").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
+  activities.command("list").description("List activities").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
     const data = await api("GET", `/projects/${pid}/activities`);
     if (opts.json) return json(data);
     table(data, ["id", "display_id", "name", "sort_order"]);
@@ -4036,8 +4037,13 @@ function registerSteps(program3) {
     }
     await listSteps(opts);
   });
-  steps.command("list").description("List steps for an activity or project").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
-    await listSteps(opts);
+  steps.command("list").description("List steps for an activity or project").argument("[project]", "Project ID or slug").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (project, _opts, command) => {
+    const mergedOpts = command.optsWithGlobals();
+    await listSteps({
+      activity: mergedOpts.activity,
+      json: mergedOpts.json,
+      project: mergedOpts.project ?? project
+    });
   });
   steps.command("create").description("Create a step").requiredOption("--activity <id>", "Activity ID").requiredOption("--name <name>", "Step name").requiredOption("--display-id <displayId>", "Display ID").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (opts) => {
     const data = await api("POST", `/activities/${opts.activity}/steps`, {
