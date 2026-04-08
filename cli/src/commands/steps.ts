@@ -82,8 +82,8 @@ async function listSteps(opts: {
   project?: string;
 }): Promise<void> {
   if (!opts.activity && !opts.project) {
-    console.error('Provide --activity <id> or --project <id>');
-    process.exit(1);
+    console.log('Provide --activity <id> or --project <id>');
+    return;
   }
 
   if (opts.project) {
