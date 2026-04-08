@@ -15,6 +15,9 @@ dist/
 # Playwright MCP local state
 .playwright-mcp/
 
+# Local browser/agent scratch state
+.tmp/
+
 # Nested lockfiles (install from repo root)
 apps/*/package-lock.json
 

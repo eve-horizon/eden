@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REAL_HOME="${HOME:-}"
+WORKSPACE_HOME="${DEV_BROWSER_WORKSPACE_HOME:-$REPO_ROOT/.tmp/dev-browser-home}"
+STATE_DIR="$WORKSPACE_HOME/.dev-browser"
+DAEMON_ENTRY="$STATE_DIR/daemon.mjs"
+DAEMON_PID_FILE="$STATE_DIR/daemon.pid"
+DAEMON_SOCKET="$STATE_DIR/daemon.sock"
+DAEMON_LOG="$STATE_DIR/daemon.log"
+DAEMON_START_LOCK="$STATE_DIR/daemon-start.lock"
+
+usage() {
+  cat <<EOF
+Usage:
+  $(basename "$0") install [dev-browser install args...]
+  $(basename "$0") home
+  $(basename "$0") state-dir
+  $(basename "$0") tmp-dir
+  $(basename "$0") log-file
+  $(basename "$0") [dev-browser args...]
+
+This wrapper runs dev-browser with HOME redirected to:
+  $WORKSPACE_HOME
+EOF
+}
+
+ensure_workspace_home() {
+  mkdir -p "$WORKSPACE_HOME"
+}
+
+runtime_installed() {
+  [[ -f "$DAEMON_ENTRY" ]] && [[ -f "$STATE_DIR/package.json" ]] && [[ -d "$STATE_DIR/node_modules/playwright" ]]
+}
+
+read_daemon_pid() {
+  if [[ -f "$DAEMON_PID_FILE" ]]; then
+    tr -d '[:space:]' <"$DAEMON_PID_FILE"
+  fi
+}
+
+daemon_running() {
+  local pid
+  pid="$(read_daemon_pid)"
+  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && [[ -S "$DAEMON_SOCKET" ]]
+}
+
+acquire_start_lock() {
+  local acquired=0
+
+  for _ in {1..100}; do
+    if mkdir "$DAEMON_START_LOCK" 2>/dev/null; then
+      acquired=1
+      break
+    fi
+    sleep 0.1
+  done
+
+  [[ "$acquired" -eq 1 ]]
+}
+
+release_start_lock() {
+  rmdir "$DAEMON_START_LOCK" 2>/dev/null || true
+}
+
+start_daemon() {
+  local pid
+
+  if daemon_running; then
+    return 0
+  fi
+
+  mkdir -p "$STATE_DIR"
+
+  if ! acquire_start_lock; then
+    printf 'Timed out waiting for the dev-browser daemon start lock.\n' >&2
+    return 1
+  fi
+
+  if daemon_running; then
+    release_start_lock
+    return 0
+  fi
+
+  pid="$(read_daemon_pid)"
+  if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$DAEMON_PID_FILE" "$DAEMON_SOCKET"
+  fi
+
+  (
+    cd "$STATE_DIR"
+    HOME="$WORKSPACE_HOME" nohup node "$DAEMON_ENTRY" >>"$DAEMON_LOG" 2>&1 </dev/null &
+  )
+
+  for _ in {1..100}; do
+    if daemon_running; then
+      release_start_lock
+      return 0
+    fi
+    sleep 0.1
+  done
+
+  release_start_lock
+  printf 'Failed to start workspace-local dev-browser daemon. See %s\n' "$DAEMON_LOG" >&2
+  return 1
+}
+
+run_dev_browser() {
+  ensure_workspace_home
+  export DEV_BROWSER_REAL_HOME="$REAL_HOME"
+  if ! runtime_installed; then
+    printf 'Workspace-local dev-browser runtime is missing. Run `%s install` first.\n' "$(basename "$0")" >&2
+    return 1
+  fi
+  start_daemon
+  HOME="$WORKSPACE_HOME" exec dev-browser "$@"
+}
+
+command="${1:-}"
+
+case "$command" in
+  ""|-h|--help|help)
+    usage
+    ;;
+  install)
+    shift
+    run_dev_browser install "$@"
+    ;;
+  home)
+    ensure_workspace_home
+    printf '%s\n' "$WORKSPACE_HOME"
+    ;;
+  state-dir)
+    ensure_workspace_home
+    printf '%s\n' "$WORKSPACE_HOME/.dev-browser"
+    ;;
+  tmp-dir)
+    ensure_workspace_home
+    printf '%s\n' "$WORKSPACE_HOME/.dev-browser/tmp"
+    ;;
+  log-file)
+    ensure_workspace_home
+    printf '%s\n' "$DAEMON_LOG"
+    ;;
+  *)
+    run_dev_browser "$@"
+    ;;
+esac
