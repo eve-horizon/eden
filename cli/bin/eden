@@ -3568,7 +3568,7 @@ function registerChangesets(program3) {
       console.error(`  warning: ${prefix}${warning.message}`);
     }
   });
-  cs.command("show").alias("get").description("Show changeset details").argument("[id]", "Changeset ID").option("--id <id>", "Changeset ID").option("--json", "JSON output").action(async (id, opts) => {
+  cs.command("show").alias("get").description("Show changeset details").argument("[id]", "Changeset ID").option("--id <id>", "Changeset ID").option("--project <id>", "Project ID (ignored for changeset lookups)").option("--json", "JSON output").action(async (id, opts) => {
     const changesetId = id ?? opts.id;
     if (!changesetId) {
       console.error("Provide a changeset ID as an argument or via --id <id>");

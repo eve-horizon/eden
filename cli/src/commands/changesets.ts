@@ -52,6 +52,7 @@ export function registerChangesets(program: Command): void {
     .description('Show changeset details')
     .argument('[id]', 'Changeset ID')
     .option('--id <id>', 'Changeset ID')
+    .option('--project <id>', 'Project ID (ignored for changeset lookups)')
     .option('--json', 'JSON output')
     .action(async (id, opts) => {
       const changesetId = id ?? opts.id;

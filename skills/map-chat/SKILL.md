@@ -29,6 +29,25 @@ The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatica
    eden changeset create --project $PID --file /tmp/changeset.json --json
    ```
 
+## Minimal Execution Path
+
+For any request that changes the map, follow this path and stop:
+
+1. Extract `PID` from the `[eden-project:UUID]` prefix. Only call `eden projects list --json` if the prefix is absent.
+2. Read the current map once:
+   ```bash
+   eden map --project "$PID" --json
+   ```
+3. Resolve the target step/activity/task by existing `display_id` or exact name from the map.
+4. Write `/tmp/changeset.json` with the requested mutations.
+5. Create the draft:
+   ```bash
+   eden changeset create --project "$PID" --file /tmp/changeset.json --json
+   ```
+6. Return a short confirmation that names the created changeset and the proposed edits.
+
+Do not branch into any other write path.
+
 ## Finding the Eden Project ID
 
 Chat messages include the Eden project UUID in a prefix: `[eden-project:UUID]`. Extract this from the user's message. If no prefix:
@@ -99,6 +118,45 @@ cat > /tmp/changeset.json << 'PAYLOAD'
 PAYLOAD
 eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
+
+When creating a task under an existing step, set the parent step in `after_state.step_ref` using the step's existing display ID:
+
+```json
+{
+  "entity_type": "task",
+  "operation": "create",
+  "after_state": {
+    "title": "Configure CI/CD pipeline for document processing",
+    "step_ref": "STP-1.1",
+    "user_story": "As a DevOps Engineer, I want ... so that ...",
+    "acceptance_criteria": [
+      { "text": "Given ..." },
+      { "text": "When ..." }
+    ],
+    "priority": "should",
+    "device": "all"
+  },
+  "description": "Add CI/CD automation task under Upload Document"
+}
+```
+
+For new personas, use a `persona/create` item in the same changeset. For new activities or steps, create those items first and then reference their human-readable display target in related descriptions and reasoning.
+
+## Forbidden Paths
+
+These are always wrong for map edits:
+
+- `eden persona create`
+- `eden activity create`
+- `eden step create`
+- `eden task create`
+- `eden task place`
+- Direct REST calls to `/personas`, `/activities`, `/steps`, or `/tasks`
+- `eden changeset show --project ...`
+- `GET /projects/:id/changesets/:changesetId`
+- `python` or `python3` for JSON generation
+
+Use `cat <<'PAYLOAD'` and plain shell only. The sandbox runtime may not have Python installed.
 
 ## Rules
 
