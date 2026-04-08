@@ -7,5 +7,10 @@ import type { DbContext } from './database.service';
  */
 export function dbContext(req: Request): DbContext {
   const user = (req as any).user;
-  return { org_id: user.orgId, user_id: user.id };
+  const projectRole = (req as any).projectRole as string | null | undefined;
+  return {
+    org_id: user.orgId,
+    user_id: user.id,
+    project_role: projectRole ?? null,
+  };
 }

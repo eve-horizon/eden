@@ -46,12 +46,12 @@ export class WizardController {
     @Param('projectId') projectId: string,
     @Query('job_id') jobId: string,
   ) {
-    const projectRole = (req as any).projectRole as string | null;
+    const ctx = dbContext(req);
     return this.wizard.getGenerateStatus(
-      dbContext(req),
+      ctx,
       projectId,
       jobId,
-      projectRole,
+      ctx.project_role,
     );
   }
 }

@@ -10,6 +10,13 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 export interface DbContext {
   org_id: string;
   user_id?: string;
+  /**
+   * Resolved project role for this request: 'owner' | 'editor' | 'viewer' | null.
+   * `null` means the role is unknown (non-project route or agent bypass).
+   * Set by ProjectRoleMiddleware via dbContext() and read by services that
+   * need to honor two-stage approval (owner vs editor).
+   */
+  project_role?: string | null;
 }
 
 // ---------------------------------------------------------------------------

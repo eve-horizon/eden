@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DatabaseService, DbContext } from '../common/database.service';
+import { WizardReconcileService } from '../wizard/wizard-reconcile.service';
 
 import type { PoolClient } from 'pg';
 
@@ -160,13 +161,34 @@ export interface MapFilter {
 
 @Injectable()
 export class MapService {
-  constructor(private readonly db: DatabaseService) {}
+  private readonly logger = new Logger(MapService.name);
+
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly reconcile: WizardReconcileService,
+  ) {}
 
   async getMap(
     ctx: DbContext,
     projectId: string,
     filter: MapFilter,
   ): Promise<MapResponse> {
+    // Heal wizard-orphaned drafts before assembling the map. This is the
+    // self-healing recovery path for users whose tab closed before the
+    // wizard polling loop could auto-accept. Best-effort: never throws.
+    try {
+      const result = await this.reconcile.reconcileOrphans(ctx, projectId);
+      if (result.accepted.length > 0) {
+        this.logger.log(
+          `Map load recovered ${result.accepted.length} wizard orphan(s) for project ${projectId}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `WizardReconcile threw for project ${projectId}: ${err}`,
+      );
+    }
+
     return this.db.withClient(ctx, async (client) => {
       // 1. Project
       const project = await this.fetchProject(client, projectId);

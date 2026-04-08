@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ChangesetsService } from '../changesets/changesets.service';
 import { DatabaseService, DbContext } from '../common/database.service';
+import { DocumentExtractorService } from '../sources/document-extractor.service';
 import { SourcesService } from '../sources/sources.service';
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ export class WizardService {
     private readonly db: DatabaseService,
     private readonly changesetsService: ChangesetsService,
     private readonly sourcesService: SourcesService,
+    private readonly extractor: DocumentExtractorService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -69,22 +71,34 @@ export class WizardService {
       );
     }
 
-    // Validate source_id belongs to this project
+    // Validate source_id belongs to this project; for any supported file
+    // type, fetch and inline an excerpt into the prompt.
     let sourceExcerpt: string | undefined;
+    let sourceContentType: string | null = null;
+    let sourceFilename: string | null = null;
     if (data.source_id) {
       const source = await this.sourcesService.findById(ctx, data.source_id);
       if (source.project_id !== projectId) {
         throw new NotFoundException(`Source ${data.source_id} not found`);
       }
 
-      // For text-like files, fetch content and inline into prompt
-      sourceExcerpt = await this.fetchSourceExcerpt(source);
+      sourceContentType = source.content_type;
+      sourceFilename = source.filename;
+      sourceExcerpt = await this.extractor.extract(source, {
+        maxBytes: 8 * 1024,
+      });
     }
 
     this.assertAvailable();
 
     // Build the prompt for the map-generator agent
-    const prompt = this.buildPrompt(project.name, projectId, data, sourceExcerpt);
+    const prompt = this.buildPrompt(
+      project.name,
+      projectId,
+      data,
+      sourceExcerpt,
+      sourceFilename,
+    );
 
     // Create Eve job targeting map-generator agent
     const result = await this.proxy<{ id: string }>(
@@ -109,7 +123,11 @@ export class WizardService {
           ctx.user_id ?? null,
           JSON.stringify({
             job_id: result.id,
-            ...(data.source_id && { source_id: data.source_id }),
+            ...(data.source_id && {
+              source_id: data.source_id,
+              source_content_type: sourceContentType,
+              source_excerpt_bytes: sourceExcerpt?.length ?? 0,
+            }),
           }),
         ],
       );
@@ -287,48 +305,6 @@ export class WizardService {
   }
 
   // -------------------------------------------------------------------------
-  // Source content fetching (for prompt enrichment)
-  // -------------------------------------------------------------------------
-
-  private async fetchSourceExcerpt(source: {
-    download_url: string | null;
-    content_type: string | null;
-    filename: string;
-  }): Promise<string | undefined> {
-    // Only inline text-like files into the prompt
-    const textTypes = ['text/plain', 'text/markdown', 'text/x-markdown'];
-    const textExtensions = ['.md', '.txt', '.markdown'];
-    const isTextLike =
-      textTypes.includes(source.content_type ?? '') ||
-      textExtensions.some((ext) => source.filename.toLowerCase().endsWith(ext));
-
-    if (!isTextLike || !source.download_url) return undefined;
-
-    try {
-      const headers: Record<string, string> = {};
-      if (this.eveServiceToken) {
-        headers['Authorization'] = `Bearer ${this.eveServiceToken}`;
-      }
-
-      const response = await fetch(source.download_url, {
-        headers,
-        redirect: 'follow',
-      });
-      if (!response.ok) return undefined;
-
-      const text = await response.text();
-      // Limit to ~8KB to keep the prompt reasonable
-      const maxLen = 8 * 1024;
-      return text.length > maxLen
-        ? text.slice(0, maxLen) + '\n\n[...truncated]'
-        : text;
-    } catch (err) {
-      this.logger.warn(`Failed to fetch source content: ${err}`);
-      return undefined;
-    }
-  }
-
-  // -------------------------------------------------------------------------
   // Eve API helpers
   // -------------------------------------------------------------------------
 
@@ -389,6 +365,7 @@ export class WizardService {
     projectId: string,
     data: GenerateMapInput,
     sourceExcerpt?: string,
+    sourceFilename?: string | null,
   ): string {
     const parts = [
       `Generate a story map for "${projectName}".`,
@@ -409,7 +386,10 @@ export class WizardService {
     }
 
     if (sourceExcerpt) {
-      parts.push(`\nAttached document excerpt:\n"""\n${sourceExcerpt}\n"""`);
+      const label = sourceFilename
+        ? `Attached document (${sourceFilename}) excerpt:`
+        : `Attached document excerpt:`;
+      parts.push(`\n${label}\n"""\n${sourceExcerpt}\n"""`);
     }
 
     parts.push(
