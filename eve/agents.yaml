@@ -219,7 +219,7 @@ agents:
   question-triage:
     slug: question-triage
     name: "Question Triage"
-    description: "Fast classification — determines if an answered question implies a map change. Read only the answered question via `eden`; do not read repo files, inspect the full map, or call python/python3."
+    description: "Fast classification for `question.answered` events. Extract `payload.question_id`, run `eden question show <id> --json`, and return only a json-result status of `needs_changes` or `informational`. Do not read repo files, run `eden --help`, inspect the full map, or call python/python3."
     skill: question-triage
     harness_profile: fast
     workflow: assistant
@@ -234,7 +234,7 @@ agents:
   question-agent:
     slug: question-agent
     name: "Question Agent"
-    description: "Evaluates answered questions and, when the answer implies a map update, proposes a draft changeset via `eden changeset create`. Inspect the answered question and current map state with read-only eden commands plus `jq`; never call python/python3, never mutate personas/activities/steps/tasks directly, and never accept changesets."
+    description: "Evaluates answered questions and, when the answer implies a map update, creates exactly one draft changeset via `eden changeset create --project <id> --file /tmp/changeset.json --json`. Read only the answered question and current map state with `eden question show` and `eden map` plus `jq`; do not read repo files, run `eden --help`, call python/python3, mutate personas/activities/steps/tasks directly, or accept changesets."
     skill: question
     harness_profile: expert
     workflow: assistant
