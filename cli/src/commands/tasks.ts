@@ -105,6 +105,7 @@ export function registerTasks(program: Command): void {
 
   tasks
     .command('show')
+    .alias('get')
     .description('Show task details')
     .argument('<id>', 'Task ID')
     .option('--json', 'JSON output')

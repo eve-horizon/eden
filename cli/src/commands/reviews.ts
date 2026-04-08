@@ -37,6 +37,7 @@ export function registerReviews(program: Command): void {
 
   reviews
     .command('show')
+    .alias('get')
     .description('Show review details')
     .argument('<id>', 'Review ID')
     .option('--json', 'JSON output')

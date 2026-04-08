@@ -48,11 +48,18 @@ export function registerChangesets(program: Command): void {
     });
 
   cs.command('show')
+    .alias('get')
     .description('Show changeset details')
-    .requiredOption('--id <id>', 'Changeset ID')
+    .argument('[id]', 'Changeset ID')
+    .option('--id <id>', 'Changeset ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const data = await api<Changeset>('GET', `/changesets/${opts.id}`);
+    .action(async (id, opts) => {
+      const changesetId = id ?? opts.id;
+      if (!changesetId) {
+        console.error('Provide a changeset ID as an argument or via --id <id>');
+        process.exit(1);
+      }
+      const data = await api<Changeset>('GET', `/changesets/${changesetId}`);
       if (opts.json) return json(data);
       console.log(`Changeset: ${data.id}`);
       console.log(`Status: ${data.status}`);

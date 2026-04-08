@@ -23,6 +23,7 @@ export function registerSources(program: Command): void {
   const src = program.command('source').alias('sources').description('Manage ingestion sources');
 
   src.command('show')
+    .alias('get')
     .description('Show source details')
     .argument('<id>', 'Source ID')
     .option('--json', 'JSON output')

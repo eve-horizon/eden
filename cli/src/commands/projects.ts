@@ -10,7 +10,7 @@ interface Project {
 }
 
 export function registerProjects(program: Command): void {
-  const projects = program.command('projects').description('Manage Eden projects');
+  const projects = program.command('projects').alias('project').description('Manage Eden projects');
 
   projects
     .command('list')
@@ -39,6 +39,7 @@ export function registerProjects(program: Command): void {
 
   projects
     .command('show')
+    .alias('get')
     .description('Show project details')
     .argument('<id>', 'Project ID')
     .option('--json', 'JSON output')

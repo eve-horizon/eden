@@ -46,6 +46,7 @@ export function registerQuestions(program: Command): void {
 
   questions
     .command('show')
+    .alias('get')
     .description('Show question details')
     .argument('<id>', 'Question ID')
     .option('--json', 'JSON output')

@@ -26,7 +26,7 @@ interface MapData {
 }
 
 export function registerMap(program: Command): void {
-  program
+  const map = program
     .command('map')
     .description('Show the project story map')
     .argument('[project]', 'Project ID or slug')
@@ -35,15 +35,41 @@ export function registerMap(program: Command): void {
     .option('--release <id>', 'Filter by release')
     .option('--json', 'JSON output')
     .action(async (projectArg, opts) => {
-      const pid = await autoDetectProject(projectArg ?? opts.project);
-      const params = new URLSearchParams();
-      if (opts.persona) params.set('persona', opts.persona);
-      if (opts.release) params.set('release', opts.release);
-      const qs = params.toString() ? `?${params}` : '';
-      const map = await api<MapData>('GET', `/projects/${pid}/map${qs}`);
-      if (opts.json) return json(map);
-      printMap(map);
+      await showMap(projectArg ?? opts.project, opts);
     });
+
+  map
+    .command('get')
+    .alias('show')
+    .description('Show the project story map')
+    .argument('[project]', 'Project ID or slug')
+    .option('--project <id>', 'Project ID (auto-detected if only one)')
+    .option('--persona <code>', 'Filter by persona code')
+    .option('--release <id>', 'Filter by release')
+    .option('--json', 'JSON output')
+    .action(async (projectArg, opts) => {
+      const parentOpts = map.opts<{ json?: boolean; project?: string; persona?: string; release?: string }>();
+      await showMap(projectArg ?? opts.project ?? parentOpts.project, {
+        json: opts.json ?? parentOpts.json,
+        persona: opts.persona ?? parentOpts.persona,
+        release: opts.release ?? parentOpts.release,
+      });
+    });
+}
+
+async function showMap(project: string | undefined, opts: {
+  json?: boolean;
+  persona?: string;
+  release?: string;
+}): Promise<void> {
+  const pid = await autoDetectProject(project);
+  const params = new URLSearchParams();
+  if (opts.persona) params.set('persona', opts.persona);
+  if (opts.release) params.set('release', opts.release);
+  const qs = params.toString() ? `?${params}` : '';
+  const map = await api<MapData>('GET', `/projects/${pid}/map${qs}`);
+  if (opts.json) return json(map);
+  printMap(map);
 }
 
 function printMap(map: MapData): void {
