@@ -16,6 +16,19 @@ export interface Release {
   updated_at: string;
 }
 
+export interface ReleaseSummary extends Release {
+  task_count: number;
+}
+
+export interface ReleaseTaskSummary {
+  id: string;
+  display_id: string;
+  title: string;
+  priority: string | null;
+  role: string | null;
+  persona_color: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Input types
 // ---------------------------------------------------------------------------
@@ -40,10 +53,21 @@ export interface UpdateReleaseInput {
 export class ReleasesService {
   constructor(private readonly db: DatabaseService) {}
 
-  async list(ctx: DbContext, projectId: string): Promise<Release[]> {
-    return this.db.query<Release>(
+  async list(ctx: DbContext, projectId: string): Promise<ReleaseSummary[]> {
+    return this.db.query<ReleaseSummary>(
       ctx,
-      `SELECT * FROM releases WHERE project_id = $1 ORDER BY target_date ASC NULLS LAST, created_at DESC`,
+      `SELECT r.*,
+              COALESCE(task_counts.task_count, 0) AS task_count
+         FROM releases r
+         LEFT JOIN (
+           SELECT release_id, count(*)::int AS task_count
+             FROM tasks
+            WHERE project_id = $1
+              AND release_id IS NOT NULL
+            GROUP BY release_id
+         ) task_counts ON task_counts.release_id = r.id
+        WHERE r.project_id = $1
+        ORDER BY r.target_date ASC NULLS LAST, r.created_at DESC`,
       [projectId],
     );
   }
@@ -56,6 +80,42 @@ export class ReleasesService {
     );
     if (!row) throw new NotFoundException('Release not found');
     return row;
+  }
+
+  async listTasks(
+    ctx: DbContext,
+    id: string,
+  ): Promise<ReleaseTaskSummary[]> {
+    await this.findById(ctx, id);
+
+    return this.db.query<ReleaseTaskSummary>(
+      ctx,
+      `SELECT t.id,
+              t.display_id,
+              t.title,
+              t.priority,
+              placement.role,
+              placement.persona_color
+         FROM tasks t
+         LEFT JOIN LATERAL (
+           SELECT st.role,
+                  p.color AS persona_color
+             FROM step_tasks st
+             JOIN personas p ON p.id = st.persona_id
+            WHERE st.task_id = t.id
+            ORDER BY CASE st.role
+                       WHEN 'owner' THEN 0
+                       WHEN 'handoff' THEN 1
+                       ELSE 2
+                     END,
+                     st.sort_order ASC,
+                     st.created_at ASC
+            LIMIT 1
+         ) placement ON TRUE
+        WHERE t.release_id = $1
+        ORDER BY t.display_id ASC, t.created_at ASC`,
+      [id],
+    );
   }
 
   async create(

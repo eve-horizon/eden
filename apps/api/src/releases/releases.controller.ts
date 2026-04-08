@@ -32,6 +32,11 @@ export class ReleasesController {
     return this.releases.list(dbContext(req), projectId);
   }
 
+  @Get('releases/:id/tasks')
+  listTasks(@Req() req: Request, @Param('id') id: string) {
+    return this.releases.listTasks(dbContext(req), id);
+  }
+
   @Post('projects/:projectId/releases')
   @UseGuards(EditorGuard)
   @HttpCode(HttpStatus.CREATED)
