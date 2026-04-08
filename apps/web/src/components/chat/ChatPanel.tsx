@@ -43,11 +43,11 @@ interface ChatPanelProps {
   onReviewChangeset?: (changesetId: string) => void;
 }
 
-/** Strip the "@eve pm [eden-project:UUID] " routing prefix the gateway prepends */
+/** Strip the "@eve pm [eden-*:...] " routing prefixes the gateway prepends */
 function stripRoutePrefix(body: string): string {
   return body
     .replace(/^@eve\s+\w+\s+/i, '')
-    .replace(/^\[eden-project:[^\]]+\]\s*/i, '');
+    .replace(/^(?:\[(?:eden-[^:\]]+):[^\]]+\]\s*)+/i, '');
 }
 
 /** Convert Eve messages to our display format */

@@ -121,9 +121,11 @@ export class ChatGatewayService {
     edenProjectId?: string,
     forceNewThread?: boolean,
   ): Promise<SimulateResponse> {
-    // Include Eden project context so agents know which project to modify
+    // Include explicit machine-readable Eden context so generic agent runtimes
+    // can recover the target project and the changeset-only mutation contract
+    // even when custom skills are unavailable.
     const context = edenProjectId
-      ? `[eden-project:${edenProjectId}] `
+      ? `[eden-project:${edenProjectId}] [eden-cli-project:${edenProjectId}] [eden-map-mutations:changeset-create-only] [eden-changeset-review:human-only] `
       : '';
 
     // Channel ID scopes threads per Eden project. When forceNewThread is set,
@@ -170,7 +172,7 @@ export class ChatGatewayService {
     edenProjectId?: string,
   ): Promise<SimulateResponse> {
     const context = edenProjectId
-      ? `[eden-project:${edenProjectId}] `
+      ? `[eden-project:${edenProjectId}] [eden-cli-project:${edenProjectId}] [eden-map-mutations:changeset-create-only] [eden-changeset-review:human-only] `
       : '';
     return this.proxy<SimulateResponse>(
       'POST',
