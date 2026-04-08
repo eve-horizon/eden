@@ -48,12 +48,45 @@ done
 
 **Expected:** Pipeline completes: uploaded → processing → extracted → synthesized
 
+```bash
+PIPELINE_JOBS=$(eve job list --project eden --json 2>/dev/null | \
+  jq '(.jobs // .) | map(select((((.title // "") + " " + (.description // "")) | test("extract|synthe|ingest"; "i")))) | sort_by(.created_at)')
+echo "$PIPELINE_JOBS" | jq '.[] | {id, phase, title: (.title // ""), description: (.description // "")}'
+
+SYNTH_JOB_ID=$(echo "$PIPELINE_JOBS" | jq -r '[.[] | select((((.title // "") + " " + (.description // "")) | test("synthe"; "i")))] | last.id')
+if [ -z "$SYNTH_JOB_ID" ] || [ "$SYNTH_JOB_ID" = "null" ]; then
+  SYNTH_JOB_ID=$(echo "$PIPELINE_JOBS" | jq -r '.[-1].id')
+fi
+LOG_PATH="/tmp/eden-s13-${SYNTH_JOB_ID}.log"
+eve job logs "$SYNTH_JOB_ID" 2>&1 | tee "$LOG_PATH"
+CREATE_CALLS=$(rg -c 'eden changeset create' "$LOG_PATH" || true)
+echo "create_calls=$CREATE_CALLS"
+echo "Potential log problems (should print nothing):"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$LOG_PATH" || true
+echo "Changeset-create log lines:"
+rg -n 'eden changeset create' "$LOG_PATH" || true
+```
+
+**Expected:** The synthesis job log shows at least one `eden changeset create` call and no changeset-validation failures, DB errors, or approval prompts.
+
 ### 4. Review Generated Changeset
 
 ```bash
 CS_LIST=$(api "$EDEN_URL/api/projects/$LC_PROJECT_ID/changesets")
-echo "Changesets: $(echo "$CS_LIST" | jq 'length')"
-echo "$CS_LIST" | jq '.[0] | {title, item_count: (.items | length), items: [.items[] | {entity_type, operation}] | group_by(.entity_type) | map({type: .[0].entity_type, count: length})}'
+CS=$(echo "$CS_LIST" | jq '[.[] | select(.source=="ingestion")] | sort_by(.created_at) | last')
+echo "$CS" | jq '{id, title, source, status}'
+CS_ID=$(echo "$CS" | jq -r '.id')
+api "$EDEN_URL/api/changesets/$CS_ID" | jq '{
+  title,
+  source,
+  item_count: (.items | length),
+  entity_counts: ([.items[].entity_type] | group_by(.) | map({type: .[0], count: length})),
+  sample_task: ([.items[] | select(.entity_type=="task") | .after_state | {
+    title,
+    step_ref: (.step_ref // .step_display_id),
+    acceptance_criteria_count: ((.acceptance_criteria // []) | length)
+  }] | first)
+}'
 ```
 
 **Expected:** Changeset with extracted entities:
@@ -65,8 +98,7 @@ echo "$CS_LIST" | jq '.[0] | {title, item_count: (.items | length), items: [.ite
 ### 5. Accept Changeset
 
 ```bash
-CS_ID=$(echo "$CS_LIST" | jq -r '.[0].id')
-api -X POST "$EDEN_URL/api/projects/$LC_PROJECT_ID/changesets/$CS_ID/accept"
+api -X POST "$EDEN_URL/api/changesets/$CS_ID/accept"
 ```
 
 ### 6. Verify Map is Populated
@@ -139,6 +171,8 @@ test('lifecycle project has populated map', async ({ page }) => {
 - [ ] Fresh project created from scratch
 - [ ] Document uploaded and pipeline triggered
 - [ ] Pipeline completes all 3 stages (ingest → extract → synthesize)
+- [ ] Synthesis logs stay clean during changeset creation (no 400/500/approval errors)
+- [ ] Synthesis logs show at least one `eden changeset create` call
 - [ ] Changeset contains realistic entities extracted from PRD
 - [ ] Accepted changeset populates the map
 - [ ] Map has personas, activities, steps, and tasks

@@ -8,6 +8,12 @@ Verifies the AI-powered project wizard: user provides project context,
 Eve agent generates an initial story map structure, output flows through
 the changeset review system, and accepted items populate the project.
 
+> **Related:** For the wizard's **PDF-attachment** code path (file rides as
+> an Eve `resource_ref`, agent reads it from `.eve/resources/` via Claude's
+> native document support), see
+> [Scenario 22: Wizard — PDF Attachment via Resource Refs](22-wizard-pdf-attachment.md).
+> This scenario covers the text-field-only baseline.
+
 ## Prerequisites
 
 - Eden deployed to sandbox with wizard agent skill synced
@@ -71,8 +77,9 @@ echo "Job: $JOB_ID"
 
 ```bash
 for i in $(seq 1 36); do
-    STATUS=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/generate-map/status" \
+    RESULT=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/generate-map/status?job_id=$JOB_ID" \
         -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.status')
+    STATUS="$RESULT"
     echo "Attempt $i: $STATUS"
     [ "$STATUS" = "complete" ] && break
     [ "$STATUS" = "failed" ] && { echo "FAILED"; break; }
@@ -83,10 +90,22 @@ done
 **Expected:** Status transitions: `pending` → `processing` → `complete`
 within 3 minutes.
 
+```bash
+WIZARD_LOG="/tmp/eden-s17-${JOB_ID}.log"
+eve job logs "$JOB_ID" 2>&1 | tee "$WIZARD_LOG"
+HELP_CALLS=$(rg -c 'eden --help' "$WIZARD_LOG" || true)
+CREATE_CALLS=$(rg -c 'eden changeset create' "$WIZARD_LOG" || true)
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS"
+echo "Potential log problems (should print nothing):"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$WIZARD_LOG" || true
+```
+
+**Expected:** No `eden --help` calls, at least one `eden changeset create` call, and no `invalid_changeset`, DB-constraint, approval, or server-side failures in the wizard job log.
+
 ### 5. Retrieve Generated Changeset
 
 ```bash
-WIZARD_CS_ID=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/generate-map/status" \
+WIZARD_CS_ID=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/generate-map/status?job_id=$JOB_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.changeset_id')
 echo "Changeset: $WIZARD_CS_ID"
 
@@ -121,13 +140,20 @@ api "$EDEN_API/changesets/$WIZARD_CS_ID" \
 
 api "$EDEN_API/changesets/$WIZARD_CS_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | \
-    jq '[.items[] | select(.entity_type=="task") | .after_state | {title, step_ref, user_story, acceptance_criteria}] | first(3)'
+    jq '[.items[] | select(.entity_type=="task") | .after_state | {
+      title,
+      step_ref: (.step_ref // .step_display_id),
+      device,
+      user_story,
+      acceptance_criteria_count: ((.acceptance_criteria // []) | length)
+    }] | first(3)'
 ```
 
 **Expected:**
 - Personas relevant to food delivery (e.g., Customer, Restaurant Owner, Delivery Driver)
 - Activities covering the described capabilities (ordering, delivery tracking, restaurant management)
 - Tasks with coherent user stories referencing the personas
+- Task `device` is populated (or normalized) on generated task items
 - Task `acceptance_criteria` populated with 2-4 useful entries
 - Task items retain a parent step reference (`step_ref` or `step_display_id`)
 
@@ -237,10 +263,11 @@ api -X DELETE "$EDEN_API/projects/$WIZARD_PROJECT_ID" \
 
 - [ ] `POST /generate-map` creates Eve job and returns job ID
 - [ ] Status endpoint shows progress transitions (pending → processing → complete)
+- [ ] Wizard job logs show `help_calls=0`, `create_calls>=1`, and no `invalid_changeset`, approval prompts, or server-side failures
 - [ ] Generated changeset contains ≥3 personas, ≥3 activities, ≥10 tasks
 - [ ] Generated content is relevant to the provided project description
 - [ ] Personas, activities, and tasks have coherent names and user stories
-- [ ] Accepting changeset populates the map correctly
+- [ ] Wizard auto-accept populates the map correctly
 - [ ] Map endpoint returns the full generated structure
 - [ ] Audit trail records the changeset acceptance
 - [ ] UI wizard renders multi-step form

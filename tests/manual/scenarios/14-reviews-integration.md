@@ -25,7 +25,7 @@ echo "$REVIEWS" | jq '[.[] | {id, title, status, expert_count}]'
 
 **Expected:** At least one review with `status: "complete"` and `expert_count >= 1`.
 
-If no reviews exist, the coordinator didn't call `./cli/bin/eden review create` during synthesis. Check the coordinator skill Phase 3.
+If no reviews exist, the coordinator didn't call `eden review create` during synthesis. Check the coordinator skill Phase 3.
 
 ### 2. Verify Review Details via API
 
@@ -80,15 +80,28 @@ done
 echo "$CS" | jq '{id, title, item_count: (.items | length), status}'
 ```
 
+### 5b. Inspect Agent Logs for the Changeset Proposal
+
+```bash
+LOG_PATH="/tmp/eden-s14-${PARENT_JOB}.log"
+eve job logs "$PARENT_JOB" 2>&1 | tee "$LOG_PATH"
+echo "Potential log problems (should print nothing):"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$LOG_PATH" || true
+echo "Changeset-create calls:"
+rg -n 'eden changeset create' "$LOG_PATH" || true
+```
+
+**Expected:** The agent job log stays clean while creating the proposal and shows a changeset-create call.
+
 ### 6. Review and Accept Changeset
 
 ```bash
 CS_ID=$(echo "$CS" | jq -r '.id')
 echo "Changeset items:"
-curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID" \
-  | jq '.items[] | {entity_type, operation, description}'
+curl -s -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/changesets/$CS_ID" \
+  | jq '{title, source, item_count: (.items | length), items: [.items[] | {entity_type, operation, description, display_reference}]}'
 
-curl -s -X POST -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/projects/$PROJECT_ID/changesets/$CS_ID/accept"
+curl -s -X POST -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/changesets/$CS_ID/accept"
 ```
 
 ### 7. Verify Map Updated
@@ -110,7 +123,7 @@ curl -s -w "\n%{http_code}" -H "Authorization: Bearer $TOKEN" "$EDEN_URL/api/pro
 grep -A 5 "review create" skills/coordinator/SKILL.md
 
 # Check CLI has review command
-./cli/bin/eden review --help
+eden review --help
 ```
 
 ## Success Criteria
@@ -122,6 +135,8 @@ grep -A 5 "review create" skills/coordinator/SKILL.md
 - [ ] Review card expands to show synthesis with markdown rendering
 - [ ] Expert opinion badges are color-coded by expert type
 - [ ] Chat request based on recommendation creates changeset (not direct mutation)
+- [ ] Agent logs show no `invalid_changeset`, approval prompts, or server-side failures
+- [ ] Agent logs show at least one `eden changeset create` call
 - [ ] Changeset contains testing-related entities
 - [ ] Acceptance adds testing activity to the map
 - [ ] Full loop: expert panel → review record → UI display → chat action → changeset → map update

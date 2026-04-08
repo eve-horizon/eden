@@ -26,37 +26,67 @@ export EDEN_URL="https://web.${ORG_SLUG}-eden-sandbox.eh1.incept5.dev"
 ### 1. Create a Changeset with Multiple Items
 
 ```bash
-CHANGESET_ID=$(api -X POST "$EDEN_API/projects/$PROJECT_ID/changesets" \
+STEP_DISPLAY_ID=$(api "$EDEN_API/projects/$PROJECT_ID/map" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.activities[0].steps[0].display_id')
+echo "Using step: $STEP_DISPLAY_ID"
+
+CHANGESET_PAYLOAD=$(jq -n --arg step_ref "$STEP_DISPLAY_ID" '{
+    title: "Two-stage test changeset",
+    source: "map-chat",
+    items: [
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Preview Task Alpha",
+                step_ref: $step_ref,
+                user_story: "As a tester"
+            },
+            description: "Add Preview Task Alpha"
+        },
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Preview Task Beta",
+                step_ref: $step_ref,
+                user_story: "As an editor"
+            },
+            description: "Add Preview Task Beta"
+        },
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Preview Task Gamma",
+                step_ref: $step_ref,
+                user_story: "As a viewer"
+            },
+            description: "Add Preview Task Gamma"
+        }
+    ]
+}')
+
+CHANGESET=$(api -X POST "$EDEN_API/projects/$PROJECT_ID/changesets" \
     -H "Authorization: Bearer $OWNER_TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{
-        "title": "Two-stage test changeset",
-        "source": "map-chat",
-        "items": [
-            {
-                "entity_type": "task",
-                "operation": "create",
-                "after_state": {"title": "Preview Task Alpha", "user_story": "As a tester"},
-                "description": "Add Preview Task Alpha"
-            },
-            {
-                "entity_type": "task",
-                "operation": "create",
-                "after_state": {"title": "Preview Task Beta", "user_story": "As an editor"},
-                "description": "Add Preview Task Beta"
-            },
-            {
-                "entity_type": "task",
-                "operation": "create",
-                "after_state": {"title": "Preview Task Gamma", "user_story": "As a viewer"},
-                "description": "Add Preview Task Gamma"
-            }
-        ]
-    }' | jq -r '.id')
+    -d "$CHANGESET_PAYLOAD")
+echo "$CHANGESET" | jq '{id, status, warnings}'
+CHANGESET_ID=$(echo "$CHANGESET" | jq -r '.id')
 echo "Changeset: $CHANGESET_ID"
+
+api "$EDEN_API/changesets/$CHANGESET_ID" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | \
+    jq '[.items[] | select(.entity_type=="task") | .after_state | {
+        title,
+        step_ref: (.step_ref // .step_display_id),
+        device,
+        status,
+        lifecycle
+    }]'
 ```
 
-**Expected:** 201, changeset with 3 items in `pending` status.
+**Expected:** 201, changeset with 3 items in `pending` status. Create response may include `warnings` for defaulted task fields, and each task retains a parent step reference plus normalized `device` / `status` / `lifecycle`.
 
 ### 2. Editor Accepts Changeset Items
 
@@ -70,8 +100,12 @@ for ITEM_ID in $ITEMS; do
     api -X POST "$EDEN_API/changesets/$CHANGESET_ID/review" \
         -H "Authorization: Bearer $EDITOR_TOKEN" \
         -H "Content-Type: application/json" \
-        -d "{\"decisions\": [{\"item_id\": \"$ITEM_ID\", \"status\": \"accepted\"}]}" | jq .
+        -d "{\"decisions\": [{\"id\": \"$ITEM_ID\", \"status\": \"accepted\"}]}" | jq .
 done
+
+api "$EDEN_API/changesets/$CHANGESET_ID" \
+    -H "Authorization: Bearer $EDITOR_TOKEN" | \
+    jq '[.items[] | {id, status, approval_status}]'
 ```
 
 **Expected:** Items accepted, but with `approval_status='pending_approval'`
@@ -166,14 +200,25 @@ api "$EDEN_API/projects/$PROJECT_ID/map" \
 
 ```bash
 # Create another changeset and accept as owner directly
+CS2_PAYLOAD=$(jq -n --arg step_ref "$STEP_DISPLAY_ID" '{
+    title: "Owner direct accept",
+    source: "map-chat",
+    items: [
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Directly Approved Task",
+                step_ref: $step_ref
+            }
+        }
+    ]
+}')
+
 CS2_ID=$(api -X POST "$EDEN_API/projects/$PROJECT_ID/changesets" \
     -H "Authorization: Bearer $OWNER_TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{
-        "title": "Owner direct accept",
-        "source": "map-chat",
-        "items": [{"entity_type":"task","operation":"create","after_state":{"title":"Directly Approved Task"}}]
-    }' | jq -r '.id')
+    -d "$CS2_PAYLOAD" | jq -r '.id')
 
 ITEM_ID=$(api "$EDEN_API/changesets/$CS2_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.items[0].id')
@@ -181,7 +226,7 @@ ITEM_ID=$(api "$EDEN_API/changesets/$CS2_ID" \
 api -X POST "$EDEN_API/changesets/$CS2_ID/review" \
     -H "Authorization: Bearer $OWNER_TOKEN" \
     -H "Content-Type: application/json" \
-    -d "{\"decisions\": [{\"item_id\": \"$ITEM_ID\", \"status\": \"accepted\"}]}" | jq .
+    -d "{\"decisions\": [{\"id\": \"$ITEM_ID\", \"status\": \"accepted\"}]}" | jq .
 ```
 
 **Expected:** Item applied immediately with `approval_status='applied'`
@@ -248,6 +293,7 @@ test.describe('Scenario 16: Two-Stage Approval UI', () => {
 ## Success Criteria
 
 - [ ] Editor accept creates items with `approval_status='pending_approval'`
+- [ ] Draft task items retain `step_ref` and normalized task defaults before review
 - [ ] Tasks appear on map with `approval='preview'`
 - [ ] `GET /pending-approvals` returns correct count of pending items
 - [ ] Owner approve changes `approval_status` to `owner_approved`, task to `approved`

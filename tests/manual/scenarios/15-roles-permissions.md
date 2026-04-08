@@ -179,7 +179,7 @@ api -X POST "$EDEN_API/projects/$PROJECT_ID/changesets" \
     -d '{
         "title": "Agent-proposed change",
         "source": "map-chat",
-        "items": [{"entity_type":"task","operation":"create","after_state":{"title":"Agent task"}}]
+        "items": [{"entity_type":"persona","operation":"create","display_reference":"PER-AGT","after_state":{"name":"Agent Persona","code":"AGT","color":"#FF6B6B"}}]
     }' | jq '.id, .status'
 ```
 

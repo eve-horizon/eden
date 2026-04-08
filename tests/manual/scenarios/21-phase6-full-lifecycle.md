@@ -43,7 +43,7 @@ echo "Project: $P6_PROJECT_ID"
 #### 2. Generate Initial Map via Wizard
 
 ```bash
-api -X POST "$EDEN_API/projects/$P6_PROJECT_ID/generate-map" \
+GENERATE_RESPONSE=$(api -X POST "$EDEN_API/projects/$P6_PROJECT_ID/generate-map" \
     -H "Authorization: Bearer $OWNER_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{
@@ -51,14 +51,17 @@ api -X POST "$EDEN_API/projects/$P6_PROJECT_ID/generate-map" \
         "audience": "Software engineers, tech leads, and new hires onboarding",
         "capabilities": "Create and edit docs, search knowledge base, tag and categorize, track doc freshness, suggest improvements",
         "constraints": "Must support markdown, integrate with GitHub, SSO required"
-    }' | jq .
+    }')
+echo "$GENERATE_RESPONSE" | jq .
+JOB_ID=$(echo "$GENERATE_RESPONSE" | jq -r '.job_id')
+echo "Job: $JOB_ID"
 ```
 
 #### 3. Poll for Completion
 
 ```bash
 for i in $(seq 1 36); do
-    RESULT=$(api "$EDEN_API/projects/$P6_PROJECT_ID/generate-map/status" \
+    RESULT=$(api "$EDEN_API/projects/$P6_PROJECT_ID/generate-map/status?job_id=$JOB_ID" \
         -H "Authorization: Bearer $OWNER_TOKEN")
     STATUS=$(echo "$RESULT" | jq -r '.status')
     echo "Attempt $i: $STATUS"
@@ -71,12 +74,22 @@ P6_CS_ID=$(echo "$RESULT" | jq -r '.changeset_id')
 echo "Changeset: $P6_CS_ID"
 ```
 
-#### 4. Accept Generated Map
+#### 4. Inspect Wizard Logs and Auto-Accept Result
 
 ```bash
-api -X POST "$EDEN_API/changesets/$P6_CS_ID/accept" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | jq .
+WIZARD_LOG="/tmp/eden-s21-${JOB_ID}.log"
+eve job logs "$JOB_ID" 2>&1 | tee "$WIZARD_LOG"
+HELP_CALLS=$(rg -c 'eden --help' "$WIZARD_LOG" || true)
+CREATE_CALLS=$(rg -c 'eden changeset create' "$WIZARD_LOG" || true)
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS"
+echo "Potential log problems (should print nothing):"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$WIZARD_LOG" || true
+
+api "$EDEN_API/changesets/$P6_CS_ID" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | jq '{status, source, accepted_items: [.items[] | select(.status=="accepted")] | length}'
 ```
+
+**Expected:** Wizard logs show `help_calls=0`, `create_calls>=1`, no `invalid_changeset`, approval prompts, or server-side failures. The generated changeset is already `accepted` via wizard auto-accept.
 
 #### 5. Verify Populated Map
 
@@ -97,9 +110,10 @@ echo "$MAP" | jq '{
 # Capture IDs for later steps
 P6_ACT_ID=$(echo "$MAP" | jq -r '.activities[0].id')
 P6_STEP1_ID=$(echo "$MAP" | jq -r '.activities[0].steps[0].id')
+P6_STEP1_DISPLAY_ID=$(echo "$MAP" | jq -r '.activities[0].steps[0].display_id')
 P6_STEP2_ID=$(echo "$MAP" | jq -r '.activities[0].steps[1].id // empty')
 P6_TASK_ID=$(echo "$MAP" | jq -r '.activities[0].steps[0].tasks[0].id')
-echo "ACT=$P6_ACT_ID STEP1=$P6_STEP1_ID STEP2=$P6_STEP2_ID TASK=$P6_TASK_ID"
+echo "ACT=$P6_ACT_ID STEP1=$P6_STEP1_ID STEP1_REF=$P6_STEP1_DISPLAY_ID STEP2=$P6_STEP2_ID TASK=$P6_TASK_ID"
 ```
 
 ---
@@ -136,33 +150,73 @@ api "$EDEN_API/projects/$P6_PROJECT_ID/my-role" \
 #### 8. Create Changeset (Simulating AI Chat Output)
 
 ```bash
-P6_CS2_ID=$(api -X POST "$EDEN_API/projects/$P6_PROJECT_ID/changesets" \
+P6_CS2_PAYLOAD=$(jq -n --arg step_ref "$P6_STEP1_DISPLAY_ID" '{
+    title: "Add search improvements",
+    source: "map-chat",
+    items: [
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Full-text search indexing",
+                step_ref: $step_ref,
+                user_story: "As an engineer, I want instant search results"
+            },
+            description: "Add FTS task"
+        },
+        {
+            entity_type: "task",
+            operation: "create",
+            after_state: {
+                title: "Search result ranking",
+                step_ref: $step_ref,
+                user_story: "As a user, I want relevant results first"
+            },
+            description: "Add ranking task"
+        }
+    ]
+}')
+
+P6_CS2=$(api -X POST "$EDEN_API/projects/$P6_PROJECT_ID/changesets" \
     -H "Authorization: Bearer $OWNER_TOKEN" \
     -H "Content-Type: application/json" \
-    -d '{
-        "title": "Add search improvements",
-        "source": "map-chat",
-        "items": [
-            {"entity_type":"task","operation":"create","after_state":{"title":"Full-text search indexing","user_story":"As an engineer, I want instant search results"},"description":"Add FTS task"},
-            {"entity_type":"task","operation":"create","after_state":{"title":"Search result ranking","user_story":"As a user, I want relevant results first"},"description":"Add ranking task"}
-        ]
-    }' | jq -r '.id')
+    -d "$P6_CS2_PAYLOAD")
+echo "$P6_CS2" | jq '{id, status, warnings}'
+P6_CS2_ID=$(echo "$P6_CS2" | jq -r '.id')
 echo "Changeset: $P6_CS2_ID"
+
+api "$EDEN_API/changesets/$P6_CS2_ID" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | \
+    jq '[.items[] | select(.entity_type=="task") | .after_state | {
+        title,
+        step_ref: (.step_ref // .step_display_id),
+        device,
+        status,
+        lifecycle
+    }]'
 ```
+
+**Expected:** Draft changeset created successfully. Task items retain `step_ref` and normalized `device` / `status` / `lifecycle`, and create `warnings` are surfaced if defaults were applied.
 
 #### 9. Editor Accepts Changeset
 
 ```bash
 ITEMS=$(api "$EDEN_API/changesets/$P6_CS2_ID" \
-    -H "Authorization: Bearer $EDITOR_TOKEN" | jq -r '[.items[].id]')
+    -H "Authorization: Bearer $EDITOR_TOKEN" | jq '[.items[].id]')
+
+REVIEW_PAYLOAD=$(echo "$ITEMS" | jq '{decisions: [.[] | {id: ., status: "accepted"}]}')
 
 api -X POST "$EDEN_API/changesets/$P6_CS2_ID/review" \
     -H "Authorization: Bearer $EDITOR_TOKEN" \
     -H "Content-Type: application/json" \
-    -d "{\"decisions\": $(echo $ITEMS | jq '[.[] | {item_id: ., status: \"accepted\"}]')}" | jq .
+    -d "$REVIEW_PAYLOAD" | jq .
+
+api "$EDEN_API/changesets/$P6_CS2_ID" \
+    -H "Authorization: Bearer $EDITOR_TOKEN" | \
+    jq '[.items[] | {id, status, approval_status}]'
 ```
 
-**Expected:** Items accepted but with `approval_status='pending_approval'`.
+**Expected:** Items accepted but with `approval_status='pending_approval'`. The created task items retain `step_ref` and normalized task defaults.
 
 #### 10. Verify Preview State
 
@@ -398,9 +452,11 @@ echo "Lifecycle project cleaned up"
 ## Success Criteria
 
 - [ ] Project wizard generates populated map from description (≥3 activities, ≥10 tasks)
-- [ ] Owner accepts wizard changeset → map fully populated
+- [ ] Wizard auto-accepts the generated changeset and fully populates the map
+- [ ] Wizard logs show `help_calls=0`, `create_calls>=1`, and no changeset validation or server-side failures
 - [ ] Editor invited and resolves to `editor` role
 - [ ] Editor accepts AI changeset → items appear as `preview`
+- [ ] Follow-up changeset task items retain `step_ref` and normalized task defaults
 - [ ] Owner receives notification about pending approvals
 - [ ] Owner approves all → items become `approved`, no preview badges remain
 - [ ] Editor can move tasks and inline-edit titles

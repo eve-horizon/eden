@@ -42,7 +42,7 @@ api -X POST "$EDEN_API/projects/$PROJECT_ID/changesets" \
     -d '{
         "title": "Notification test changeset",
         "source": "map-chat",
-        "items": [{"entity_type":"task","operation":"create","after_state":{"title":"Notification Task"}}]
+        "items": [{"entity_type":"persona","operation":"create","display_reference":"PER-NTF","after_state":{"name":"Notification Persona","code":"NTF","color":"#3b82f6"}}]
     }' | jq '.id'
 ```
 

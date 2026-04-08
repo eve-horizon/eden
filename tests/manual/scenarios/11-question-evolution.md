@@ -31,24 +31,38 @@ echo "$EVOLVE" | jq '{status, answer}'
 
 ```bash
 for i in $(seq 1 24); do
-  Q_JOBS=$(eve job list --project eden --json 2>/dev/null | jq '[.jobs[] | select(.title | test("question"; "i"))]')
+  Q_JOBS=$(eve job list --project eden --json 2>/dev/null | jq '(.jobs // .) | map(select((((.title // "") + " " + (.description // "")) | test("question"; "i")))) | sort_by(.created_at)')
   [ "$(echo "$Q_JOBS" | jq 'length')" -gt 0 ] && break
   sleep 5
 done
 
-JOB_ID=$(echo "$Q_JOBS" | jq -r '.[0].id')
-eve job follow $JOB_ID
+echo "$Q_JOBS" | jq '.[-5:] | .[] | {id, phase, title: (.title // ""), description: (.description // "")}'
+JOB_ID=$(echo "$Q_JOBS" | jq -r '.[-1].id')
+eve job follow "$JOB_ID"
+
+LOG_PATH="/tmp/eden-s11-${JOB_ID}.log"
+eve job logs "$JOB_ID" 2>&1 | tee "$LOG_PATH"
+echo "Potential log problems (should print nothing):"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$LOG_PATH" || true
 ```
 
-**Expected:** Question-agent evaluates the answer and decides whether to create a changeset.
+**Expected:** Question-agent evaluates the answer and decides whether to create a changeset. Logs show no validation failures, approval prompts, or server errors.
 
 ### 3. Check for Resulting Changeset
 
 ```bash
-CS=$(api "$EDEN_URL/api/projects/$PROJECT_ID/changesets?source=question-evolution" | jq '.[0]')
+CS=$(api "$EDEN_URL/api/projects/$PROJECT_ID/changesets" | jq '[.[] | select(.source=="question-evolution")] | sort_by(.created_at) | last')
 if [ "$CS" != "null" ]; then
   echo "Changeset created:"
-  echo "$CS" | jq '{title, reasoning, item_count: (.items | length)}'
+  CS_ID=$(echo "$CS" | jq -r '.id')
+  api "$EDEN_URL/api/changesets/$CS_ID" | jq '{
+    title,
+    source,
+    item_count: (.items | length),
+    items: [.items[] | {entity_type, operation, description, display_reference}]
+  }'
+  echo "Changeset-create calls in logs:"
+  rg -n 'eden changeset create' "$LOG_PATH" || true
 else
   echo "No changeset — answer was informational only (also valid)"
 fi
@@ -64,4 +78,6 @@ fi
 - [ ] Agent evaluates the answer in context of the map
 - [ ] If answer implies changes: changeset created with source `question-evolution`
 - [ ] If answer is informational: no changeset, no error
+- [ ] Question-agent logs show no `invalid_changeset`, approval prompts, or server-side failures
+- [ ] If a changeset is created, logs show an `eden changeset create` call
 - [ ] Question status updated

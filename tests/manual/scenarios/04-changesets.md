@@ -15,7 +15,7 @@ Tests the changeset system end-to-end: create a proposed set of changes, review 
 ### 1. Create a Changeset with Multiple Operations
 
 ```bash
-CHANGESET=$(api -X POST "$EDEN_URL/projects/$PROJECT_ID/changesets" \
+CHANGESET=$(api -X POST "$EDEN_URL/api/projects/$PROJECT_ID/changesets" \
   -d "{
     \"title\": \"Add security review step\",
     \"reasoning\": \"The expert panel identified a gap: no explicit security review step exists in the map.\",
@@ -47,7 +47,8 @@ CHANGESET=$(api -X POST "$EDEN_URL/projects/$PROJECT_ID/changesets" \
         \"description\": \"Security verification task for new requirements\"
       }
     ]
-  }")
+}")
+echo "$CHANGESET" | jq '{id, title, status, source, warnings}'
 CS_ID=$(echo "$CHANGESET" | jq -r '.id')
 echo "Changeset: $CS_ID"
 ```
@@ -55,27 +56,34 @@ echo "Changeset: $CS_ID"
 **Expected:**
 - Changeset created with status `draft` (or `pending`)
 - Contains 2 items (step create + task create)
-- Response may include `warnings` for normalized `acceptance_criteria` and defaulted task `device` / `status` / `lifecycle`
+- Response includes `warnings` for normalized `acceptance_criteria` and defaulted task `device` / `status` / `lifecycle`
 
 ### 2. Get Changeset Detail
 
 ```bash
-api "$EDEN_URL/changesets/$CS_ID" | jq '{
+api "$EDEN_URL/api/changesets/$CS_ID" | jq '{
   title,
   status,
   source,
   item_count: (.items | length),
-  items: [.items[] | {entity_type, operation, description}]
+  items: [.items[] | {entity_type, operation, description, display_reference}],
+  normalized_task: ([.items[] | select(.entity_type=="task") | .after_state | {
+    step_ref: (.step_ref // .step_display_id),
+    device,
+    status,
+    lifecycle,
+    acceptance_criteria_count: (.acceptance_criteria | length)
+  }] | first)
 }'
 ```
 
-**Expected:** 2 items, both with `entity_type` and `operation` fields.
+**Expected:** 2 items, both with `entity_type` and `operation` fields. The task shows a parent step reference, normalized `acceptance_criteria`, and defaulted `device/status/lifecycle`.
 
 ### 3. Submit a Malformed Changeset and Verify Structured 400
 
 ```bash
 HTTP_CODE=$(curl -s -o /tmp/eden-invalid-changeset.json -w '%{http_code}' \
-  -X POST "$EDEN_URL/projects/$PROJECT_ID/changesets" \
+  -X POST "$EDEN_URL/api/projects/$PROJECT_ID/changesets" \
   -H "Authorization: Bearer $OWNER_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
@@ -103,7 +111,7 @@ jq '{code, message, errors, warnings}' /tmp/eden-invalid-changeset.json
 ### 4. Accept the Changeset
 
 ```bash
-ACCEPTED=$(api -X POST "$EDEN_URL/changesets/$CS_ID/accept")
+ACCEPTED=$(api -X POST "$EDEN_URL/api/changesets/$CS_ID/accept")
 echo "$ACCEPTED" | jq '{status}'
 ```
 
@@ -113,7 +121,7 @@ echo "$ACCEPTED" | jq '{status}'
 
 ```bash
 # Check Activity 2 now has 3 steps
-api "$EDEN_URL/projects/$PROJECT_ID/map" | jq '
+api "$EDEN_URL/api/projects/$PROJECT_ID/map" | jq '
   .activities[] | select(.display_id == "ACT-2") |
   {name, step_count: (.steps | length), steps: [.steps[].name]}
 '
@@ -126,7 +134,7 @@ api "$EDEN_URL/projects/$PROJECT_ID/map" | jq '
 ### 6. Create and Reject a Changeset
 
 ```bash
-REJECT_CS=$(api -X POST "$EDEN_URL/projects/$PROJECT_ID/changesets" \
+REJECT_CS=$(api -X POST "$EDEN_URL/api/projects/$PROJECT_ID/changesets" \
   -d '{
     "title": "Add rejected draft task",
     "reasoning": "Testing rejection flow",
@@ -147,7 +155,7 @@ REJECT_CS=$(api -X POST "$EDEN_URL/projects/$PROJECT_ID/changesets" \
   }')
 REJECT_ID=$(echo "$REJECT_CS" | jq -r '.id')
 
-api -X POST "$EDEN_URL/changesets/$REJECT_ID/reject" | jq '{status}'
+api -X POST "$EDEN_URL/api/changesets/$REJECT_ID/reject" | jq '{status}'
 ```
 
 **Expected:** Changeset status is `rejected`.
@@ -155,7 +163,7 @@ api -X POST "$EDEN_URL/changesets/$REJECT_ID/reject" | jq '{status}'
 ### 7. Verify Rejected Changeset Had No Effect
 
 ```bash
-api "$EDEN_URL/projects/$PROJECT_ID/map" | jq '
+api "$EDEN_URL/api/projects/$PROJECT_ID/map" | jq '
   .activities[] | select(.display_id == "ACT-2") |
   .steps[] | select(.display_id == "STP-2.3") |
   {step: .name, task_titles: [.tasks[].title]}
@@ -167,6 +175,7 @@ api "$EDEN_URL/projects/$PROJECT_ID/map" | jq '
 ## Success Criteria
 
 - [ ] Changeset created with multiple items
+- [ ] Create response surfaces normalization `warnings`
 - [ ] Changeset detail returns items with correct operations
 - [ ] Invalid payloads return structured `400 invalid_changeset` errors
 - [ ] Accept applies all items to the map
