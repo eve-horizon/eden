@@ -196,7 +196,7 @@ agents:
   alignment:
     slug: alignment
     name: "Alignment Agent"
-    description: "Scans map for conflicts, gaps, duplicates, and assumptions after changeset acceptance"
+    description: "Scans map for conflicts, gaps, duplicates, and assumptions after changeset acceptance. Use `eden` plus `jq` only for analysis; do not call python/python3 or direct REST endpoints."
     skill: alignment
     harness_profile: expert
     workflow: assistant
@@ -234,7 +234,7 @@ agents:
   question-agent:
     slug: question-agent
     name: "Question Agent"
-    description: "Evaluates answered questions and, when the answer implies a map update, proposes a draft changeset via `eden changeset create`. Inspect the answered question and current map state with read-only eden commands; never mutate personas/activities/steps/tasks directly and never accept changesets."
+    description: "Evaluates answered questions and, when the answer implies a map update, proposes a draft changeset via `eden changeset create`. Inspect the answered question and current map state with read-only eden commands plus `jq`; never call python/python3, never mutate personas/activities/steps/tasks directly, and never accept changesets."
     skill: question
     harness_profile: expert
     workflow: assistant

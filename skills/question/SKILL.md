@@ -13,6 +13,13 @@ The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatica
 
 **You MUST use `eden` for every command.** Do NOT use curl, do NOT construct URLs, do NOT call REST endpoints directly.
 
+## Runtime Constraints
+
+- The sandbox runtime does **not** provide `python` or `python3`.
+- Use `eden ... --json`, `jq`, and POSIX shell tools only.
+- If you need to construct a changeset payload, use `jq -n` or a shell heredoc. Do not write helper scripts in Python.
+- Keep logs clean: avoid speculative commands against missing runtimes.
+
 ## Workflow
 
 1. Read the answered question:
@@ -78,6 +85,7 @@ PID=$(eden projects list --json | jq -r '.[0].id')
 
 ## Rules
 
+- Stay inside `eden` + `jq` + shell. Never call `python` or `python3`.
 - Be conservative — only propose changes when the answer clearly implies one
 - Include the full context (question text + answer) in the changeset reasoning
 - Reference the original question in changeset item descriptions
