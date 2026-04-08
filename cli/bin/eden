@@ -3596,12 +3596,19 @@ function registerChangesets(program3) {
 
 // src/commands/personas.ts
 function registerPersonas(program3) {
-  const personas = program3.command("persona").alias("personas").description("Manage personas");
+  const personas = program3.command("persona").alias("personas").description("Manage personas").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
+    if (!opts.project) {
+      console.log(personas.helpInformation());
+      return;
+    }
+    await listPersonas(opts);
+  });
   personas.command("list").description("List personas").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
-    const data = await api("GET", `/projects/${pid}/personas`);
-    if (opts.json) return json(data);
-    table(data, ["id", "code", "name", "color"]);
+    const parentOpts = personas.opts();
+    await listPersonas({
+      json: opts.json ?? parentOpts.json,
+      project: opts.project ?? parentOpts.project
+    });
   });
   personas.command("create").description("Create a persona").requiredOption("--project <id>", "Project ID or slug").requiredOption("--code <code>", "Persona code").requiredOption("--name <name>", "Persona name").requiredOption("--color <color>", "Hex color").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
@@ -3613,6 +3620,12 @@ function registerPersonas(program3) {
     if (opts.json) return json(data);
     console.log(`Created persona: ${data.code} (${data.id})`);
   });
+}
+async function listPersonas(opts) {
+  const pid = await autoDetectProject(opts.project);
+  const data = await api("GET", `/projects/${pid}/personas`);
+  if (opts.json) return json(data);
+  table(data, ["id", "code", "name", "color"]);
 }
 
 // src/commands/questions.ts
@@ -3992,8 +4005,8 @@ function registerSteps(program3) {
 }
 async function listSteps(opts) {
   if (!opts.activity && !opts.project) {
-    console.error("Provide --activity <id> or --project <id>");
-    process.exit(1);
+    console.log("Provide --activity <id> or --project <id>");
+    return;
   }
   if (opts.project) {
     const pid = await autoDetectProject(opts.project);
