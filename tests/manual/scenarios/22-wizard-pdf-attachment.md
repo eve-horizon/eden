@@ -185,14 +185,19 @@ grep -c '\.eve/resources/index\.json' /tmp/wizard-pdf-log.txt
 **Expected:** `≥1`. This includes SKILL.md mentions (the skill instruction itself contains the path), but a completely absent match means the index was never loaded.
 
 ```bash
-# 7e. Negative check — no silent Read errors on the PDF tool call.
-#     Look for is_error:true lines in the immediate neighborhood of the PDF
-#     filename. This catches both the pdftoppm failure and any future Read
-#     regression on binary files.
-grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | grep -c '"is_error":true'
+# 7e. Negative check — no *fatal* Read errors on the PDF tool call.
+#     Claude Code's Read tool has a 20-page-per-call limit on PDFs. Larger
+#     documents (including this fixture, which Claude Code treats as ~32
+#     pages) trigger one expected "too many to read at once" error before
+#     the agent retries with the `pages` parameter. Filter that out and
+#     check for anything else.
+grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | \
+    grep '"is_error":true' | \
+    grep -v 'too many to read at once\|pages parameter' | \
+    wc -l
 ```
 
-**Expected:** `0`. Any hit here should be investigated before trusting the generated output — the agent likely silently fell back to "domain knowledge" and the map is hallucinated.
+**Expected:** `0` — any remaining error after filtering out the benign pagination retry is a real failure. The "too many pages" retry is part of Claude Code's normal large-PDF flow, not a regression.
 
 ```bash
 # 7f. Changeset hardening checks — the wizard should create the changeset
@@ -207,15 +212,22 @@ rg -n -i 'invalid_changeset|violates not-null|internal server error|requires app
 
 ### 8. Verify Auto-Accept + Populated Map
 
+The status endpoint only returns `changeset_id` on the first poll that observes `phase: "done"` (known limitation — the subsequent lookup filters on `status = 'draft'` and misses the now-accepted row). Fall back to querying changesets by the wizard's job id as the actor, which survives re-polling.
+
 ```bash
-CS_ID=$(api "$EDEN_API/projects/$PDF_PROJECT_ID/generate-map/status?job_id=$PDF_JOB_ID" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.changeset_id')
+# Preferred: grab the id from the first complete response captured above.
+# Fallback: look up the wizard changeset by the job id as actor.
+CS_ID=$(api "$EDEN_API/projects/$PDF_PROJECT_ID/changesets" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | \
+    jq -r --arg jid "$PDF_JOB_ID" '.[] | select(.actor == $jid) | .id')
 echo "Changeset: $CS_ID"
 
 api "$EDEN_API/changesets/$CS_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | jq '{
     status: .status,
     title: .title,
+    source: .source,
+    actor: .actor,
     accepted_items: [.items[] | select(.status=="accepted")] | length,
     draft_items:    [.items[] | select(.status=="pending")]  | length
 }'
@@ -223,7 +235,9 @@ api "$EDEN_API/changesets/$CS_ID" \
 
 **Expected:**
 - `status: "accepted"` (wizard auto-accepted — no manual Accept click needed)
-- `accepted_items ≥ 20` (generation output)
+- `source: "document"` (the agent sets this when invoked with a source_id)
+- `actor: "<job_id>"` (matches `$PDF_JOB_ID`)
+- `accepted_items ≥ 40` (full map: personas + activities + steps + tasks + questions)
 - `draft_items == 0`
 
 ```bash
