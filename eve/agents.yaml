@@ -219,7 +219,7 @@ agents:
   question-triage:
     slug: question-triage
     name: "Question Triage"
-    description: "Fast classification — determines if an answered question implies a map change"
+    description: "Fast classification — determines if an answered question implies a map change. Read only the answered question via `eden`; do not read repo files, inspect the full map, or call python/python3."
     skill: question-triage
     harness_profile: fast
     workflow: assistant

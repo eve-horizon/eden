@@ -11,6 +11,13 @@ You quickly classify whether an answered question requires a map change. You do 
 
 The Eden CLI is available as `eden` on PATH.
 
+## Runtime Constraints
+
+- The sandbox runtime does **not** provide `python` or `python3`.
+- Use `eden ... --json`, `jq`, and POSIX shell tools only.
+- Do not read repository files, glob for local documents, or inspect the full map.
+- Keep logs clean: classify from the question payload and `eden question show` only.
+
 ## Workflow
 
 1. Extract the question ID from the workflow input (in the job description or `payload.question_id`)
@@ -62,5 +69,7 @@ or:
 ## Rules
 
 - Be fast. Read only the question. Do NOT read the map.
+- Never call `python` or `python3`.
+- Never search the repo or open local files. The workflow input and `eden question show` are sufficient.
 - Do NOT create changesets or modify anything.
 - When uncertain, classify as `needs_changes` (better to run the full agent than miss a change).
