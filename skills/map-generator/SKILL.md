@@ -39,13 +39,25 @@ Do not summarize the document back to the user — just let its contents influen
 
 ```json
 {
-  "title": "Initial story map",
+  "title": "Initial story map for \"<project name>\"",
   "source": "map-generator",
   "items": [
     ...personas first, then activities, then steps, then tasks, then questions...
   ]
 }
 ```
+
+## Pre-Submit Checklist
+
+Before calling `eden changeset create`, verify all of the following:
+
+- `title` exists and is non-empty
+- `source` is set to `map-generator`
+- `items` exists and `items.length > 0`
+- Every item has `entity_type` and `operation`
+- Every `step/create` item includes an activity reference (`activity_ref`, `activity_display_id`, or `activity_id`)
+- Every `task/create` item includes a step reference (`step_ref` or `step_display_id`)
+- Every `task/create` item includes a non-empty task label (`title` or `name`)
 
 ### Persona: `{"entity_type":"persona","operation":"create","display_reference":"PER-{code}","description":"Add persona: {name}","after_state":{"name":"...","code":"...","color":"#3b82f6"}}`
 

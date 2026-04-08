@@ -11,6 +11,7 @@ interface Changeset {
   source?: string;
   created_at: string;
   items?: unknown[];
+  warnings?: Array<{ path: string; message: string }>;
 }
 
 export function registerChangesets(program: Command): void {
@@ -40,6 +41,10 @@ export function registerChangesets(program: Command): void {
       const result = await api<Changeset>('POST', `/projects/${pid}/changesets`, body);
       if (opts.json) return json(result);
       console.log(`Created changeset: ${result.id} (${result.status})`);
+      for (const warning of result.warnings ?? []) {
+        const prefix = warning.path ? `${warning.path} - ` : '';
+        console.error(`  warning: ${prefix}${warning.message}`);
+      }
     });
 
   cs.command('show')

@@ -92,6 +92,7 @@ echo "Changeset: $WIZARD_CS_ID"
 
 api "$EDEN_API/changesets/$WIZARD_CS_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | jq '{
+    status: .status,
     title: .title,
     item_count: (.items | length),
     entity_types: [.items[].entity_type] | group_by(.) | map({(.[0]): length}) | add
@@ -99,6 +100,8 @@ api "$EDEN_API/changesets/$WIZARD_CS_ID" \
 ```
 
 **Expected:** Changeset with items covering:
+- non-empty `title` (ideally `Initial story map for "Wizard Test Project"`)
+- `status = "accepted"` because wizard completion auto-applies the generated changeset
 - `persona`: ≥3 personas
 - `activity`: ≥3 activities
 - `step`: ≥6 steps
@@ -118,23 +121,27 @@ api "$EDEN_API/changesets/$WIZARD_CS_ID" \
 
 api "$EDEN_API/changesets/$WIZARD_CS_ID" \
     -H "Authorization: Bearer $OWNER_TOKEN" | \
-    jq '[.items[] | select(.entity_type=="task") | .after_state | {title, user_story}] | first(3)'
+    jq '[.items[] | select(.entity_type=="task") | .after_state | {title, step_ref, user_story, acceptance_criteria}] | first(3)'
 ```
 
 **Expected:**
 - Personas relevant to food delivery (e.g., Customer, Restaurant Owner, Delivery Driver)
 - Activities covering the described capabilities (ordering, delivery tracking, restaurant management)
 - Tasks with coherent user stories referencing the personas
+- Task `acceptance_criteria` populated with 2-4 useful entries
+- Task items retain a parent step reference (`step_ref` or `step_display_id`)
 
-### 7. Accept All Items
+### 7. Verify Wizard Auto-Accept
 
 ```bash
-api -X POST "$EDEN_API/changesets/$WIZARD_CS_ID/accept" \
-    -H "Authorization: Bearer $OWNER_TOKEN" \
-    -H "Content-Type: application/json" | jq .
+api "$EDEN_API/changesets/$WIZARD_CS_ID" \
+    -H "Authorization: Bearer $OWNER_TOKEN" | jq '{
+    status,
+    accepted_items: [.items[] | select(.status=="accepted")] | length
+}'
 ```
 
-**Expected:** 200, changeset status → `accepted`.
+**Expected:** changeset `status` remains `accepted` and most or all items are `accepted`.
 
 ### 8. Verify Populated Map
 

@@ -9,6 +9,12 @@ import {
 } from '../common/acceptance-criteria.util';
 import { DatabaseService, DbContext } from '../common/database.service';
 import { EveEventsService } from '../common/eve-events.service';
+import {
+  type ChangesetValidationIssue,
+  type CreateChangesetInput,
+  isUuid,
+  normalizeCreateChangesetInput,
+} from './create-changeset-input.util';
 
 import type { PoolClient } from 'pg';
 
@@ -49,25 +55,11 @@ export interface ChangesetDetail extends ChangesetRow {
   items: ChangesetItemRow[]
 }
 
-// ---------------------------------------------------------------------------
-// Input types
-// ---------------------------------------------------------------------------
-
-export interface CreateChangesetInput {
-  title: string
-  reasoning?: string
-  source?: string
-  source_id?: string
-  actor?: string
-  items: {
-    entity_type: string
-    operation: string
-    before_state?: unknown
-    after_state?: unknown
-    description?: string
-    display_reference?: string
-  }[]
+export interface CreateChangesetResult extends ChangesetDetail {
+  warnings?: ChangesetValidationIssue[]
 }
+
+export type { CreateChangesetInput, ChangesetValidationIssue } from './create-changeset-input.util';
 
 export interface ReviewDecision {
   id: string
@@ -145,9 +137,68 @@ export class ChangesetsService {
   async create(
     ctx: DbContext,
     projectId: string,
-    input: CreateChangesetInput,
-  ): Promise<ChangesetDetail> {
+    rawInput: unknown,
+    defaults?: {
+      inferredSource?: string | null
+      inferredActor?: string | null
+    },
+  ): Promise<CreateChangesetResult> {
     return this.db.withClient(ctx, async (client) => {
+      const project = await client.query<{ id: string; name: string }>(
+        `SELECT id, name FROM projects WHERE id = $1 LIMIT 1`,
+        [projectId],
+      );
+
+      if (!project.rows[0]) {
+        throw new NotFoundException('Project not found');
+      }
+
+      const normalized = normalizeCreateChangesetInput(rawInput, {
+        projectName: project.rows[0].name,
+        inferredActor: defaults?.inferredActor,
+        inferredSource: defaults?.inferredSource,
+      });
+
+      if (normalized.errors.length > 0 || !normalized.sanitized) {
+        throw new BadRequestException({
+          code: 'invalid_changeset',
+          message: 'Changeset payload validation failed',
+          errors: normalized.errors,
+          warnings: normalized.warnings,
+        });
+      }
+
+      const input = normalized.sanitized;
+
+      if (input.source_id) {
+        if (!isUuid(input.source_id)) {
+          throw this.invalidChangeset(
+            [{ path: 'source_id', message: 'source_id must be a UUID' }],
+            normalized.warnings,
+          );
+        }
+
+        const source = await client.query<{ id: string }>(
+          `SELECT id
+             FROM ingestion_sources
+            WHERE id = $1 AND project_id = $2
+            LIMIT 1`,
+          [input.source_id, projectId],
+        );
+
+        if (!source.rows[0]) {
+          throw this.invalidChangeset(
+            [
+              {
+                path: 'source_id',
+                message: 'source_id was not found on this project',
+              },
+            ],
+            normalized.warnings,
+          );
+        }
+      }
+
       const { rows } = await client.query<ChangesetRow>(
         `INSERT INTO changesets (org_id, project_id, title, reasoning, source, source_id, actor, status)
               VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
@@ -197,11 +248,16 @@ export class ChangesetsService {
           JSON.stringify({
             title: input.title,
             item_count: items.length,
+            ...(normalized.warnings.length > 0
+              ? { normalization_warnings: normalized.warnings }
+              : {}),
           }),
         ],
       );
 
-      return { ...changeset, items };
+      return normalized.warnings.length > 0
+        ? { ...changeset, items, warnings: normalized.warnings }
+        : { ...changeset, items };
     });
   }
 
@@ -903,6 +959,18 @@ export class ChangesetsService {
   // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  private invalidChangeset(
+    errors: ChangesetValidationIssue[],
+    warnings: ChangesetValidationIssue[] = [],
+  ): BadRequestException {
+    return new BadRequestException({
+      code: 'invalid_changeset',
+      message: 'Changeset payload validation failed',
+      errors,
+      warnings,
+    });
+  }
 
   /**
    * Lock the changeset row with SELECT ... FOR UPDATE and return it.

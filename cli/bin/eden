@@ -3344,15 +3344,17 @@ function getApiUrl() {
   if (cachedApiUrl) return cachedApiUrl;
   const envUrl = process.env[`EVE_APP_API_URL_${SERVICE}`];
   if (envUrl) {
-    cachedApiUrl = envUrl.replace(/\/$/, "");
-    return cachedApiUrl;
+    const resolvedUrl = envUrl.replace(/\/$/, "");
+    cachedApiUrl = resolvedUrl;
+    return resolvedUrl;
   }
   try {
     const out = (0, import_child_process.execSync)("eve api show api --json 2>/dev/null", { encoding: "utf8", timeout: 5e3 });
     const info = JSON.parse(out);
     if (info.base_url) {
-      cachedApiUrl = info.base_url.replace(/\/$/, "");
-      return cachedApiUrl;
+      const resolvedUrl = info.base_url.replace(/\/$/, "");
+      cachedApiUrl = resolvedUrl;
+      return resolvedUrl;
     }
   } catch {
   }
@@ -3373,8 +3375,10 @@ async function api(method, path, body) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    const msg = err.message || res.statusText;
+    const msg = formatMessage(err.message) || res.statusText;
     console.error(`${method} ${path} \u2192 ${res.status}: ${msg}`);
+    printIssues("error", err.errors);
+    printIssues("warning", err.warnings);
     process.exit(1);
   }
   const json2 = await res.json();
@@ -3382,6 +3386,34 @@ async function api(method, path, body) {
     return json2.data;
   }
   return json2;
+}
+function formatMessage(value) {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const parts = value.filter((item) => typeof item === "string" && item.trim().length > 0).map((item) => item.trim());
+    if (parts.length > 0) {
+      return parts.join("; ");
+    }
+  }
+  return void 0;
+}
+function printIssues(kind, value) {
+  if (!Array.isArray(value)) {
+    return;
+  }
+  for (const issue of value) {
+    if (!issue || typeof issue !== "object") {
+      continue;
+    }
+    const { path, message } = issue;
+    if (typeof message !== "string" || !message.trim()) {
+      continue;
+    }
+    const formattedPath = typeof path === "string" && path.trim() ? `${path.trim()} - ` : "";
+    console.error(`  ${kind}: ${formattedPath}${message.trim()}`);
+  }
 }
 
 // src/output.ts
@@ -3483,6 +3515,10 @@ function registerChangesets(program3) {
     const result = await api("POST", `/projects/${pid}/changesets`, body);
     if (opts.json) return json(result);
     console.log(`Created changeset: ${result.id} (${result.status})`);
+    for (const warning of result.warnings ?? []) {
+      const prefix = warning.path ? `${warning.path} - ` : "";
+      console.error(`  warning: ${prefix}${warning.message}`);
+    }
   });
   cs.command("show").description("Show changeset details").requiredOption("--id <id>", "Changeset ID").option("--json", "JSON output").action(async (opts) => {
     const data = await api("GET", `/changesets/${opts.id}`);

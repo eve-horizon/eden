@@ -451,6 +451,15 @@ export class WizardService {
     }
 
     parts.push(
+      `\nCreate exactly one changeset JSON object with top-level fields: title, source, and items.`,
+    );
+    parts.push(
+      `\nChangeset title: Initial story map for "${projectName}"`,
+    );
+    parts.push(
+      `\nBefore you submit, verify: title is non-empty, source is set, items is non-empty, every item has entity_type and operation, every step/create has an activity reference, and every task/create has a step reference plus a task title.`,
+    );
+    parts.push(
       `\nCreate a changeset with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,
     );
     parts.push(
