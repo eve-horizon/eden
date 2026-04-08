@@ -26,6 +26,7 @@ export function PersonaTabs({
 }: PersonaTabsProps) {
   return (
     <div
+      data-testid="persona-tabs"
       style={{
         background: '#fff',
         borderBottom: '2px solid #e2e5e9',

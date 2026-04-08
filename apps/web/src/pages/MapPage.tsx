@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { StoryMap } from '../components/map/StoryMap';
 import { ReleaseSlices } from '../components/map/ReleaseSlices';
@@ -8,6 +8,8 @@ import { CrossCuttingPanel } from '../components/questions/CrossCuttingPanel';
 import { QuestionModal } from '../components/questions/QuestionModal';
 import { ChangesetReviewModal } from '../components/changesets/ChangesetReviewModal';
 import { EvolvedBadge } from '../components/map/EvolvedBadge';
+import { PersonaTabs } from '../components/map/PersonaTabs';
+import { RoleFilterPills } from '../components/map/RoleFilterPills';
 import { useProjectRole } from '../hooks/useProjectRole';
 import { usePendingApprovals } from '../hooks/usePendingApprovals';
 
@@ -28,6 +30,7 @@ interface ChangesetDetail {
 
 export function MapPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Role-based access — canEdit will gate future inline editing controls
   const projectRole = useProjectRole(projectId);
@@ -84,9 +87,36 @@ export function MapPage() {
     setMapStats(data.stats);
     setMapActivities(data.activities);
     setMapPersonas(data.personas);
-    // Initialize all activities selected on first load
-    setSelectedActivities(prev => prev.size === 0 ? new Set(data.activities.map(a => a.id)) : prev);
+    setSelectedActivities((prev) => {
+      if (prev.size === 0) {
+        return new Set(data.activities.map((a) => a.id));
+      }
+
+      const allowedIds = new Set(data.activities.map((a) => a.id));
+      const next = new Set([...prev].filter((id) => allowedIds.has(id)));
+      return next.size > 0 ? next : new Set(data.activities.map((a) => a.id));
+    });
   }, []);
+
+  const activePersona = searchParams.get('persona');
+  const filterActive =
+    expandAll ||
+    questionsOnly ||
+    hideProposed ||
+    roleHighlight !== null ||
+    (mapActivities.length > 0 &&
+      selectedActivities.size > 0 &&
+      selectedActivities.size !== mapActivities.length);
+
+  const handlePersonaSelect = useCallback((personaCode: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (personaCode) {
+      next.set('persona', personaCode);
+    } else {
+      next.delete('persona');
+    }
+    setSearchParams(next);
+  }, [searchParams, setSearchParams]);
 
   // Dropdown menus
   const [filterOpen, setFilterOpen] = useState(false);
@@ -269,8 +299,8 @@ export function MapPage() {
           {/* Filter dropdown — contains Expand, Questions Only, Legend, Activity filter, Role filter */}
           <div ref={filterRef} style={{ position: 'relative' }}>
             <ToolbarButton
-              active={filterOpen || expandAll || questionsOnly}
-              accent={expandAll || questionsOnly}
+              active={filterOpen || filterActive}
+              accent={filterActive}
               onClick={() => { setFilterOpen(!filterOpen); setMoreOpen(false); }}
             >
               Filter ▾
@@ -297,7 +327,7 @@ export function MapPage() {
                 />
                 <DropdownItem
                   label={hideProposed ? 'Show 2.0' : 'Hide 2.0'}
-                  active={!hideProposed}
+                  active={hideProposed}
                   onClick={() => setHideProposed(!hideProposed)}
                   data-testid="hide-proposed-btn"
                 />
@@ -326,28 +356,6 @@ export function MapPage() {
                   </>
                 )}
 
-                {/* Filter by Role */}
-                {mapPersonas.length > 0 && (
-                  <>
-                    <DropdownLabel>Filter by Role</DropdownLabel>
-                    <div style={{ display: 'flex', gap: '6px', padding: '6px 14px', flexWrap: 'wrap' }}>
-                      {mapPersonas.map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => setRoleHighlight(roleHighlight === p.code ? null : p.code)}
-                          style={{
-                            padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700,
-                            cursor: 'pointer', transition: 'all 0.15s', border: `2px solid ${p.color}`,
-                            background: roleHighlight === p.code ? p.color : 'transparent',
-                            color: roleHighlight === p.code ? '#fff' : p.color,
-                          }}
-                        >
-                          {p.code}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
               </div>
             )}
           </div>
@@ -423,6 +431,35 @@ export function MapPage() {
         )}
       </div>
 
+      {mapStats && mapPersonas.length > 0 && (
+        <PersonaTabs
+          personas={mapPersonas}
+          active={activePersona}
+          onSelect={handlePersonaSelect}
+          personaCounts={mapStats.persona_counts}
+          totalTaskCount={mapStats.task_count}
+        />
+      )}
+
+      <StoryMapLegend />
+
+      {mapPersonas.length > 0 && (
+        <div
+          style={{
+            background: '#fff',
+            borderBottom: '1px solid #e2e5e9',
+            padding: '8px 0',
+            flexShrink: 0,
+          }}
+        >
+          <RoleFilterPills
+            personas={mapPersonas}
+            active={roleHighlight}
+            onToggle={setRoleHighlight}
+          />
+        </div>
+      )}
+
       {/* Story Map */}
       <StoryMap
         key={mapRefreshKey}
@@ -430,6 +467,8 @@ export function MapPage() {
         aiAddedEntities={aiAddedEntities}
         onQuestionClick={setQuestionModalId}
         hideProposed={hideProposed}
+        selectedActivities={selectedActivities}
+        roleHighlight={roleHighlight}
         expandAll={expandAll}
         questionsOnly={questionsOnly}
         onDataReady={handleDataReady}
@@ -638,5 +677,60 @@ function DropdownItem({
       )}
       {label}
     </button>
+  );
+}
+
+function StoryMapLegend() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '8px 24px',
+        background: '#fff',
+        borderBottom: '1px solid #e2e5e9',
+        color: '#6b7280',
+        fontSize: '11px',
+        flexShrink: 0,
+        flexWrap: 'wrap',
+      }}
+    >
+      <strong style={{ color: '#1a1a2e' }}>Legend:</strong>
+      <LegendItem label="Activity" background="#1a1a2e" color="#fff" />
+      <LegendItem label="Step" background="#e65100" color="#fff" />
+      <LegendItem label="Task" background="#ffffff" border="1px solid #e2e5e9" color="#1a1a2e" />
+      <LegendItem label="Question" background="#fffbeb" border="1px solid #f59e0b" color="#92400e" />
+      <LegendItem label="Cross-Cutting" background="#fef2f2" border="1px solid #ef4444" color="#991b1b" />
+    </div>
+  );
+}
+
+function LegendItem({
+  label,
+  background,
+  color,
+  border,
+}: {
+  label: string;
+  background: string;
+  color: string;
+  border?: string;
+}) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+      <span
+        style={{
+          width: '14px',
+          height: '10px',
+          borderRadius: '3px',
+          background,
+          color,
+          border: border ?? 'none',
+          display: 'inline-block',
+        }}
+      />
+      <span>{label}</span>
+    </span>
   );
 }

@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { normalizeAcceptanceCriteria } from '../common/acceptance-criteria.util';
 import { DatabaseService, DbContext } from '../common/database.service';
 import { WizardReconcileService } from '../wizard/wizard-reconcile.service';
 
@@ -488,15 +489,6 @@ export class MapService {
   }
 
   private parseAcceptanceCriteria(raw: unknown): unknown[] {
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === 'string') {
-      try {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
+    return normalizeAcceptanceCriteria(raw);
   }
 }

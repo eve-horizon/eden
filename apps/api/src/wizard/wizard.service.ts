@@ -393,7 +393,10 @@ export class WizardService {
     }
 
     parts.push(
-      `\nCreate a changeset with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 1-2 tasks per step (brief user stories), and 5-8 questions.`,
+      `\nCreate a changeset with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,
+    );
+    parts.push(
+      `\nFor every task, include a concise user story, 2-4 acceptance criteria in Given/When/Then form, and a device value of desktop, mobile, or all (default all). Make the task-card detail rich enough to be useful on the story map without further editing.`,
     );
 
     return parts.join('\n');

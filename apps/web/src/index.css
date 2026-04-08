@@ -170,7 +170,7 @@
   }
 
   [data-testid="cross-cutting-qs-btn"],
-  [data-testid="chat-toggle-btn"] {
+  [data-testid="chat-fab"] {
     display: none !important;
   }
 

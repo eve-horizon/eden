@@ -3,6 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  normalizeAcceptanceCriteriaJson,
+  normalizeTaskDevice,
+} from '../common/acceptance-criteria.util';
 import { DatabaseService, DbContext } from '../common/database.service';
 import { EveEventsService } from '../common/eve-events.service';
 
@@ -481,8 +485,9 @@ export class ChangesetsService {
         const { rows } = await client.query(
           `INSERT INTO tasks
                   (org_id, project_id, display_id, title, user_story,
-                   acceptance_criteria, priority, status, device, approval)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                   acceptance_criteria, priority, status, device,
+                   lifecycle, source_type, source_excerpt, approval)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              RETURNING id`,
           [
             ctx.org_id,
@@ -490,10 +495,13 @@ export class ChangesetsService {
             displayId,
             afterState.title ?? afterState.name ?? 'Untitled',
             afterState.user_story ?? afterState.description ?? null,
-            JSON.stringify(afterState.acceptance_criteria ?? []),
+            normalizeAcceptanceCriteriaJson(afterState.acceptance_criteria),
             afterState.priority ?? 'medium',
             afterState.status ?? 'draft',
-            afterState.device ?? null,
+            normalizeTaskDevice(afterState.device, 'all'),
+            afterState.lifecycle ?? 'current',
+            afterState.source_type ?? null,
+            afterState.source_excerpt ?? null,
             taskApproval,
           ],
         );
@@ -509,12 +517,22 @@ export class ChangesetsService {
             // Resolve persona: use persona from after_state, or first persona in project
             let personaId: string | null = null;
             const personaRef = afterState.persona_ref as string | null;
+            const personaCode = typeof afterState.persona_code === 'string'
+              ? afterState.persona_code.trim()
+              : null;
             if (personaRef) {
               try {
                 personaId = await this.resolveEntityByDisplayRef(
                   client, 'personas', personaRef, projectId,
                 );
               } catch { /* persona not found */ }
+            }
+            if (!personaId && personaCode) {
+              const { rows: personas } = await client.query<{ id: string }>(
+                'SELECT id FROM personas WHERE project_id = $1 AND upper(code) = upper($2) LIMIT 1',
+                [projectId, personaCode],
+              );
+              personaId = personas[0]?.id ?? null;
             }
             if (!personaId) {
               const { rows: personas } = await client.query<{ id: string }>(
@@ -546,13 +564,25 @@ export class ChangesetsService {
         );
         const setClauses: string[] = [];
         const params: unknown[] = [taskId];
-        const allowed = ['title', 'user_story', 'acceptance_criteria', 'priority', 'status', 'device'];
+        const allowed = [
+          'title',
+          'user_story',
+          'acceptance_criteria',
+          'priority',
+          'status',
+          'device',
+          'lifecycle',
+          'source_type',
+          'source_excerpt',
+        ];
 
         for (const col of allowed) {
           if (col in afterState) {
             const value = col === 'acceptance_criteria'
-              ? JSON.stringify(afterState[col])
-              : afterState[col];
+              ? normalizeAcceptanceCriteriaJson(afterState[col])
+              : col === 'device'
+                ? normalizeTaskDevice(afterState[col], null)
+                : afterState[col];
             params.push(value);
             setClauses.push(`${col} = $${params.length}`);
           }

@@ -20,6 +20,7 @@ export interface Question {
 }
 
 export interface AcceptanceCriterion {
+  id?: string;
   text: string;
   done?: boolean;
 }

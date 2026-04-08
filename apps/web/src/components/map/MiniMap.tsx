@@ -177,7 +177,9 @@ export function MiniMap({
             {activities.map((activity) => {
               const span = Math.max(activity.steps.length, 1);
               const isDimmed =
-                selectedActivities != null && !selectedActivities.has(activity.id);
+                selectedActivities != null &&
+                selectedActivities.size > 0 &&
+                !selectedActivities.has(activity.id);
 
               return (
                 <div
@@ -205,7 +207,9 @@ export function MiniMap({
             {/* Step bars (row 2) */}
             {activities.map((activity) => {
               const isDimmed =
-                selectedActivities != null && !selectedActivities.has(activity.id);
+                selectedActivities != null &&
+                selectedActivities.size > 0 &&
+                !selectedActivities.has(activity.id);
 
               return activity.steps.map((step) => (
                 <div
@@ -223,7 +227,9 @@ export function MiniMap({
             {/* Task bars (row 3) */}
             {activities.map((activity) => {
               const isDimmed =
-                selectedActivities != null && !selectedActivities.has(activity.id);
+                selectedActivities != null &&
+                selectedActivities.size > 0 &&
+                !selectedActivities.has(activity.id);
 
               return activity.steps.map((step) => {
                 const tasks = hideProposed

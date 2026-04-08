@@ -37,6 +37,8 @@ interface StoryMapProps {
   aiAddedEntities?: Set<string>;
   onQuestionClick?: (questionId: string) => void;
   hideProposed?: boolean;
+  selectedActivities?: Set<string>;
+  roleHighlight?: string | null;
   onHideProposedChange?: (value: boolean) => void;
   expandAll?: boolean;
   questionsOnly?: boolean;
@@ -49,6 +51,8 @@ export function StoryMap({
   aiAddedEntities,
   onQuestionClick,
   hideProposed = false,
+  selectedActivities = new Set<string>(),
+  roleHighlight = null,
   expandAll = false,
   questionsOnly = false,
   onDataReady,
@@ -59,12 +63,6 @@ export function StoryMap({
   // Server-side persona filter (re-fetches API)
   const personaTab = searchParams.get('persona');
   const releaseFilter = searchParams.get('release');
-
-  // Client-side role highlight (dims non-matching cards)
-  const [roleHighlight] = useState<string | null>(null);
-
-  // Activity filter state
-  const [selectedActivities] = useState<Set<string>>(new Set());
 
   // Mini-map collapsed state
   const [miniMapCollapsed, setMiniMapCollapsed] = useState(false);

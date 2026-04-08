@@ -6,9 +6,8 @@ import { InlineEdit } from './InlineEdit';
 // ---------------------------------------------------------------------------
 // TaskCard — compact card for a single deduplicated task
 //
-// Matches prototype layout: title-first (large, bold), then a metadata row
-// below with display_id, multiple persona role badges (small colored
-// rectangles), source badge, device badge, and question count.
+// Matches prototype layout: badge row first, then the task title and chevron,
+// with expanded details revealed inline below.
 // Card has a 4px left border colored by first persona. Expandable via chevron.
 // ---------------------------------------------------------------------------
 
@@ -115,93 +114,6 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
       onClick={() => forceExpanded === undefined && setLocalExpanded(!localExpanded)}
     >
       <div style={{ padding: '10px 14px 8px' }}>
-        {/* Title row — title first, large and clear */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '6px' }}>
-          <h4
-            style={{
-              fontSize: '13px',
-              fontWeight: 700,
-              flex: 1,
-              lineHeight: 1.35,
-              minWidth: 0,
-              color: lifecycle === 'discontinued' ? '#9ca3af' : '#1a1a2e',
-              textDecoration: lifecycle === 'discontinued' ? 'line-through' : undefined,
-              margin: 0,
-            }}
-          >
-            {onRenameTask ? (
-              <InlineEdit
-                value={task.title}
-                onSave={(title) => onRenameTask(task.id, title)}
-                disabled={!canEdit}
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  lineHeight: 1.35,
-                  color: lifecycle === 'discontinued' ? '#9ca3af' : '#1a1a2e',
-                  textDecoration: lifecycle === 'discontinued' ? 'line-through' : undefined,
-                }}
-              />
-            ) : (
-              task.title
-            )}
-          </h4>
-
-          <span
-            style={{
-              fontSize: '10px',
-              color: '#6b7280',
-              flexShrink: 0,
-              marginTop: '3px',
-              transition: 'transform 0.15s',
-              transform: expanded ? 'rotate(180deg)' : undefined,
-            }}
-            aria-hidden="true"
-          >
-            <ChevronIcon className="w-4 h-4" />
-          </span>
-        </div>
-
-        {/* Quick actions — visible on hover for editors/owners */}
-        {hovered && !dimmed && (canEdit || isOwner) && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              marginBottom: '4px',
-            }}
-          >
-            {canEdit && onAskQuestion && (
-              <QuickActionButton
-                label="Ask Question"
-                onClick={(e) => { e.stopPropagation(); onAskQuestion(task.display_id); }}
-                style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #f59e0b' }}
-              >
-                ?
-              </QuickActionButton>
-            )}
-            {isOwner && task.approval === 'preview' && onApprove && (
-              <QuickActionButton
-                label="Approve"
-                onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
-                style={{ background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }}
-              >
-                ✓
-              </QuickActionButton>
-            )}
-            {isOwner && task.approval === 'preview' && onReject && (
-              <QuickActionButton
-                label="Reject"
-                onClick={(e) => { e.stopPropagation(); onReject(task.id); }}
-                style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #ef4444' }}
-              >
-                ✗
-              </QuickActionButton>
-            )}
-          </div>
-        )}
-
         {/* Metadata row: ID + persona badges + lifecycle + source + device + questions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' }}>
           {/* Display ID */}
@@ -332,6 +244,93 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
             </button>
           )}
         </div>
+
+        {/* Title row */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '8px' }}>
+          <h4
+            style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              flex: 1,
+              lineHeight: 1.35,
+              minWidth: 0,
+              color: lifecycle === 'discontinued' ? '#9ca3af' : '#1a1a2e',
+              textDecoration: lifecycle === 'discontinued' ? 'line-through' : undefined,
+              margin: 0,
+            }}
+          >
+            {onRenameTask ? (
+              <InlineEdit
+                value={task.title}
+                onSave={(title) => onRenameTask(task.id, title)}
+                disabled={!canEdit}
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  lineHeight: 1.35,
+                  color: lifecycle === 'discontinued' ? '#9ca3af' : '#1a1a2e',
+                  textDecoration: lifecycle === 'discontinued' ? 'line-through' : undefined,
+                }}
+              />
+            ) : (
+              task.title
+            )}
+          </h4>
+
+          <span
+            style={{
+              fontSize: '10px',
+              color: '#6b7280',
+              flexShrink: 0,
+              marginTop: '3px',
+              transition: 'transform 0.15s',
+              transform: expanded ? 'rotate(180deg)' : undefined,
+            }}
+            aria-hidden="true"
+          >
+            <ChevronIcon className="w-4 h-4" />
+          </span>
+        </div>
+
+        {/* Quick actions — visible on hover for editors/owners */}
+        {hovered && !dimmed && (canEdit || isOwner) && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              marginTop: '6px',
+            }}
+          >
+            {canEdit && onAskQuestion && (
+              <QuickActionButton
+                label="Ask Question"
+                onClick={(e) => { e.stopPropagation(); onAskQuestion(task.display_id); }}
+                style={{ background: '#fffbeb', color: '#92400e', border: '1px solid #f59e0b' }}
+              >
+                ?
+              </QuickActionButton>
+            )}
+            {isOwner && task.approval === 'preview' && onApprove && (
+              <QuickActionButton
+                label="Approve"
+                onClick={(e) => { e.stopPropagation(); onApprove(task.id); }}
+                style={{ background: '#d1fae5', color: '#065f46', border: '1px solid #10b981' }}
+              >
+                ✓
+              </QuickActionButton>
+            )}
+            {isOwner && task.approval === 'preview' && onReject && (
+              <QuickActionButton
+                label="Reject"
+                onClick={(e) => { e.stopPropagation(); onReject(task.id); }}
+                style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #ef4444' }}
+              >
+                ✗
+              </QuickActionButton>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Expanded detail */}

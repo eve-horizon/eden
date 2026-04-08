@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { normalizeAcceptanceCriteria } from '../common/acceptance-criteria.util';
 import { DatabaseService, DbContext } from '../common/database.service';
 
 import type { PoolClient } from 'pg';
@@ -362,15 +363,6 @@ export class ExportService {
   // -------------------------------------------------------------------------
 
   private parseAcceptanceCriteria(raw: unknown): unknown[] {
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === 'string') {
-      try {
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
+    return normalizeAcceptanceCriteria(raw);
   }
 }

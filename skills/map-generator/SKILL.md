@@ -37,7 +37,7 @@ Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
 
 ### Step: `{"entity_type":"step","operation":"create","display_reference":"STP-{a}.{s}","description":"Add step: {name}","after_state":{"name":"...","display_id":"STP-{a}.{s}","activity_display_id":"ACT-{a}","sort_order":{s}}}`
 
-### Task: `{"entity_type":"task","operation":"create","display_reference":"TSK-{a}.{s}.{t}","description":"Add task: {title}","after_state":{"title":"...","display_id":"TSK-{a}.{s}.{t}","step_display_id":"STP-{a}.{s}","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":["..."],"priority":"high","status":"draft"}}`
+### Task: `{"entity_type":"task","operation":"create","display_reference":"TSK-{a}.{s}.{t}","description":"Add task: {title}","after_state":{"title":"...","display_id":"TSK-{a}.{s}.{t}","step_display_id":"STP-{a}.{s}","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":[{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}],"device":"all","priority":"high","status":"draft"}}`
 
 ### Question: `{"entity_type":"question","operation":"create","display_reference":"Q-{n}","description":"Clarifying question","after_state":{"question":"...","display_id":"Q-{n}","priority":"medium","category":"requirements","status":"open"}}`
 
@@ -46,5 +46,11 @@ Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
 - **Personas:** 3-5
 - **Activities:** 4-6
 - **Steps:** 2-3 per activity
-- **Tasks:** 1-2 per step (keep user stories brief)
-- **Questions:** 5-8
+- **Tasks:** 2-3 per step
+- **Acceptance criteria:** 2-4 per task, written in Given/When/Then form
+- **Questions:** 5-10
+
+Every task must include:
+- A concise user story
+- A `device` value of `desktop`, `mobile`, or `all` (use `all` unless the context clearly demands otherwise)
+- Acceptance criteria rich enough that the expanded story-map card is useful without manual rewriting

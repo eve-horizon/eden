@@ -38,7 +38,7 @@ const OWNER_STEPS: WalkthroughStep[] = [
     position: 'bottom',
   },
   {
-    target: '[data-testid="chat-toggle-btn"]',
+    target: '[data-testid="chat-fab"]',
     title: 'Chat with Eve',
     description: 'Open the chat panel to converse with the AI expert panel. They can modify the map based on your instructions.',
     position: 'left',
@@ -83,7 +83,7 @@ const EDITOR_STEPS: WalkthroughStep[] = [
     position: 'bottom',
   },
   {
-    target: '[data-testid="chat-toggle-btn"]',
+    target: '[data-testid="chat-fab"]',
     title: 'Chat with Eve',
     description: 'Ask the AI expert panel to analyze requirements, suggest improvements, or generate new content.',
     position: 'left',

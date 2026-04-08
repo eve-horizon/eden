@@ -18,7 +18,7 @@ interface TaskCardExpandedProps {
 }
 
 // Generate AC display ID from task display_id: TSK-1.1.1 → AC-1.1.1a
-function acDisplayId(taskDisplayId: string, index: number): string {
+function fallbackAcDisplayId(taskDisplayId: string, index: number): string {
   const nums = taskDisplayId.replace(/^TSK-/, '');
   const letter = String.fromCharCode(97 + index); // a, b, c...
   return `AC-${nums}${letter}`;
@@ -87,40 +87,47 @@ export function TaskCardExpanded({
       {acceptanceCriteria.length > 0 && (
         <div style={{ marginTop: '6px' }}>
           {acceptanceCriteria.map((ac, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex',
-                gap: '5px',
-                alignItems: 'flex-start',
-                marginBottom: '4px',
-                fontSize: '9px',
-                color: '#6b7280',
-                lineHeight: 1.5,
-              }}
-            >
-              <span
-                style={{
-                  color: ac.done ? '#10b981' : '#ef4444',
-                  fontWeight: 800,
-                  flexShrink: 0,
-                }}
-              >
-                {ac.done ? '✓' : '✗'}
-              </span>
-              <span
-                style={{
-                  fontSize: '7px',
-                  fontWeight: 700,
-                  color: '#e65100',
-                  flexShrink: 0,
-                  marginTop: '1px',
-                }}
-              >
-                {acDisplayId(taskDisplayId, i)}
-              </span>
-              <span>{ac.text}</span>
-            </div>
+            (() => {
+              const displayId = ac.id ?? fallbackAcDisplayId(taskDisplayId, i);
+              const isRequirement = ac.done !== false;
+
+              return (
+                <div
+                  key={displayId}
+                  style={{
+                    display: 'flex',
+                    gap: '5px',
+                    alignItems: 'flex-start',
+                    marginBottom: '4px',
+                    fontSize: '9px',
+                    color: '#6b7280',
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: isRequirement ? '#10b981' : '#f59e0b',
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isRequirement ? '✓' : '•'}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '7px',
+                      fontWeight: 700,
+                      color: '#e65100',
+                      flexShrink: 0,
+                      marginTop: '1px',
+                    }}
+                  >
+                    {displayId}
+                  </span>
+                  <span>{ac.text}</span>
+                </div>
+              );
+            })()
           ))}
         </div>
       )}

@@ -1,4 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  normalizeAcceptanceCriteria,
+  normalizeAcceptanceCriteriaJson,
+  normalizeTaskDevice,
+} from '../common/acceptance-criteria.util';
 import { DatabaseService, DbContext } from '../common/database.service';
 
 // ---------------------------------------------------------------------------
@@ -63,6 +68,13 @@ export interface TaskListFilter {
 export class TasksService {
   constructor(private readonly db: DatabaseService) {}
 
+  private normalizeTaskRow<T extends TaskRow>(task: T): T {
+    return {
+      ...task,
+      acceptance_criteria: normalizeAcceptanceCriteria(task.acceptance_criteria),
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Tasks CRUD
   // -------------------------------------------------------------------------
@@ -95,7 +107,8 @@ export class TasksService {
        ORDER BY t.created_at DESC
     `;
 
-    return this.db.query<TaskRow>(ctx, sql, params);
+    const rows = await this.db.query<TaskRow>(ctx, sql, params);
+    return rows.map((row) => this.normalizeTaskRow(row));
   }
 
   async findById(ctx: DbContext, id: string): Promise<TaskDetail> {
@@ -124,7 +137,7 @@ export class TasksService {
       [id],
     );
 
-    return { ...task, placements };
+    return { ...this.normalizeTaskRow(task), placements };
   }
 
   async create(
@@ -156,10 +169,10 @@ export class TasksService {
           data.display_id,
           data.title,
           data.user_story ?? null,
-          JSON.stringify(data.acceptance_criteria ?? []),
+          normalizeAcceptanceCriteriaJson(data.acceptance_criteria),
           data.priority ?? 'medium',
           data.status ?? 'draft',
-          data.device ?? null,
+          normalizeTaskDevice(data.device, 'all'),
           data.lifecycle ?? 'current',
           data.source_type ?? null,
           data.source_excerpt ?? null,
@@ -180,7 +193,7 @@ export class TasksService {
         ],
       );
 
-      return task;
+      return this.normalizeTaskRow(task);
     });
   }
 
@@ -209,7 +222,13 @@ export class TasksService {
 
     for (const [key, value] of Object.entries(data)) {
       if (!allowed.has(key)) continue;
-      params.push(key === 'acceptance_criteria' ? JSON.stringify(value) : value);
+      if (key === 'acceptance_criteria') {
+        params.push(normalizeAcceptanceCriteriaJson(value));
+      } else if (key === 'device') {
+        params.push(normalizeTaskDevice(value, null));
+      } else {
+        params.push(value);
+      }
       setClauses.push(`${key} = $${params.length}`);
     }
 
@@ -241,7 +260,7 @@ export class TasksService {
         ],
       );
 
-      return task;
+      return this.normalizeTaskRow(task);
     });
   }
 
