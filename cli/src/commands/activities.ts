@@ -11,7 +11,7 @@ interface Activity {
 }
 
 export function registerActivities(program: Command): void {
-  const activities = program.command('activity').description('Manage activities');
+  const activities = program.command('activity').alias('activities').description('Manage activities');
 
   activities
     .command('list')

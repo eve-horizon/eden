@@ -15,7 +15,7 @@ interface Changeset {
 }
 
 export function registerChangesets(program: Command): void {
-  const cs = program.command('changeset').description('Manage changesets');
+  const cs = program.command('changeset').alias('changesets').description('Manage changesets');
 
   cs.command('list')
     .description('List changesets')

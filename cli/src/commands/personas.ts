@@ -11,7 +11,7 @@ interface Persona {
 }
 
 export function registerPersonas(program: Command): void {
-  const personas = program.command('persona').description('Manage personas');
+  const personas = program.command('persona').alias('personas').description('Manage personas');
 
   personas
     .command('list')

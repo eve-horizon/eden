@@ -12,7 +12,7 @@ interface Release {
 }
 
 export function registerReleases(program: Command): void {
-  const releases = program.command('release').description('Manage releases');
+  const releases = program.command('release').alias('releases').description('Manage releases');
 
   releases
     .command('list')

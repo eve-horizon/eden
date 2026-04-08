@@ -28,7 +28,7 @@ interface CreateTaskInput {
 }
 
 export function registerTasks(program: Command): void {
-  const tasks = program.command('task').description('Manage tasks');
+  const tasks = program.command('task').alias('tasks').description('Manage tasks');
 
   tasks
     .command('list')

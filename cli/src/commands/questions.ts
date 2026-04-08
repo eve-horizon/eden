@@ -16,7 +16,7 @@ interface Question {
 }
 
 export function registerQuestions(program: Command): void {
-  const questions = program.command('question').description('Manage questions');
+  const questions = program.command('question').alias('questions').description('Manage questions');
 
   questions
     .command('list')

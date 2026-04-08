@@ -20,7 +20,7 @@ interface Source {
 }
 
 export function registerSources(program: Command): void {
-  const src = program.command('source').description('Manage ingestion sources');
+  const src = program.command('source').alias('sources').description('Manage ingestion sources');
 
   src.command('show')
     .description('Show source details')

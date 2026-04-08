@@ -10,7 +10,7 @@ interface Step {
 }
 
 export function registerSteps(program: Command): void {
-  const steps = program.command('step').description('Manage steps');
+  const steps = program.command('step').alias('steps').description('Manage steps');
 
   steps
     .command('list')

@@ -21,7 +21,7 @@ interface Review {
 }
 
 export function registerReviews(program: Command): void {
-  const reviews = program.command('review').description('Manage expert panel reviews');
+  const reviews = program.command('review').alias('reviews').description('Manage expert panel reviews');
 
   reviews
     .command('list')
