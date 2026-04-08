@@ -22,4 +22,22 @@ export function registerSteps(program: Command): void {
       if (opts.json) return json(data);
       table(data, ['id', 'display_id', 'name', 'sort_order']);
     });
+
+  steps
+    .command('create')
+    .description('Create a step')
+    .requiredOption('--activity <id>', 'Activity ID')
+    .requiredOption('--name <name>', 'Step name')
+    .requiredOption('--display-id <displayId>', 'Display ID')
+    .option('--sort-order <n>', 'Sort order', (value) => parseInt(value, 10))
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      const data = await api<Step>('POST', `/activities/${opts.activity}/steps`, {
+        name: opts.name,
+        display_id: opts.displayId,
+        ...(opts.sortOrder !== undefined && { sort_order: opts.sortOrder }),
+      });
+      if (opts.json) return json(data);
+      console.log(`Created step: ${data.display_id} (${data.id})`);
+    });
 }

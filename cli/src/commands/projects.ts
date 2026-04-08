@@ -21,6 +21,44 @@ export function registerProjects(program: Command): void {
       if (opts.json) return json(data);
       table(data, ['id', 'name', 'slug']);
     });
+
+  projects
+    .command('create')
+    .description('Create a project')
+    .requiredOption('--name <name>', 'Project name')
+    .requiredOption('--slug <slug>', 'Project slug')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      const data = await api<Project>('POST', '/projects', {
+        name: opts.name,
+        slug: opts.slug,
+      });
+      if (opts.json) return json(data);
+      console.log(`Created project: ${data.id} (${data.slug})`);
+    });
+
+  projects
+    .command('show')
+    .description('Show project details')
+    .argument('<id>', 'Project ID')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const data = await api<Project>('GET', `/projects/${id}`);
+      if (opts.json) return json(data);
+      console.log(`Project: ${data.name}`);
+      console.log(`ID: ${data.id}`);
+      console.log(`Slug: ${data.slug}`);
+      console.log(`Created: ${data.created_at}`);
+    });
+
+  projects
+    .command('delete')
+    .description('Delete a project')
+    .argument('<id>', 'Project ID')
+    .action(async (id) => {
+      await api('DELETE', `/projects/${id}`);
+      console.log(`Deleted project: ${id}`);
+    });
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

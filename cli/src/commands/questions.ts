@@ -33,7 +33,15 @@ export function registerQuestions(program: Command): void {
       const qs = params.toString() ? `?${params}` : '';
       const data = await api<Question[]>('GET', `/projects/${pid}/questions${qs}`);
       if (opts.json) return json(data);
-      table(data, ['id', 'text', 'status', 'category']);
+      table(
+        data.map((question) => ({
+          id: question.id,
+          question: question.question ?? question.text ?? '',
+          status: question.status,
+          category: question.category ?? '',
+        })),
+        ['id', 'question', 'status', 'category'],
+      );
     });
 
   questions
@@ -68,6 +76,7 @@ export function registerQuestions(program: Command): void {
     .option('--cross-cutting', 'Mark as cross-cutting')
     .option('--json', 'JSON output')
     .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
       let body: Record<string, unknown>;
       if (opts.file) {
         body = JSON.parse(await readFile(opts.file, 'utf8'));
@@ -82,9 +91,34 @@ export function registerQuestions(program: Command): void {
         console.error('Provide --file <path> or --question <text>');
         process.exit(1);
       }
-      const result = await api<Question>('POST', `/projects/${opts.project}/questions`, body);
+      const result = await api<Question>('POST', `/projects/${pid}/questions`, body);
       if (opts.json) return json(result);
       console.log(`Created question: ${result.id} (${result.status})`);
+    });
+
+  questions
+    .command('update')
+    .description('Update a question')
+    .argument('<id>', 'Question ID')
+    .option('--answer <text>', 'Answer text')
+    .option('--status <status>', 'Status')
+    .option('--priority <priority>', 'Priority')
+    .option('--category <category>', 'Category')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const body = {
+        ...(opts.answer && { answer: opts.answer }),
+        ...(opts.status && { status: opts.status }),
+        ...(opts.priority && { priority: opts.priority }),
+        ...(opts.category && { category: opts.category }),
+      };
+      if (Object.keys(body).length === 0) {
+        console.error('Provide at least one field to update');
+        process.exit(1);
+      }
+      const result = await api<Question>('PATCH', `/questions/${id}`, body);
+      if (opts.json) return json(result);
+      console.log(`Updated question: ${result.id} (${result.status})`);
     });
 
   questions

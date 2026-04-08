@@ -143,61 +143,59 @@ export class ChangesetsService {
       inferredActor?: string | null
     },
   ): Promise<CreateChangesetResult> {
-    return this.db.withClient(ctx, async (client) => {
-      const project = await client.query<{ id: string; name: string }>(
-        `SELECT id, name FROM projects WHERE id = $1 LIMIT 1`,
-        [projectId],
+    const project = await this.db.queryOne<{ id: string; name: string }>(
+      ctx,
+      `SELECT id, name FROM projects WHERE id = $1 LIMIT 1`,
+      [projectId],
+    );
+
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    const normalized = normalizeCreateChangesetInput(rawInput, {
+      projectName: project.name,
+      inferredActor: defaults?.inferredActor,
+      inferredSource: defaults?.inferredSource,
+    });
+
+    if (normalized.errors.length > 0 || !normalized.sanitized) {
+      throw this.invalidChangeset(normalized.errors, normalized.warnings);
+    }
+
+    const input = normalized.sanitized;
+
+    if (input.source_id) {
+      if (!isUuid(input.source_id)) {
+        throw this.invalidChangeset(
+          [{ path: 'source_id', message: 'source_id must be a UUID' }],
+          normalized.warnings,
+        );
+      }
+
+      const source = await this.db.queryOne<{ id: string }>(
+        ctx,
+        `SELECT id
+           FROM ingestion_sources
+          WHERE id = $1 AND project_id = $2
+          LIMIT 1`,
+        [input.source_id, projectId],
       );
 
-      if (!project.rows[0]) {
-        throw new NotFoundException('Project not found');
-      }
-
-      const normalized = normalizeCreateChangesetInput(rawInput, {
-        projectName: project.rows[0].name,
-        inferredActor: defaults?.inferredActor,
-        inferredSource: defaults?.inferredSource,
-      });
-
-      if (normalized.errors.length > 0 || !normalized.sanitized) {
-        throw new BadRequestException({
-          code: 'invalid_changeset',
-          message: 'Changeset payload validation failed',
-          errors: normalized.errors,
-          warnings: normalized.warnings,
-        });
-      }
-
-      const input = normalized.sanitized;
-
-      if (input.source_id) {
-        if (!isUuid(input.source_id)) {
-          throw this.invalidChangeset(
-            [{ path: 'source_id', message: 'source_id must be a UUID' }],
-            normalized.warnings,
-          );
-        }
-
-        const source = await client.query<{ id: string }>(
-          `SELECT id
-             FROM ingestion_sources
-            WHERE id = $1 AND project_id = $2
-            LIMIT 1`,
-          [input.source_id, projectId],
+      if (!source) {
+        throw this.invalidChangeset(
+          [
+            {
+              path: 'source_id',
+              message: 'source_id was not found on this project',
+            },
+          ],
+          normalized.warnings,
         );
-
-        if (!source.rows[0]) {
-          throw this.invalidChangeset(
-            [
-              {
-                path: 'source_id',
-                message: 'source_id was not found on this project',
-              },
-            ],
-            normalized.warnings,
-          );
-        }
       }
+    }
+
+    return this.db.withClient(ctx, async (client) => {
 
       const { rows } = await client.query<ChangesetRow>(
         `INSERT INTO changesets (org_id, project_id, title, reasoning, source, source_id, actor, status)

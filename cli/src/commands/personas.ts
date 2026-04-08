@@ -24,4 +24,23 @@ export function registerPersonas(program: Command): void {
       if (opts.json) return json(data);
       table(data, ['id', 'code', 'name', 'color']);
     });
+
+  personas
+    .command('create')
+    .description('Create a persona')
+    .requiredOption('--project <id>', 'Project ID or slug')
+    .requiredOption('--code <code>', 'Persona code')
+    .requiredOption('--name <name>', 'Persona name')
+    .requiredOption('--color <color>', 'Hex color')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
+      const data = await api<Persona>('POST', `/projects/${pid}/personas`, {
+        code: opts.code,
+        name: opts.name,
+        color: opts.color,
+      });
+      if (opts.json) return json(data);
+      console.log(`Created persona: ${data.code} (${data.id})`);
+    });
 }

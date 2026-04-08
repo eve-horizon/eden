@@ -11,6 +11,9 @@ import { registerSources } from './commands/sources.js';
 import { registerTasks } from './commands/tasks.js';
 import { registerActivities } from './commands/activities.js';
 import { registerSteps } from './commands/steps.js';
+import { registerReleases } from './commands/releases.js';
+import { registerAudit } from './commands/audit.js';
+import { registerChat } from './commands/chat.js';
 
 const program = new Command();
 program
@@ -30,5 +33,8 @@ registerSources(program);
 registerTasks(program);
 registerActivities(program);
 registerSteps(program);
+registerReleases(program);
+registerAudit(program);
+registerChat(program);
 
 program.parse();

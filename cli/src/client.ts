@@ -57,7 +57,22 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
     process.exit(1);
   }
-  const json = await res.json();
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return text as T;
+  }
+
   // NestJS endpoints return data directly; unwrap { data: [...] } if present
   if (json && typeof json === 'object' && 'data' in json && Array.isArray((json as Record<string, unknown>).data)) {
     return (json as Record<string, unknown>).data as T;

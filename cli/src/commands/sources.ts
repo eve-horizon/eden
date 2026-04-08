@@ -1,3 +1,5 @@
+import { readFile, stat } from 'fs/promises';
+import { basename, extname } from 'path';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
@@ -9,6 +11,11 @@ interface Source {
   status: string;
   content_type: string | null;
   file_size: number | null;
+  eve_ingest_id?: string | null;
+  eve_job_id?: string | null;
+  upload_url?: string;
+  download_url?: string | null;
+  error_message?: string | null;
   created_at: string;
 }
 
@@ -41,6 +48,60 @@ export function registerSources(program: Command): void {
       table(data, ['id', 'filename', 'status', 'file_size', 'created_at']);
     });
 
+  src.command('create')
+    .description('Create a source record and optionally upload a file')
+    .requiredOption('--project <id>', 'Project ID or slug')
+    .option('--file <path>', 'File to upload')
+    .option('--filename <name>', 'Filename override')
+    .option('--content-type <type>', 'Content type override')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
+      const filename = opts.filename ?? (opts.file ? basename(opts.file) : undefined);
+      if (!filename) {
+        console.error('Provide --file <path> or --filename <name>');
+        process.exit(1);
+      }
+
+      const fileSize = opts.file ? (await stat(opts.file)).size : undefined;
+      const contentType = opts.contentType ?? inferContentType(filename);
+      const result = await api<Source>('POST', `/projects/${pid}/sources`, {
+        filename,
+        ...(contentType && { content_type: contentType }),
+        ...(fileSize !== undefined && { file_size: fileSize }),
+      });
+
+      if (opts.file && result.upload_url && !result.upload_url.startsWith('data:')) {
+        const contents = await readFile(opts.file);
+        const upload = await fetch(result.upload_url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': contentType,
+          },
+          body: contents,
+        });
+
+        if (!upload.ok) {
+          console.error(`Upload failed: ${upload.status} ${upload.statusText}`);
+          process.exit(1);
+        }
+      }
+
+      if (opts.json) return json(result);
+      console.log(`Created source: ${result.id} (${result.status})`);
+      if (opts.file) console.log(`Uploaded file: ${filename}`);
+    });
+
+  src.command('confirm')
+    .description('Confirm a source and trigger ingestion')
+    .argument('<id>', 'Source ID')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const result = await api<Source>('POST', `/sources/${id}/confirm`);
+      if (opts.json) return json(result);
+      console.log(`Confirmed source: ${id} (${result.status})`);
+    });
+
   src.command('update-status')
     .description('Update source processing status')
     .requiredOption('--source <id>', 'Source ID')
@@ -54,4 +115,19 @@ export function registerSources(program: Command): void {
       if (opts.json) return json(result);
       console.log(`Source ${opts.source} → ${opts.status}`);
     });
+}
+
+function inferContentType(filename: string): string {
+  switch (extname(filename).toLowerCase()) {
+    case '.md':
+      return 'text/markdown';
+    case '.pdf':
+      return 'application/pdf';
+    case '.json':
+      return 'application/json';
+    case '.txt':
+      return 'text/plain';
+    default:
+      return 'application/octet-stream';
+  }
 }

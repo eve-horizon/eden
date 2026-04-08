@@ -2,14 +2,18 @@ export function json(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));
 }
 
-export function table(rows: Record<string, unknown>[], columns?: string[]): void {
+export function table(rows: object[], columns?: string[]): void {
   if (rows.length === 0) {
     console.log('(no results)');
     return;
   }
-  const cols = columns ?? Object.keys(rows[0]);
+  const first = rows[0] as Record<string, unknown>;
+  const cols = columns ?? Object.keys(first);
   const widths = cols.map(c =>
-    Math.max(c.length, ...rows.map(r => String(r[c] ?? '').length)),
+    Math.max(
+      c.length,
+      ...rows.map((row) => String((row as Record<string, unknown>)[c] ?? '').length),
+    ),
   );
 
   // Header
@@ -18,6 +22,7 @@ export function table(rows: Record<string, unknown>[], columns?: string[]): void
 
   // Rows
   for (const row of rows) {
-    console.log(cols.map((c, i) => String(row[c] ?? '').padEnd(widths[i])).join('  '));
+    const data = row as Record<string, unknown>;
+    console.log(cols.map((c, i) => String(data[c] ?? '').padEnd(widths[i])).join('  '));
   }
 }

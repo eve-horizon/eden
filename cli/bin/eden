@@ -3381,7 +3381,19 @@ async function api(method, path, body) {
     printIssues("warning", err.warnings);
     process.exit(1);
   }
-  const json2 = await res.json();
+  if (res.status === 204) {
+    return void 0;
+  }
+  const text = await res.text();
+  if (!text.trim()) {
+    return void 0;
+  }
+  let json2;
+  try {
+    json2 = JSON.parse(text);
+  } catch {
+    return text;
+  }
   if (json2 && typeof json2 === "object" && "data" in json2 && Array.isArray(json2.data)) {
     return json2.data;
   }
@@ -3425,14 +3437,19 @@ function table(rows, columns) {
     console.log("(no results)");
     return;
   }
-  const cols = columns ?? Object.keys(rows[0]);
+  const first = rows[0];
+  const cols = columns ?? Object.keys(first);
   const widths = cols.map(
-    (c) => Math.max(c.length, ...rows.map((r) => String(r[c] ?? "").length))
+    (c) => Math.max(
+      c.length,
+      ...rows.map((row) => String(row[c] ?? "").length)
+    )
   );
   console.log(cols.map((c, i) => c.padEnd(widths[i])).join("  "));
   console.log(cols.map((_, i) => "\u2500".repeat(widths[i])).join("  "));
   for (const row of rows) {
-    console.log(cols.map((c, i) => String(row[c] ?? "").padEnd(widths[i])).join("  "));
+    const data = row;
+    console.log(cols.map((c, i) => String(data[c] ?? "").padEnd(widths[i])).join("  "));
   }
 }
 
@@ -3443,6 +3460,26 @@ function registerProjects(program3) {
     const data = await api("GET", "/projects");
     if (opts.json) return json(data);
     table(data, ["id", "name", "slug"]);
+  });
+  projects.command("create").description("Create a project").requiredOption("--name <name>", "Project name").requiredOption("--slug <slug>", "Project slug").option("--json", "JSON output").action(async (opts) => {
+    const data = await api("POST", "/projects", {
+      name: opts.name,
+      slug: opts.slug
+    });
+    if (opts.json) return json(data);
+    console.log(`Created project: ${data.id} (${data.slug})`);
+  });
+  projects.command("show").description("Show project details").argument("<id>", "Project ID").option("--json", "JSON output").action(async (id, opts) => {
+    const data = await api("GET", `/projects/${id}`);
+    if (opts.json) return json(data);
+    console.log(`Project: ${data.name}`);
+    console.log(`ID: ${data.id}`);
+    console.log(`Slug: ${data.slug}`);
+    console.log(`Created: ${data.created_at}`);
+  });
+  projects.command("delete").description("Delete a project").argument("<id>", "Project ID").action(async (id) => {
+    await api("DELETE", `/projects/${id}`);
+    console.log(`Deleted project: ${id}`);
   });
 }
 var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -3550,6 +3587,16 @@ function registerPersonas(program3) {
     if (opts.json) return json(data);
     table(data, ["id", "code", "name", "color"]);
   });
+  personas.command("create").description("Create a persona").requiredOption("--project <id>", "Project ID or slug").requiredOption("--code <code>", "Persona code").requiredOption("--name <name>", "Persona name").requiredOption("--color <color>", "Hex color").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/personas`, {
+      code: opts.code,
+      name: opts.name,
+      color: opts.color
+    });
+    if (opts.json) return json(data);
+    console.log(`Created persona: ${data.code} (${data.id})`);
+  });
 }
 
 // src/commands/questions.ts
@@ -3564,7 +3611,15 @@ function registerQuestions(program3) {
     const qs = params.toString() ? `?${params}` : "";
     const data = await api("GET", `/projects/${pid}/questions${qs}`);
     if (opts.json) return json(data);
-    table(data, ["id", "text", "status", "category"]);
+    table(
+      data.map((question) => ({
+        id: question.id,
+        question: question.question ?? question.text ?? "",
+        status: question.status,
+        category: question.category ?? ""
+      })),
+      ["id", "question", "status", "category"]
+    );
   });
   questions.command("show").description("Show question details").argument("<id>", "Question ID").option("--json", "JSON output").action(async (id, opts) => {
     const data = await api("GET", `/questions/${id}`);
@@ -3582,6 +3637,7 @@ function registerQuestions(program3) {
     }
   });
   questions.command("create").description("Create a question (inline or from JSON file)").requiredOption("--project <id>", "Project ID").option("--file <path>", "JSON file with question data").option("--question <text>", "Question text (inline)").option("--priority <p>", "Priority (high/medium/low)").option("--category <cat>", "Category (conflict/gap/duplicate/assumption)").option("--cross-cutting", "Mark as cross-cutting").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
     let body;
     if (opts.file) {
       body = JSON.parse(await (0, import_promises2.readFile)(opts.file, "utf8"));
@@ -3596,9 +3652,24 @@ function registerQuestions(program3) {
       console.error("Provide --file <path> or --question <text>");
       process.exit(1);
     }
-    const result = await api("POST", `/projects/${opts.project}/questions`, body);
+    const result = await api("POST", `/projects/${pid}/questions`, body);
     if (opts.json) return json(result);
     console.log(`Created question: ${result.id} (${result.status})`);
+  });
+  questions.command("update").description("Update a question").argument("<id>", "Question ID").option("--answer <text>", "Answer text").option("--status <status>", "Status").option("--priority <priority>", "Priority").option("--category <category>", "Category").option("--json", "JSON output").action(async (id, opts) => {
+    const body = {
+      ...opts.answer && { answer: opts.answer },
+      ...opts.status && { status: opts.status },
+      ...opts.priority && { priority: opts.priority },
+      ...opts.category && { category: opts.category }
+    };
+    if (Object.keys(body).length === 0) {
+      console.error("Provide at least one field to update");
+      process.exit(1);
+    }
+    const result = await api("PATCH", `/questions/${id}`, body);
+    if (opts.json) return json(result);
+    console.log(`Updated question: ${result.id} (${result.status})`);
   });
   questions.command("evolve").description("Evolve a question with an answer").argument("<id>", "Question ID").requiredOption("--answer <text>", "Answer text").action(async (id, opts) => {
     await api("POST", `/questions/${id}/evolve`, { answer: opts.answer });
@@ -3631,7 +3702,7 @@ function registerExport(program3) {
   exp.command("markdown").description("Export project as Markdown").option("--project <id>", "Project ID").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/export/markdown`);
-    console.log(data);
+    console.log(data.markdown);
   });
 }
 
@@ -3663,6 +3734,7 @@ ${data.synthesis}`);
     }
   });
   reviews.command("create").description("Create a review (from JSON file or inline)").requiredOption("--project <id>", "Project ID").option("--file <path>", "JSON file with review data").option("--title <title>", "Review title").option("--synthesis <text>", "Synthesis text").option("--status <status>", "Status (pending/in_progress/complete)").option("--eve-job-id <id>", "Eve job ID").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
     let body;
     if (opts.file) {
       body = JSON.parse(await (0, import_promises3.readFile)(opts.file, "utf8"));
@@ -3674,13 +3746,15 @@ ${data.synthesis}`);
         ...opts.eveJobId && { eve_job_id: opts.eveJobId }
       };
     }
-    const result = await api("POST", `/projects/${opts.project}/reviews`, body);
+    const result = await api("POST", `/projects/${pid}/reviews`, body);
     if (opts.json) return json(result);
     console.log(`Created review: ${result.id} (${result.status}, ${result.expert_count} experts)`);
   });
 }
 
 // src/commands/sources.ts
+var import_promises4 = require("fs/promises");
+var import_path = require("path");
 function registerSources(program3) {
   const src = program3.command("source").description("Manage ingestion sources");
   src.command("show").description("Show source details").argument("<id>", "Source ID").option("--json", "JSON output").action(async (id, opts) => {
@@ -3699,6 +3773,43 @@ function registerSources(program3) {
     if (opts.json) return json(data);
     table(data, ["id", "filename", "status", "file_size", "created_at"]);
   });
+  src.command("create").description("Create a source record and optionally upload a file").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "File to upload").option("--filename <name>", "Filename override").option("--content-type <type>", "Content type override").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const filename = opts.filename ?? (opts.file ? (0, import_path.basename)(opts.file) : void 0);
+    if (!filename) {
+      console.error("Provide --file <path> or --filename <name>");
+      process.exit(1);
+    }
+    const fileSize = opts.file ? (await (0, import_promises4.stat)(opts.file)).size : void 0;
+    const contentType = opts.contentType ?? inferContentType(filename);
+    const result = await api("POST", `/projects/${pid}/sources`, {
+      filename,
+      ...contentType && { content_type: contentType },
+      ...fileSize !== void 0 && { file_size: fileSize }
+    });
+    if (opts.file && result.upload_url && !result.upload_url.startsWith("data:")) {
+      const contents = await (0, import_promises4.readFile)(opts.file);
+      const upload = await fetch(result.upload_url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": contentType
+        },
+        body: contents
+      });
+      if (!upload.ok) {
+        console.error(`Upload failed: ${upload.status} ${upload.statusText}`);
+        process.exit(1);
+      }
+    }
+    if (opts.json) return json(result);
+    console.log(`Created source: ${result.id} (${result.status})`);
+    if (opts.file) console.log(`Uploaded file: ${filename}`);
+  });
+  src.command("confirm").description("Confirm a source and trigger ingestion").argument("<id>", "Source ID").option("--json", "JSON output").action(async (id, opts) => {
+    const result = await api("POST", `/sources/${id}/confirm`);
+    if (opts.json) return json(result);
+    console.log(`Confirmed source: ${id} (${result.status})`);
+  });
   src.command("update-status").description("Update source processing status").requiredOption("--source <id>", "Source ID").requiredOption("--status <status>", "New status (extracted, synthesized, done, failed)").option("--error <message>", "Error message (for failed status)").option("--json", "JSON output").action(async (opts) => {
     const body = { status: opts.status };
     if (opts.error) body.error_message = opts.error;
@@ -3707,8 +3818,23 @@ function registerSources(program3) {
     console.log(`Source ${opts.source} \u2192 ${opts.status}`);
   });
 }
+function inferContentType(filename) {
+  switch ((0, import_path.extname)(filename).toLowerCase()) {
+    case ".md":
+      return "text/markdown";
+    case ".pdf":
+      return "application/pdf";
+    case ".json":
+      return "application/json";
+    case ".txt":
+      return "text/plain";
+    default:
+      return "application/octet-stream";
+  }
+}
 
 // src/commands/tasks.ts
+var import_promises5 = require("fs/promises");
 function registerTasks(program3) {
   const tasks = program3.command("task").description("Manage tasks");
   tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--json", "JSON output").action(async (opts) => {
@@ -3731,6 +3857,43 @@ function registerTasks(program3) {
     console.log(`Priority: ${data.priority}`);
     if (data.release_id) console.log(`Release: ${data.release_id}`);
   });
+  tasks.command("create").description("Create a task").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with task data").option("--title <title>", "Task title").option("--display-id <displayId>", "Task display ID").option("--user-story <story>", "User story").option("--acceptance-criteria <text>", "Acceptance criteria text").option("--priority <priority>", "Priority").option("--status <status>", "Status").option("--device <device>", "Device").option("--lifecycle <lifecycle>", "Lifecycle").option("--source-type <type>", "Source type").option("--source-excerpt <text>", "Source excerpt").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    let body;
+    if (opts.file) {
+      body = JSON.parse(await (0, import_promises5.readFile)(opts.file, "utf8"));
+    } else {
+      if (!opts.title || !opts.displayId) {
+        console.error("Provide --file <path> or both --title and --display-id");
+        process.exit(1);
+      }
+      body = {
+        title: opts.title,
+        display_id: opts.displayId,
+        ...opts.userStory && { user_story: opts.userStory },
+        ...opts.acceptanceCriteria && { acceptance_criteria: opts.acceptanceCriteria },
+        ...opts.priority && { priority: opts.priority },
+        ...opts.status && { status: opts.status },
+        ...opts.device && { device: opts.device },
+        ...opts.lifecycle && { lifecycle: opts.lifecycle },
+        ...opts.sourceType && { source_type: opts.sourceType },
+        ...opts.sourceExcerpt && { source_excerpt: opts.sourceExcerpt }
+      };
+    }
+    const data = await api("POST", `/projects/${pid}/tasks`, body);
+    if (opts.json) return json(data);
+    console.log(`Created task: ${data.display_id} (${data.id})`);
+  });
+  tasks.command("place").description("Place a task on a step with a persona").argument("<id>", "Task ID").requiredOption("--step <id>", "Step ID").requiredOption("--persona <id>", "Persona ID").option("--role <role>", "Placement role", "owner").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (id, opts) => {
+    const data = await api("POST", `/tasks/${id}/place`, {
+      step_id: opts.step,
+      persona_id: opts.persona,
+      role: opts.role,
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    });
+    if (opts.json) return json(data);
+    console.log(`Placed task: ${id} -> ${opts.step} as ${opts.role}`);
+  });
 }
 
 // src/commands/activities.ts
@@ -3742,6 +3905,16 @@ function registerActivities(program3) {
     if (opts.json) return json(data);
     table(data, ["id", "display_id", "name", "sort_order"]);
   });
+  activities.command("create").description("Create an activity").requiredOption("--project <id>", "Project ID or slug").requiredOption("--name <name>", "Activity name").requiredOption("--display-id <displayId>", "Display ID").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/activities`, {
+      name: opts.name,
+      display_id: opts.displayId,
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    });
+    if (opts.json) return json(data);
+    console.log(`Created activity: ${data.display_id} (${data.id})`);
+  });
 }
 
 // src/commands/steps.ts
@@ -3751,6 +3924,120 @@ function registerSteps(program3) {
     const data = await api("GET", `/activities/${opts.activity}/steps`);
     if (opts.json) return json(data);
     table(data, ["id", "display_id", "name", "sort_order"]);
+  });
+  steps.command("create").description("Create a step").requiredOption("--activity <id>", "Activity ID").requiredOption("--name <name>", "Step name").requiredOption("--display-id <displayId>", "Display ID").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (opts) => {
+    const data = await api("POST", `/activities/${opts.activity}/steps`, {
+      name: opts.name,
+      display_id: opts.displayId,
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    });
+    if (opts.json) return json(data);
+    console.log(`Created step: ${data.display_id} (${data.id})`);
+  });
+}
+
+// src/commands/releases.ts
+function registerReleases(program3) {
+  const releases = program3.command("release").description("Manage releases");
+  releases.command("list").description("List releases").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/releases`);
+    if (opts.json) return json(data);
+    table(data, ["id", "name", "target_date", "status", "created_at"]);
+  });
+  releases.command("create").description("Create a release").requiredOption("--project <id>", "Project ID or slug").requiredOption("--name <name>", "Release name").option("--target-date <date>", "Target date (YYYY-MM-DD)").option("--status <status>", "Release status").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/releases`, {
+      name: opts.name,
+      ...opts.targetDate && { target_date: opts.targetDate },
+      ...opts.status && { status: opts.status }
+    });
+    if (opts.json) return json(data);
+    console.log(`Created release: ${data.name} (${data.id})`);
+  });
+  releases.command("assign").description("Assign tasks to a release").argument("<id>", "Release ID").argument("<taskIds...>", "One or more task IDs").action(async (id, taskIds) => {
+    await api("POST", `/releases/${id}/tasks`, { task_ids: taskIds });
+    console.log(`Assigned ${taskIds.length} task(s) to release: ${id}`);
+  });
+  releases.command("remove-task").description("Remove a task from a release").argument("<id>", "Release ID").argument("<taskId>", "Task ID").action(async (id, taskId) => {
+    await api("DELETE", `/releases/${id}/tasks/${taskId}`);
+    console.log(`Removed task ${taskId} from release: ${id}`);
+  });
+}
+
+// src/commands/audit.ts
+function registerAudit(program3) {
+  const audit = program3.command("audit").description("Inspect audit log entries");
+  audit.command("list").description("List audit log entries").requiredOption("--project <id>", "Project ID or slug").option("--entity-type <type>", "Filter by entity type").option("--actor <actor>", "Filter by actor").option("--action <action>", "Filter by action").option("--limit <n>", "Limit results", (value) => parseInt(value, 10)).option("--offset <n>", "Offset results", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const params = new URLSearchParams();
+    if (opts.entityType) params.set("entity_type", opts.entityType);
+    if (opts.actor) params.set("actor", opts.actor);
+    if (opts.action) params.set("action", opts.action);
+    if (opts.limit !== void 0) params.set("limit", String(opts.limit));
+    if (opts.offset !== void 0) params.set("offset", String(opts.offset));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const data = await api("GET", `/projects/${pid}/audit${query}`);
+    if (opts.json) return json(data);
+    table(data.entries, ["created_at", "action", "entity_type", "entity_id", "actor"]);
+  });
+}
+
+// src/commands/chat.ts
+function registerChat(program3) {
+  const chat = program3.command("chat").description("Manage Eden chat threads");
+  chat.command("list").description("List chat threads for a project").requiredOption("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/chat/threads`);
+    if (opts.json) return json(data);
+    table(data, ["id", "summary", "key", "updated_at"]);
+  });
+  chat.command("create").description("Create a new chat thread by sending the first message").requiredOption("--project <id>", "Project ID or slug").requiredOption("--message <text>", "Initial message").option("--new-thread", "Force creation of a new thread").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/chat/threads`, {
+      message: opts.message,
+      ...opts.newThread && { new_thread: true }
+    });
+    if (opts.json) return json(data);
+    console.log(`Created thread: ${data.thread_id}`);
+    console.log(`Jobs: ${data.job_ids.join(", ")}`);
+  });
+  chat.command("messages").description("List messages in a thread").argument("<threadId>", "Thread ID").option("--json", "JSON output").action(async (threadId, opts) => {
+    const data = await api("GET", `/chat/threads/${threadId}/messages`);
+    if (opts.json) return json(data);
+    table(
+      data.map((message) => ({
+        id: message.id,
+        created_at: message.created_at,
+        direction: message.direction,
+        actor: message.actor_type,
+        body: message.body
+      })),
+      ["created_at", "direction", "actor", "body"]
+    );
+  });
+  chat.command("send").description("Send a message to an existing thread").argument("<threadId>", "Thread ID").requiredOption("--message <text>", "Message text").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (threadId, opts) => {
+    const projectId = opts.project ? await autoDetectProject(opts.project) : void 0;
+    const data = await api("POST", `/chat/threads/${threadId}/messages`, {
+      message: opts.message,
+      ...projectId && { projectId }
+    });
+    if (opts.json) return json(data);
+    console.log(`Queued message for thread: ${data.thread_id}`);
+    console.log(`Jobs: ${data.job_ids.join(", ")}`);
+  });
+  chat.command("poll").description("Poll messages for a thread").argument("<threadId>", "Thread ID").option("--json", "JSON output").action(async (threadId, opts) => {
+    const data = await api("GET", `/chat/threads/${threadId}/poll`);
+    if (opts.json) return json(data);
+    table(
+      data.map((message) => ({
+        created_at: message.created_at,
+        direction: message.direction,
+        actor: message.actor_type,
+        body: message.body
+      })),
+      ["created_at", "direction", "actor", "body"]
+    );
   });
 }
 
@@ -3769,4 +4056,7 @@ registerSources(program2);
 registerTasks(program2);
 registerActivities(program2);
 registerSteps(program2);
+registerReleases(program2);
+registerAudit(program2);
+registerChat(program2);
 program2.parse();

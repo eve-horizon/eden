@@ -67,6 +67,7 @@ export function registerReviews(program: Command): void {
     .option('--eve-job-id <id>', 'Eve job ID')
     .option('--json', 'JSON output')
     .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
       let body: Record<string, unknown>;
       if (opts.file) {
         body = JSON.parse(await readFile(opts.file, 'utf8'));
@@ -78,7 +79,7 @@ export function registerReviews(program: Command): void {
           ...(opts.eveJobId && { eve_job_id: opts.eveJobId }),
         };
       }
-      const result = await api<Review>('POST', `/projects/${opts.project}/reviews`, body);
+      const result = await api<Review>('POST', `/projects/${pid}/reviews`, body);
       if (opts.json) return json(result);
       console.log(`Created review: ${result.id} (${result.status}, ${result.expert_count} experts)`);
     });

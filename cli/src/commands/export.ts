@@ -22,7 +22,7 @@ export function registerExport(program: Command): void {
     .option('--project <id>', 'Project ID')
     .action(async (opts) => {
       const pid = await autoDetectProject(opts.project);
-      const data = await api<string>('GET', `/projects/${pid}/export/markdown`);
-      console.log(data);
+      const data = await api<{ markdown: string }>('GET', `/projects/${pid}/export/markdown`);
+      console.log(data.markdown);
     });
 }
