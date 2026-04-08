@@ -1,4 +1,7 @@
 # Eve Horizon Skill Packs
+# Project-local Eden agent skills
+./skills/*
+
 # Public packs (eve-se + eve-work)
 https://github.com/incept5/eve-skillpacks
 
