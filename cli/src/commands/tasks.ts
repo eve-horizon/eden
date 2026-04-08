@@ -14,6 +14,34 @@ interface Task {
   created_at: string;
 }
 
+interface MapTask {
+  id: string;
+  display_id: string;
+  title: string;
+  status?: string;
+  priority?: string;
+  release_id?: string | null;
+  created_at?: string;
+}
+
+interface MapStep {
+  id: string;
+  display_id: string;
+  name: string;
+  tasks: MapTask[];
+}
+
+interface MapActivity {
+  id: string;
+  display_id: string;
+  name: string;
+  steps: MapStep[];
+}
+
+interface MapData {
+  activities: MapActivity[];
+}
+
 interface CreateTaskInput {
   title: string;
   display_id: string;
@@ -37,9 +65,34 @@ export function registerTasks(program: Command): void {
     .option('--status <status>', 'Filter by status')
     .option('--priority <priority>', 'Filter by priority')
     .option('--release-id <id>', 'Filter by release ID')
+    .option('--step <id>', 'Filter by step ID or display ID')
     .option('--json', 'JSON output')
     .action(async (opts) => {
       const pid = await autoDetectProject(opts.project);
+
+      if (opts.step) {
+        const map = await api<MapData>('GET', `/projects/${pid}/map`);
+        const step = map.activities
+          .flatMap((activity) => activity.steps)
+          .find((candidate) =>
+            candidate.id === opts.step ||
+            candidate.display_id === opts.step ||
+            candidate.name === opts.step,
+          );
+        const data: Task[] = (step?.tasks ?? []).map((task) => ({
+          id: task.id,
+          display_id: task.display_id,
+          title: task.title,
+          status: task.status ?? 'unknown',
+          priority: task.priority ?? 'unknown',
+          release_id: task.release_id ?? null,
+          created_at: task.created_at ?? '',
+        }));
+        if (opts.json) return json(data);
+        table(data, ['id', 'display_id', 'title', 'status', 'priority']);
+        return;
+      }
+
       const params = new URLSearchParams();
       if (opts.status) params.set('status', opts.status);
       if (opts.priority) params.set('priority', opts.priority);

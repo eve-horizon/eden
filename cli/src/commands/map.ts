@@ -29,12 +29,13 @@ export function registerMap(program: Command): void {
   program
     .command('map')
     .description('Show the project story map')
+    .argument('[project]', 'Project ID or slug')
     .option('--project <id>', 'Project ID (auto-detected if only one)')
     .option('--persona <code>', 'Filter by persona code')
     .option('--release <id>', 'Filter by release')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
+    .action(async (projectArg, opts) => {
+      const pid = await autoDetectProject(projectArg ?? opts.project);
       const params = new URLSearchParams();
       if (opts.persona) params.set('persona', opts.persona);
       if (opts.release) params.set('release', opts.release);
