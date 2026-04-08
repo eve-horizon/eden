@@ -40,11 +40,15 @@ For any request that changes the map, follow this path and stop:
    ```
 3. Resolve the target step/activity/task by existing `display_id` or exact name from the map.
 4. Write `/tmp/changeset.json` with the requested mutations.
-5. Create the draft:
+5. Emit this exact progress line so the job log records the write path:
+   ```text
+   Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json
+   ```
+6. Create the draft:
    ```bash
    eden changeset create --project "$PID" --file /tmp/changeset.json --json
    ```
-6. Return a short confirmation that names the created changeset and the proposed edits.
+7. Return a short confirmation that names the created changeset and the proposed edits.
 
 Do not branch into any other write path.
 
@@ -161,6 +165,7 @@ Use `cat <<'PAYLOAD'` and plain shell only. The sandbox runtime may not have Pyt
 ## Rules
 
 - Always read the current map before proposing changes
+- Before any changeset write, emit the exact command line `Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json`
 - **NEVER create entities directly** — always use `eden changeset create`. All map mutations must go through changesets.
 - **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.
 - Prefer updating existing entities over creating duplicates

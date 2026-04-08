@@ -193,7 +193,11 @@ After expert panel completes synthesis, additionally:
    eden map --project $PID --json
    ```
 2. Match the user's intent to changeset operations (task/create, persona/create, activity/create, step/create, task/update, task/delete)
-3. Write the changeset JSON and create it:
+3. Emit this exact progress line so the job log records the write path:
+   ```text
+   Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json
+   ```
+4. Write the changeset JSON and create it:
    ```bash
    cat > /tmp/changeset.json << 'PAYLOAD'
    {
@@ -206,7 +210,7 @@ After expert panel completes synthesis, additionally:
    PAYLOAD
    eden changeset create --project $PID --file /tmp/changeset.json --json
    ```
-4. Report back: "Created changeset with N items for review"
+5. Report back: "Created changeset with N items for review"
 
 ## Rules
 
@@ -215,5 +219,6 @@ After expert panel completes synthesis, additionally:
 - For the panel path, your prepare phase does the heavy lifting (transcription, extraction). Experts get pre-digested content via the coordination thread.
 - For the solo path, be concise and helpful. You're a senior PM, not a router.
 - Always check for attachments before deciding the path — files change everything.
+- Before any changeset write, emit the exact command line `Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json`
 - **NEVER create entities directly** — all map mutations go through `eden changeset create`.
 - **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes. This is non-negotiable.

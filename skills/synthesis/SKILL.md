@@ -55,6 +55,10 @@ The document has been **materialized into your workspace** by the platform.
 
 Write the JSON payload to a temp file, then submit it:
 
+```text
+Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json
+```
+
 ```bash
 cat > /tmp/changeset.json << 'JSON'
 {
@@ -138,5 +142,6 @@ eden source update-status --source "$SRC_ID" --status failed --error "Synthesis 
 - Include reasoning for every proposed change
 - When in doubt, create a question rather than making assumptions
 - Keep the changeset focused — one changeset per source document
+- Before any changeset write, emit the exact command line `Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json`
 - **Items are auto-sorted by dependency order** (persona -> activity -> step -> task -> question) during accept, so ordering in the changeset doesn't matter
 - **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.

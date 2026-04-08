@@ -25,7 +25,7 @@ The Eden CLI is available as `eden` on PATH. It handles auth and URLs automatica
    eden map --project $PID --json
    ```
 4. Determine if the answer implies a map change
-5. If yes → create changeset (see below)
+5. If yes → emit the exact progress line `Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json`, then create changeset (see below)
 6. If no → no action (question already marked answered by the evolve endpoint)
 
 ## Decision Criteria
@@ -82,4 +82,5 @@ PID=$(eden projects list --json | jq -r '.[0].id')
 - Include the full context (question text + answer) in the changeset reasoning
 - Reference the original question in changeset item descriptions
 - Prefer minimal changes — update existing entities rather than creating new ones
+- Before any changeset write, emit the exact command line `Running: eden changeset create --project "$PID" --file /tmp/changeset.json --json`
 - **NEVER call `eden changeset accept` or `eden changeset reject`.** Changesets are created as drafts for human review. Only humans approve or reject changes.
