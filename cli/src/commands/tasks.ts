@@ -56,7 +56,23 @@ interface CreateTaskInput {
 }
 
 export function registerTasks(program: Command): void {
-  const tasks = program.command('task').alias('tasks').description('Manage tasks');
+  const tasks = program
+    .command('task')
+    .alias('tasks')
+    .description('Manage tasks')
+    .option('--project <id>', 'Project ID')
+    .option('--status <status>', 'Filter by status')
+    .option('--priority <priority>', 'Filter by priority')
+    .option('--release-id <id>', 'Filter by release ID')
+    .option('--step <id>', 'Filter by step ID or display ID')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      if (!opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
+        console.log(tasks.helpInformation());
+        return;
+      }
+      await listTasks(opts);
+    });
 
   tasks
     .command('list')
@@ -68,39 +84,22 @@ export function registerTasks(program: Command): void {
     .option('--step <id>', 'Filter by step ID or display ID')
     .option('--json', 'JSON output')
     .action(async (opts) => {
-      const pid = await autoDetectProject(opts.project);
-
-      if (opts.step) {
-        const map = await api<MapData>('GET', `/projects/${pid}/map`);
-        const step = map.activities
-          .flatMap((activity) => activity.steps)
-          .find((candidate) =>
-            candidate.id === opts.step ||
-            candidate.display_id === opts.step ||
-            candidate.name === opts.step,
-          );
-        const data: Task[] = (step?.tasks ?? []).map((task) => ({
-          id: task.id,
-          display_id: task.display_id,
-          title: task.title,
-          status: task.status ?? 'unknown',
-          priority: task.priority ?? 'unknown',
-          release_id: task.release_id ?? null,
-          created_at: task.created_at ?? '',
-        }));
-        if (opts.json) return json(data);
-        table(data, ['id', 'display_id', 'title', 'status', 'priority']);
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (opts.status) params.set('status', opts.status);
-      if (opts.priority) params.set('priority', opts.priority);
-      if (opts.releaseId) params.set('release_id', opts.releaseId);
-      const qs = params.toString() ? `?${params}` : '';
-      const data = await api<Task[]>('GET', `/projects/${pid}/tasks${qs}`);
-      if (opts.json) return json(data);
-      table(data, ['id', 'display_id', 'title', 'status', 'priority']);
+      const parentOpts = tasks.opts<{
+        json?: boolean;
+        priority?: string;
+        project?: string;
+        releaseId?: string;
+        status?: string;
+        step?: string;
+      }>();
+      await listTasks({
+        json: opts.json ?? parentOpts.json,
+        priority: opts.priority ?? parentOpts.priority,
+        project: opts.project ?? parentOpts.project,
+        releaseId: opts.releaseId ?? parentOpts.releaseId,
+        status: opts.status ?? parentOpts.status,
+        step: opts.step ?? parentOpts.step,
+      });
     });
 
   tasks
@@ -183,5 +182,48 @@ export function registerTasks(program: Command): void {
       });
       if (opts.json) return json(data);
       console.log(`Placed task: ${id} -> ${opts.step} as ${opts.role}`);
-    });
+      });
+}
+
+async function listTasks(opts: {
+  json?: boolean;
+  priority?: string;
+  project?: string;
+  releaseId?: string;
+  status?: string;
+  step?: string;
+}): Promise<void> {
+  const pid = await autoDetectProject(opts.project);
+
+  if (opts.step) {
+    const map = await api<MapData>('GET', `/projects/${pid}/map`);
+    const step = map.activities
+      .flatMap((activity) => activity.steps)
+      .find((candidate) =>
+        candidate.id === opts.step ||
+        candidate.display_id === opts.step ||
+        candidate.name === opts.step,
+      );
+    const data: Task[] = (step?.tasks ?? []).map((task) => ({
+      id: task.id,
+      display_id: task.display_id,
+      title: task.title,
+      status: task.status ?? 'unknown',
+      priority: task.priority ?? 'unknown',
+      release_id: task.release_id ?? null,
+      created_at: task.created_at ?? '',
+    }));
+    if (opts.json) return json(data);
+    table(data, ['id', 'display_id', 'title', 'status', 'priority']);
+    return;
+  }
+
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.priority) params.set('priority', opts.priority);
+  if (opts.releaseId) params.set('release_id', opts.releaseId);
+  const qs = params.toString() ? `?${params}` : '';
+  const data = await api<Task[]>('GET', `/projects/${pid}/tasks${qs}`);
+  if (opts.json) return json(data);
+  table(data, ['id', 'display_id', 'title', 'status', 'priority']);
 }

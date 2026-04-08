@@ -3852,35 +3852,23 @@ function inferContentType(filename) {
 // src/commands/tasks.ts
 var import_promises5 = require("fs/promises");
 function registerTasks(program3) {
-  const tasks = program3.command("task").alias("tasks").description("Manage tasks");
-  tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (opts) => {
-    const pid = await autoDetectProject(opts.project);
-    if (opts.step) {
-      const map = await api("GET", `/projects/${pid}/map`);
-      const step = map.activities.flatMap((activity) => activity.steps).find(
-        (candidate) => candidate.id === opts.step || candidate.display_id === opts.step || candidate.name === opts.step
-      );
-      const data2 = (step?.tasks ?? []).map((task) => ({
-        id: task.id,
-        display_id: task.display_id,
-        title: task.title,
-        status: task.status ?? "unknown",
-        priority: task.priority ?? "unknown",
-        release_id: task.release_id ?? null,
-        created_at: task.created_at ?? ""
-      }));
-      if (opts.json) return json(data2);
-      table(data2, ["id", "display_id", "title", "status", "priority"]);
+  const tasks = program3.command("task").alias("tasks").description("Manage tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (opts) => {
+    if (!opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
+      console.log(tasks.helpInformation());
       return;
     }
-    const params = new URLSearchParams();
-    if (opts.status) params.set("status", opts.status);
-    if (opts.priority) params.set("priority", opts.priority);
-    if (opts.releaseId) params.set("release_id", opts.releaseId);
-    const qs = params.toString() ? `?${params}` : "";
-    const data = await api("GET", `/projects/${pid}/tasks${qs}`);
-    if (opts.json) return json(data);
-    table(data, ["id", "display_id", "title", "status", "priority"]);
+    await listTasks(opts);
+  });
+  tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (opts) => {
+    const parentOpts = tasks.opts();
+    await listTasks({
+      json: opts.json ?? parentOpts.json,
+      priority: opts.priority ?? parentOpts.priority,
+      project: opts.project ?? parentOpts.project,
+      releaseId: opts.releaseId ?? parentOpts.releaseId,
+      status: opts.status ?? parentOpts.status,
+      step: opts.step ?? parentOpts.step
+    });
   });
   tasks.command("show").alias("get").description("Show task details").argument("<id>", "Task ID").option("--json", "JSON output").action(async (id, opts) => {
     const data = await api("GET", `/tasks/${id}`);
@@ -3928,6 +3916,35 @@ function registerTasks(program3) {
     if (opts.json) return json(data);
     console.log(`Placed task: ${id} -> ${opts.step} as ${opts.role}`);
   });
+}
+async function listTasks(opts) {
+  const pid = await autoDetectProject(opts.project);
+  if (opts.step) {
+    const map = await api("GET", `/projects/${pid}/map`);
+    const step = map.activities.flatMap((activity) => activity.steps).find(
+      (candidate) => candidate.id === opts.step || candidate.display_id === opts.step || candidate.name === opts.step
+    );
+    const data2 = (step?.tasks ?? []).map((task) => ({
+      id: task.id,
+      display_id: task.display_id,
+      title: task.title,
+      status: task.status ?? "unknown",
+      priority: task.priority ?? "unknown",
+      release_id: task.release_id ?? null,
+      created_at: task.created_at ?? ""
+    }));
+    if (opts.json) return json(data2);
+    table(data2, ["id", "display_id", "title", "status", "priority"]);
+    return;
+  }
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.priority) params.set("priority", opts.priority);
+  if (opts.releaseId) params.set("release_id", opts.releaseId);
+  const qs = params.toString() ? `?${params}` : "";
+  const data = await api("GET", `/projects/${pid}/tasks${qs}`);
+  if (opts.json) return json(data);
+  table(data, ["id", "display_id", "title", "status", "priority"]);
 }
 
 // src/commands/activities.ts
