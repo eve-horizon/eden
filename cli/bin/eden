@@ -3953,33 +3953,15 @@ function registerActivities(program3) {
 
 // src/commands/steps.ts
 function registerSteps(program3) {
-  const steps = program3.command("step").alias("steps").description("Manage steps");
-  steps.command("list").description("List steps for an activity or project").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+  const steps = program3.command("step").alias("steps").description("Manage steps").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
     if (!opts.activity && !opts.project) {
-      console.error("Provide --activity <id> or --project <id>");
-      process.exit(1);
-    }
-    if (opts.project) {
-      const pid = await autoDetectProject(opts.project);
-      const map = await api("GET", `/projects/${pid}/map`);
-      const data2 = map.activities.flatMap(
-        (activity) => activity.steps.map((step) => ({
-          id: step.id,
-          name: step.name,
-          display_id: step.display_id,
-          sort_order: step.sort_order,
-          activity_id: activity.id,
-          activity_display_id: activity.display_id,
-          activity_name: activity.name
-        }))
-      );
-      if (opts.json) return json(data2);
-      table(data2, ["id", "display_id", "name", "activity_display_id", "activity_name", "sort_order"]);
+      console.log(steps.helpInformation());
       return;
     }
-    const data = await api("GET", `/activities/${opts.activity}/steps`);
-    if (opts.json) return json(data);
-    table(data, ["id", "display_id", "name", "sort_order"]);
+    await listSteps(opts);
+  });
+  steps.command("list").description("List steps for an activity or project").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    await listSteps(opts);
   });
   steps.command("create").description("Create a step").requiredOption("--activity <id>", "Activity ID").requiredOption("--name <name>", "Step name").requiredOption("--display-id <displayId>", "Display ID").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (opts) => {
     const data = await api("POST", `/activities/${opts.activity}/steps`, {
@@ -3990,6 +3972,33 @@ function registerSteps(program3) {
     if (opts.json) return json(data);
     console.log(`Created step: ${data.display_id} (${data.id})`);
   });
+}
+async function listSteps(opts) {
+  if (!opts.activity && !opts.project) {
+    console.error("Provide --activity <id> or --project <id>");
+    process.exit(1);
+  }
+  if (opts.project) {
+    const pid = await autoDetectProject(opts.project);
+    const map = await api("GET", `/projects/${pid}/map`);
+    const data2 = map.activities.flatMap(
+      (activity) => activity.steps.map((step) => ({
+        id: step.id,
+        name: step.name,
+        display_id: step.display_id,
+        sort_order: step.sort_order,
+        activity_id: activity.id,
+        activity_display_id: activity.display_id,
+        activity_name: activity.name
+      }))
+    );
+    if (opts.json) return json(data2);
+    table(data2, ["id", "display_id", "name", "activity_display_id", "activity_name", "sort_order"]);
+    return;
+  }
+  const data = await api("GET", `/activities/${opts.activity}/steps`);
+  if (opts.json) return json(data);
+  table(data, ["id", "display_id", "name", "sort_order"]);
 }
 
 // src/commands/releases.ts
