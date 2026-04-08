@@ -16,7 +16,20 @@ interface Question {
 }
 
 export function registerQuestions(program: Command): void {
-  const questions = program.command('question').alias('questions').description('Manage questions');
+  const questions = program
+    .command('question')
+    .alias('questions')
+    .description('Manage questions')
+    .argument('[id]', 'Question ID')
+    .option('--project <id>', 'Project ID (ignored for question lookups)')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      if (!id) {
+        console.log(questions.helpInformation());
+        return;
+      }
+      await showQuestion(id, opts);
+    });
 
   questions
     .command('list')
@@ -49,21 +62,13 @@ export function registerQuestions(program: Command): void {
     .alias('get')
     .description('Show question details')
     .argument('<id>', 'Question ID')
+    .option('--project <id>', 'Project ID (ignored for question lookups)')
     .option('--json', 'JSON output')
     .action(async (id, opts) => {
-      const data = await api<Question>('GET', `/questions/${id}`);
-      if (opts.json) return json(data);
-      console.log(`Question: ${data.id}`);
-      console.log(`Status: ${data.status}`);
-      console.log(`Category: ${data.category ?? '(none)'}`);
-      console.log(`Text: ${data.text ?? data.question ?? ''}`);
-      if (data.answer) console.log(`Answer: ${data.answer}`);
-      if (data.references?.length) {
-        console.log('References:');
-        for (const ref of data.references) {
-          console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
-        }
-      }
+      const parentOpts = questions.opts<{ json?: boolean }>();
+      await showQuestion(id, {
+        json: opts.json ?? parentOpts.json,
+      });
     });
 
   questions
@@ -101,6 +106,7 @@ export function registerQuestions(program: Command): void {
     .command('update')
     .description('Update a question')
     .argument('<id>', 'Question ID')
+    .option('--project <id>', 'Project ID (ignored for question updates)')
     .option('--answer <text>', 'Answer text')
     .option('--status <status>', 'Status')
     .option('--priority <priority>', 'Priority')
@@ -126,9 +132,29 @@ export function registerQuestions(program: Command): void {
     .command('evolve')
     .description('Evolve a question with an answer')
     .argument('<id>', 'Question ID')
+    .option('--project <id>', 'Project ID (ignored for question evolution)')
     .requiredOption('--answer <text>', 'Answer text')
     .action(async (id, opts) => {
       await api('POST', `/questions/${id}/evolve`, { answer: opts.answer });
       console.log(`Evolved: ${id}`);
     });
+}
+
+async function showQuestion(
+  id: string,
+  opts: { json?: boolean },
+): Promise<void> {
+  const data = await api<Question>('GET', `/questions/${id}`);
+  if (opts.json) return json(data);
+  console.log(`Question: ${data.id}`);
+  console.log(`Status: ${data.status}`);
+  console.log(`Category: ${data.category ?? '(none)'}`);
+  console.log(`Text: ${data.text ?? data.question ?? ''}`);
+  if (data.answer) console.log(`Answer: ${data.answer}`);
+  if (data.references?.length) {
+    console.log('References:');
+    for (const ref of data.references) {
+      console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
+    }
+  }
 }

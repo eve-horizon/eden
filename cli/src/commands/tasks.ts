@@ -60,15 +60,20 @@ export function registerTasks(program: Command): void {
     .command('task')
     .alias('tasks')
     .description('Manage tasks')
+    .argument('[id]', 'Task ID or display ID')
     .option('--project <id>', 'Project ID')
     .option('--status <status>', 'Filter by status')
     .option('--priority <priority>', 'Filter by priority')
     .option('--release-id <id>', 'Filter by release ID')
     .option('--step <id>', 'Filter by step ID or display ID')
     .option('--json', 'JSON output')
-    .action(async (opts) => {
-      if (!opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
+    .action(async (id, opts) => {
+      if (!id && !opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
         console.log(tasks.helpInformation());
+        return;
+      }
+      if (id) {
+        await showTask(id, opts);
         return;
       }
       await listTasks(opts);
@@ -107,15 +112,17 @@ export function registerTasks(program: Command): void {
     .alias('get')
     .description('Show task details')
     .argument('<id>', 'Task ID')
+    .option('--project <id>', 'Project ID or slug (used to resolve display IDs)')
     .option('--json', 'JSON output')
     .action(async (id, opts) => {
-      const data = await api<Task>('GET', `/tasks/${id}`);
-      if (opts.json) return json(data);
-      console.log(`Task: ${data.display_id} (${data.id})`);
-      console.log(`Title: ${data.title}`);
-      console.log(`Status: ${data.status}`);
-      console.log(`Priority: ${data.priority}`);
-      if (data.release_id) console.log(`Release: ${data.release_id}`);
+      const parentOpts = tasks.opts<{
+        json?: boolean;
+        project?: string;
+      }>();
+      await showTask(id, {
+        json: opts.json ?? parentOpts.json,
+        project: opts.project ?? parentOpts.project,
+      });
     });
 
   tasks
@@ -226,4 +233,42 @@ async function listTasks(opts: {
   const data = await api<Task[]>('GET', `/projects/${pid}/tasks${qs}`);
   if (opts.json) return json(data);
   table(data, ['id', 'display_id', 'title', 'status', 'priority']);
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function showTask(id: string, opts: {
+  json?: boolean;
+  project?: string;
+}): Promise<void> {
+  const resolved = await resolveTaskId(id, opts.project);
+  const data = await api<Task>('GET', `/tasks/${resolved}`);
+  if (opts.json) return json(data);
+  console.log(`Task: ${data.display_id} (${data.id})`);
+  console.log(`Title: ${data.title}`);
+  console.log(`Status: ${data.status}`);
+  console.log(`Priority: ${data.priority}`);
+  if (data.release_id) console.log(`Release: ${data.release_id}`);
+}
+
+async function resolveTaskId(id: string, project?: string): Promise<string> {
+  if (project) {
+    const pid = await autoDetectProject(project);
+    const tasks = await api<Task[]>('GET', `/projects/${pid}/tasks`);
+    const match = tasks.find((candidate) =>
+      candidate.id === id ||
+      candidate.display_id === id ||
+      candidate.title === id,
+    );
+    if (match) {
+      return match.id;
+    }
+  }
+
+  if (UUID_RE.test(id)) {
+    return id;
+  }
+
+  console.error(`Task "${id}" looks like a display ID or title. Re-run with --project <id-or-slug> so it can be resolved safely.`);
+  process.exit(1);
 }

@@ -4,7 +4,7 @@ agents:
   pm-coordinator:
     slug: pm
     name: "PM Coordinator"
-    description: "PM coordinator — triages requests, processes files, dispatches expert panel when needed, synthesizes results"
+    description: "PM coordinator — triages requests, processes files, dispatches expert panel when needed, synthesizes results. For any map mutation, inspect current state with read-only eden commands and create exactly one draft changeset with `eden changeset create`; never call direct persona/activity/step/task create or update commands, and never accept changesets."
     skill: coordinator
     harness_profile: coordinator
     workflow: coordinator
@@ -146,7 +146,7 @@ agents:
   synthesis:
     slug: synthesis
     name: "Synthesis Agent"
-    description: "Compares extracted requirements against current map state and creates changesets"
+    description: "Compares extracted requirements against current map state and creates draft changesets only via `eden changeset create`. Read state with `eden map`, `eden step list`, and `eden task list`; never mutate personas/activities/steps/tasks directly and never accept changesets."
     skill: synthesis
     harness_profile: coordinator
     workflow: assistant
@@ -173,7 +173,7 @@ agents:
   map-chat:
     slug: map-chat
     name: "Map Chat"
-    description: "Conversational map editing — interprets natural language requests and proposes changesets"
+    description: "Conversational map editing — interprets natural language requests and proposes draft changesets only via `eden changeset create`. Read current state first with `eden map`, `eden step list --project`, and `eden task list --project`; never create personas/activities/steps/tasks directly and never accept changesets."
     skill: map-chat
     harness_profile: coordinator
     workflow: assistant
@@ -234,7 +234,7 @@ agents:
   question-agent:
     slug: question-agent
     name: "Question Agent"
-    description: "Evaluates answered questions and proposes map changes when the answer implies an update"
+    description: "Evaluates answered questions and, when the answer implies a map update, proposes a draft changeset via `eden changeset create`. Inspect the answered question and current map state with read-only eden commands; never mutate personas/activities/steps/tasks directly and never accept changesets."
     skill: question
     harness_profile: expert
     workflow: assistant

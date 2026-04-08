@@ -3631,7 +3631,13 @@ async function listPersonas(opts) {
 // src/commands/questions.ts
 var import_promises2 = require("fs/promises");
 function registerQuestions(program3) {
-  const questions = program3.command("question").alias("questions").description("Manage questions");
+  const questions = program3.command("question").alias("questions").description("Manage questions").argument("[id]", "Question ID").option("--project <id>", "Project ID (ignored for question lookups)").option("--json", "JSON output").action(async (id, opts) => {
+    if (!id) {
+      console.log(questions.helpInformation());
+      return;
+    }
+    await showQuestion(id, opts);
+  });
   questions.command("list").description("List questions").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (open/answered/dismissed)").option("--category <cat>", "Filter by category").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const params = new URLSearchParams();
@@ -3650,20 +3656,11 @@ function registerQuestions(program3) {
       ["id", "question", "status", "category"]
     );
   });
-  questions.command("show").alias("get").description("Show question details").argument("<id>", "Question ID").option("--json", "JSON output").action(async (id, opts) => {
-    const data = await api("GET", `/questions/${id}`);
-    if (opts.json) return json(data);
-    console.log(`Question: ${data.id}`);
-    console.log(`Status: ${data.status}`);
-    console.log(`Category: ${data.category ?? "(none)"}`);
-    console.log(`Text: ${data.text ?? data.question ?? ""}`);
-    if (data.answer) console.log(`Answer: ${data.answer}`);
-    if (data.references?.length) {
-      console.log("References:");
-      for (const ref of data.references) {
-        console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
-      }
-    }
+  questions.command("show").alias("get").description("Show question details").argument("<id>", "Question ID").option("--project <id>", "Project ID (ignored for question lookups)").option("--json", "JSON output").action(async (id, opts) => {
+    const parentOpts = questions.opts();
+    await showQuestion(id, {
+      json: opts.json ?? parentOpts.json
+    });
   });
   questions.command("create").description("Create a question (inline or from JSON file)").requiredOption("--project <id>", "Project ID").option("--file <path>", "JSON file with question data").option("--question <text>", "Question text (inline)").option("--priority <p>", "Priority (high/medium/low)").option("--category <cat>", "Category (conflict/gap/duplicate/assumption)").option("--cross-cutting", "Mark as cross-cutting").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
@@ -3685,7 +3682,7 @@ function registerQuestions(program3) {
     if (opts.json) return json(result);
     console.log(`Created question: ${result.id} (${result.status})`);
   });
-  questions.command("update").description("Update a question").argument("<id>", "Question ID").option("--answer <text>", "Answer text").option("--status <status>", "Status").option("--priority <priority>", "Priority").option("--category <category>", "Category").option("--json", "JSON output").action(async (id, opts) => {
+  questions.command("update").description("Update a question").argument("<id>", "Question ID").option("--project <id>", "Project ID (ignored for question updates)").option("--answer <text>", "Answer text").option("--status <status>", "Status").option("--priority <priority>", "Priority").option("--category <category>", "Category").option("--json", "JSON output").action(async (id, opts) => {
     const body = {
       ...opts.answer && { answer: opts.answer },
       ...opts.status && { status: opts.status },
@@ -3700,10 +3697,25 @@ function registerQuestions(program3) {
     if (opts.json) return json(result);
     console.log(`Updated question: ${result.id} (${result.status})`);
   });
-  questions.command("evolve").description("Evolve a question with an answer").argument("<id>", "Question ID").requiredOption("--answer <text>", "Answer text").action(async (id, opts) => {
+  questions.command("evolve").description("Evolve a question with an answer").argument("<id>", "Question ID").option("--project <id>", "Project ID (ignored for question evolution)").requiredOption("--answer <text>", "Answer text").action(async (id, opts) => {
     await api("POST", `/questions/${id}/evolve`, { answer: opts.answer });
     console.log(`Evolved: ${id}`);
   });
+}
+async function showQuestion(id, opts) {
+  const data = await api("GET", `/questions/${id}`);
+  if (opts.json) return json(data);
+  console.log(`Question: ${data.id}`);
+  console.log(`Status: ${data.status}`);
+  console.log(`Category: ${data.category ?? "(none)"}`);
+  console.log(`Text: ${data.text ?? data.question ?? ""}`);
+  if (data.answer) console.log(`Answer: ${data.answer}`);
+  if (data.references?.length) {
+    console.log("References:");
+    for (const ref of data.references) {
+      console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
+    }
+  }
 }
 
 // src/commands/search.ts
@@ -3865,9 +3877,13 @@ function inferContentType(filename) {
 // src/commands/tasks.ts
 var import_promises5 = require("fs/promises");
 function registerTasks(program3) {
-  const tasks = program3.command("task").alias("tasks").description("Manage tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (opts) => {
-    if (!opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
+  const tasks = program3.command("task").alias("tasks").description("Manage tasks").argument("[id]", "Task ID or display ID").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (id, opts) => {
+    if (!id && !opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
       console.log(tasks.helpInformation());
+      return;
+    }
+    if (id) {
+      await showTask(id, opts);
       return;
     }
     await listTasks(opts);
@@ -3883,14 +3899,12 @@ function registerTasks(program3) {
       step: opts.step ?? parentOpts.step
     });
   });
-  tasks.command("show").alias("get").description("Show task details").argument("<id>", "Task ID").option("--json", "JSON output").action(async (id, opts) => {
-    const data = await api("GET", `/tasks/${id}`);
-    if (opts.json) return json(data);
-    console.log(`Task: ${data.display_id} (${data.id})`);
-    console.log(`Title: ${data.title}`);
-    console.log(`Status: ${data.status}`);
-    console.log(`Priority: ${data.priority}`);
-    if (data.release_id) console.log(`Release: ${data.release_id}`);
+  tasks.command("show").alias("get").description("Show task details").argument("<id>", "Task ID").option("--project <id>", "Project ID or slug (used to resolve display IDs)").option("--json", "JSON output").action(async (id, opts) => {
+    const parentOpts = tasks.opts();
+    await showTask(id, {
+      json: opts.json ?? parentOpts.json,
+      project: opts.project ?? parentOpts.project
+    });
   });
   tasks.command("create").description("Create a task").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with task data").option("--title <title>", "Task title").option("--display-id <displayId>", "Task display ID").option("--user-story <story>", "User story").option("--acceptance-criteria <text>", "Acceptance criteria text").option("--priority <priority>", "Priority").option("--status <status>", "Status").option("--device <device>", "Device").option("--lifecycle <lifecycle>", "Lifecycle").option("--source-type <type>", "Source type").option("--source-excerpt <text>", "Source excerpt").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
@@ -3959,6 +3973,34 @@ async function listTasks(opts) {
   if (opts.json) return json(data);
   table(data, ["id", "display_id", "title", "status", "priority"]);
 }
+var UUID_RE2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function showTask(id, opts) {
+  const resolved = await resolveTaskId(id, opts.project);
+  const data = await api("GET", `/tasks/${resolved}`);
+  if (opts.json) return json(data);
+  console.log(`Task: ${data.display_id} (${data.id})`);
+  console.log(`Title: ${data.title}`);
+  console.log(`Status: ${data.status}`);
+  console.log(`Priority: ${data.priority}`);
+  if (data.release_id) console.log(`Release: ${data.release_id}`);
+}
+async function resolveTaskId(id, project) {
+  if (project) {
+    const pid = await autoDetectProject(project);
+    const tasks = await api("GET", `/projects/${pid}/tasks`);
+    const match = tasks.find(
+      (candidate) => candidate.id === id || candidate.display_id === id || candidate.title === id
+    );
+    if (match) {
+      return match.id;
+    }
+  }
+  if (UUID_RE2.test(id)) {
+    return id;
+  }
+  console.error(`Task "${id}" looks like a display ID or title. Re-run with --project <id-or-slug> so it can be resolved safely.`);
+  process.exit(1);
+}
 
 // src/commands/activities.ts
 function registerActivities(program3) {
@@ -3983,9 +4025,13 @@ function registerActivities(program3) {
 
 // src/commands/steps.ts
 function registerSteps(program3) {
-  const steps = program3.command("step").alias("steps").description("Manage steps").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
-    if (!opts.activity && !opts.project) {
+  const steps = program3.command("step").alias("steps").description("Manage steps").argument("[id]", "Step ID, display ID, or name").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    if (!id && !opts.activity && !opts.project) {
       console.log(steps.helpInformation());
+      return;
+    }
+    if (id) {
+      await showStep(id, opts);
       return;
     }
     await listSteps(opts);
@@ -4001,6 +4047,14 @@ function registerSteps(program3) {
     });
     if (opts.json) return json(data);
     console.log(`Created step: ${data.display_id} (${data.id})`);
+  });
+  steps.command("show").alias("get").description("Show step details").argument("<id>", "Step ID, display ID, or name").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const parentOpts = steps.opts();
+    await showStep(id, {
+      activity: opts.activity ?? parentOpts.activity,
+      json: opts.json ?? parentOpts.json,
+      project: opts.project ?? parentOpts.project
+    });
   });
 }
 async function listSteps(opts) {
@@ -4029,6 +4083,45 @@ async function listSteps(opts) {
   const data = await api("GET", `/activities/${opts.activity}/steps`);
   if (opts.json) return json(data);
   table(data, ["id", "display_id", "name", "sort_order"]);
+}
+async function showStep(optsId, opts) {
+  const data = await listStepsData(opts);
+  const step = data.find(
+    (candidate) => candidate.id === optsId || candidate.display_id === optsId || candidate.name === optsId
+  );
+  if (!step) {
+    console.error(`Step not found: "${optsId}"`);
+    process.exit(1);
+  }
+  if (opts.json) return json(step);
+  console.log(`Step: ${step.display_id} (${step.id})`);
+  console.log(`Name: ${step.name}`);
+  if (step.activity_display_id || step.activity_name) {
+    console.log(`Activity: ${step.activity_display_id ?? step.activity_id ?? "(unknown)"}${step.activity_name ? ` ${step.activity_name}` : ""}`);
+  }
+  console.log(`Sort Order: ${step.sort_order}`);
+}
+async function listStepsData(opts) {
+  if (!opts.activity && !opts.project) {
+    console.error("Provide --activity <id> or --project <id>");
+    process.exit(1);
+  }
+  if (opts.project) {
+    const pid = await autoDetectProject(opts.project);
+    const map = await api("GET", `/projects/${pid}/map`);
+    return map.activities.flatMap(
+      (activity) => activity.steps.map((step) => ({
+        id: step.id,
+        name: step.name,
+        display_id: step.display_id,
+        sort_order: step.sort_order,
+        activity_id: activity.id,
+        activity_display_id: activity.display_id,
+        activity_name: activity.name
+      }))
+    );
+  }
+  return api("GET", `/activities/${opts.activity}/steps`);
 }
 
 // src/commands/releases.ts
