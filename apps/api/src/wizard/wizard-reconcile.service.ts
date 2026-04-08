@@ -136,14 +136,19 @@ export class WizardReconcileService {
   // -------------------------------------------------------------------------
 
   /**
-   * Find wizard-generated drafts on this project that look orphaned:
+   * Find wizard-generated drafts on this project that look orphaned.
    *
-   * - source = 'map-generator'
+   * Binding is by audit-log recency, not by `changesets.source`. The
+   * map-generator agent currently writes `source='document'` when invoked
+   * with a `source_id` (and the v1 auto-accept fallback in
+   * getGenerateStatus also intentionally drops the source filter for the
+   * same reason). The strong link is the `generate_map` audit entry whose
+   * `job_id` is the wizard's Eve job:
+   *
    * - status = 'draft'
    * - has at least one item (the agent finished writing)
    * - older than 30 seconds (don't race an in-flight poll)
    * - has a matching `generate_map` audit entry within 15 minutes prior
-   *   so we can bind it to the triggering job_id
    *
    * LIMIT 5 caps blast radius if something goes wrong.
    */
@@ -164,7 +169,6 @@ export class WizardReconcileService {
           AND a.created_at <= c.created_at
           AND a.created_at >= c.created_at - interval '15 minutes'
         WHERE c.project_id = $1
-          AND c.source = 'map-generator'
           AND c.status = 'draft'
           AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
           AND c.created_at < now() - interval '30 seconds'
