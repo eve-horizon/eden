@@ -22,11 +22,10 @@ agents:
     # Generator — fast structured output (story map generation)
     generator:
       - harness: claude
-        model: haiku
-        reasoning_effort: low
+        model: sonnet
+        reasoning_effort: high
 
     # Monitor — lightweight classification
     monitor:
       - harness: claude
         model: sonnet
-        reasoning_effort: low

@@ -24,17 +24,33 @@ const ACCEPTED_TYPES = [
 
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.txt', '.docx', '.doc', '.markdown'];
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// PDFs ride as Eve resource_refs and are read natively by Claude, so they
+// can go up to Anthropic's per-document content-block ceiling (~32 MB).
+// Non-PDFs still go through server-side extraction, so they stay capped at
+// the original 10 MB where pdf-parse/mammoth stay responsive.
+const MAX_PDF_SIZE = 32 * 1024 * 1024; // 32 MB — Claude's native PDF ceiling
+const MAX_OTHER_SIZE = 10 * 1024 * 1024; // 10 MB — pdf-parse/mammoth fallback
+const LARGE_FILE_WARN_THRESHOLD = 10 * 1024 * 1024; // 10 MB — informational
 const MAX_POLL_DURATION_MS = 600_000; // 10 minutes
 const SLOW_POLL_THRESHOLD_MS = 90_000; // 90 seconds — show "taking longer" message
+
+function isPdfFile(file: File): boolean {
+  return (
+    file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+  );
+}
 
 function isAcceptedFile(file: File): string | null {
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
   if (!ACCEPTED_TYPES.includes(file.type) && !ACCEPTED_EXTENSIONS.includes(ext)) {
     return 'Unsupported file type. Accepted: PDF, Markdown, Word, text.';
   }
-  if (file.size > MAX_FILE_SIZE) {
-    return `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum is 10MB.`;
+  const isPdf = isPdfFile(file);
+  const limit = isPdf ? MAX_PDF_SIZE : MAX_OTHER_SIZE;
+  if (file.size > limit) {
+    const limitMb = (limit / 1024 / 1024).toFixed(0);
+    const sizeMb = (file.size / 1024 / 1024).toFixed(1);
+    return `File too large (${sizeMb}MB). Maximum is ${limitMb}MB${isPdf ? '' : ' for this file type (PDF accepts up to 32MB)'}.`;
   }
   return null;
 }
@@ -687,6 +703,9 @@ function FileDropZone({
               className="text-sm text-eden-text truncate flex-1"
             >
               {file.name}
+              <span className="text-eden-text-2 ml-2 font-normal">
+                ({(file.size / 1024 / 1024).toFixed(1)} MB)
+              </span>
             </span>
             <button
               data-testid="wizard-file-remove"
@@ -710,7 +729,7 @@ function FileDropZone({
               (optional)
             </p>
             <p className="text-xs text-eden-text-2 mt-0.5">
-              Drop a file here or click to browse — PDF, Markdown, Word, text — up to 10MB
+              Drop a file here or click to browse — PDF up to 32MB, Markdown/Word/text up to 10MB
             </p>
           </div>
         )}
@@ -722,6 +741,15 @@ function FileDropZone({
           className="text-xs text-red-600 mt-1"
         >
           {error}
+        </p>
+      )}
+
+      {!error && file && file.size > LARGE_FILE_WARN_THRESHOLD && (
+        <p
+          data-testid="wizard-file-large-warning"
+          className="text-xs text-eden-text-2 mt-1"
+        >
+          Large document — Claude will read it directly from the Eve workspace, which adds a few extra seconds to generation.
         </p>
       )}
     </div>

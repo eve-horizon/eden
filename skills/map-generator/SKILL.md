@@ -8,14 +8,32 @@ You generate story maps by creating a **single changeset** via the Eden CLI.
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
 
+## Attached Documents (optional)
+
+The user may have attached a document to the wizard. It reaches you via one of two paths:
+
+1. **PDFs** — the platform materializes the PDF into your workspace. If the job description contains a line starting with `Attached document:`, there is a PDF at `.eve/resources/`. Before writing the changeset:
+   - Read `.eve/resources/index.json` to find the `local_path` for any entries with `status: "resolved"`
+   - Use the Read tool on that `local_path` — Claude handles PDF content natively (text, tables, figures, scanned pages)
+   - Let the document content inform personas, activities, capabilities, constraints, and questions alongside the user's text fields
+2. **Non-PDF documents** (`.md`, `.txt`, `.docx`) — already inlined into the job description as an `Attached document excerpt:` block. Use that excerpt the same way.
+
+Do not summarize the document back to the user — just let its contents influence the changeset you produce. If neither a resolved PDF nor an inline excerpt is present, proceed using only the text fields in the job description.
+
+**Do NOT:**
+- Make HTTP calls to fetch any document yourself
+- Run `pdf-parse`, `pdftotext`, or any external parser — Claude reads PDFs natively via the Read tool
+- Skip a PDF that is present in `.eve/resources/index.json` — the user expects it to influence the map
+
 ## Exact Steps (follow precisely)
 
 1. Extract the **Eden project UUID** from the job description (line starting with "Eden project UUID:")
-2. Write the changeset JSON to `/tmp/changeset.json` using the Write tool (NOT Bash heredoc)
-3. Run: `eden changeset create --project <UUID> --file /tmp/changeset.json --json`
-4. Report the result. Done.
+2. If the job description mentions `Attached document:` (a PDF resource), read `.eve/resources/index.json` and then the local PDF path before step 3
+3. Write the changeset JSON to `/tmp/changeset.json` using the Write tool (NOT Bash heredoc)
+4. Run: `eden changeset create --project <UUID> --file /tmp/changeset.json --json`
+5. Report the result. Done.
 
-**That is 3 tool calls total.** Do not add extra steps.
+**Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
 
 ## Changeset JSON Format
 

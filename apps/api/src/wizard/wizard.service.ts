@@ -71,11 +71,29 @@ export class WizardService {
       );
     }
 
-    // Validate source_id belongs to this project; for any supported file
-    // type, fetch and inline an excerpt into the prompt.
+    // Validate source_id belongs to this project. Hybrid document strategy:
+    //
+    //   - PDFs ride as Eve resource_refs so the agent reads the original PDF
+    //     from .eve/resources/ via Claude's native document support. This
+    //     preserves charts, layout, and scanned-page content that pdf-parse
+    //     would otherwise flatten or drop.
+    //   - Non-PDFs (text, markdown, docx) keep the existing DocumentExtractor
+    //     path and inline an 8 KB excerpt into the prompt. Anthropic's native
+    //     document block support is PDF-only today, so we can't unify these.
+    //
+    // Either way, only one strategy fires per generation run.
     let sourceExcerpt: string | undefined;
     let sourceContentType: string | null = null;
     let sourceFilename: string | null = null;
+    let resourceRefs: Array<{
+      uri: string;
+      label: string;
+      required: boolean;
+      mime_type?: string;
+      metadata?: Record<string, unknown>;
+    }> = [];
+    let documentStrategy: 'none' | 'resource_ref' | 'excerpt' = 'none';
+
     if (data.source_id) {
       const source = await this.sourcesService.findById(ctx, data.source_id);
       if (source.project_id !== projectId) {
@@ -84,9 +102,38 @@ export class WizardService {
 
       sourceContentType = source.content_type;
       sourceFilename = source.filename;
-      sourceExcerpt = await this.extractor.extract(source, {
-        maxBytes: 8 * 1024,
-      });
+
+      const isPdf =
+        source.content_type === 'application/pdf' ||
+        source.filename.toLowerCase().endsWith('.pdf');
+
+      if (isPdf && source.eve_ingest_id) {
+        // Attach as a job resource — the runner hydrates it into
+        // .eve/resources/ingest/<ingest_id>/<filename> before the agent
+        // starts, and the map-generator skill knows to read it.
+        resourceRefs = [
+          {
+            uri: `ingest:/${source.eve_ingest_id}/${encodeURIComponent(source.filename)}`,
+            label: source.filename,
+            required: false,
+            mime_type: source.content_type ?? undefined,
+            metadata: { source_id: source.id },
+          },
+        ];
+        documentStrategy = 'resource_ref';
+      } else if (!isPdf) {
+        // Non-PDF fallback: inline an extracted excerpt.
+        sourceExcerpt = await this.extractor.extract(source, {
+          maxBytes: 8 * 1024,
+        });
+        documentStrategy = sourceExcerpt ? 'excerpt' : 'none';
+      } else {
+        // PDF with no eve_ingest_id — source only exists locally (Eve
+        // unavailable at upload time). Skip attachment entirely.
+        this.logger.warn(
+          `Source ${source.id} is a PDF without eve_ingest_id; skipping resource attachment`,
+        );
+      }
     }
 
     this.assertAvailable();
@@ -98,6 +145,7 @@ export class WizardService {
       data,
       sourceExcerpt,
       sourceFilename,
+      resourceRefs.length > 0,
     );
 
     // Create Eve job targeting map-generator agent
@@ -108,6 +156,7 @@ export class WizardService {
         assignee: 'map-generator',
         title: `Generate map: ${project.name}`,
         description: prompt,
+        ...(resourceRefs.length > 0 && { resource_refs: resourceRefs }),
       },
     );
 
@@ -126,6 +175,7 @@ export class WizardService {
             ...(data.source_id && {
               source_id: data.source_id,
               source_content_type: sourceContentType,
+              document_strategy: documentStrategy,
               source_excerpt_bytes: sourceExcerpt?.length ?? 0,
             }),
           }),
@@ -366,6 +416,7 @@ export class WizardService {
     data: GenerateMapInput,
     sourceExcerpt?: string,
     sourceFilename?: string | null,
+    hasResourceRef = false,
   ): string {
     const parts = [
       `Generate a story map for "${projectName}".`,
@@ -385,7 +436,14 @@ export class WizardService {
       parts.push(`\nConstraints: ${data.constraints}`);
     }
 
-    if (sourceExcerpt) {
+    if (hasResourceRef) {
+      const label = sourceFilename
+        ? `Attached document: ${sourceFilename}`
+        : `Attached document`;
+      parts.push(
+        `\n${label} (materialized at .eve/resources/ — read .eve/resources/index.json, then Read the local_path to load its contents before writing the changeset).`,
+      );
+    } else if (sourceExcerpt) {
       const label = sourceFilename
         ? `Attached document (${sourceFilename}) excerpt:`
         : `Attached document excerpt:`;
