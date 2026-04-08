@@ -1,12 +1,17 @@
 # Wizard: Auto-Accept Changesets & Document Upload
 
-**Status:** Plan
+**Status:** Shipped (v1)
 **Date:** 2026-03-27
+**Last Reviewed:** 2026-04-08
 **Scope:** Two related improvements to the Project Wizard flow
+**Implemented in:** `64394cc`
+**Follow-up plan:** [`wizard-orphan-recovery-and-binary-docs.md`](wizard-orphan-recovery-and-binary-docs.md)
 
 ---
 
-## Problem Statement
+> Historical note: This document captures the original Mar 27, 2026 v1 plan and rationale. It no longer describes the full live state by itself. The shipped slice covered auto-accept during active wizard polling, document upload in the wizard, and prompt enrichment for text-like files. Two known gaps remained after ship: orphaned drafts when polling stops, and missing PDF/DOCX extraction. Those moved to the follow-up plan linked above.
+
+## Original Problem Statement
 
 ### Problem 1: "Nothing generated"
 
@@ -28,9 +33,11 @@ Users can only provide context via three text fields (audience, capabilities, co
 
 **Principle:** User-triggered generation implies intent. Accept immediately.
 
-#### Approach: Server-side auto-accept in status polling
+#### Approach: Server-side auto-accept in status polling (v1)
 
-When `WizardService.getGenerateStatus()` detects the job is `done` and finds the resulting changeset, it **auto-accepts** the changeset before returning the status response. By the time the client receives `{ status: "complete" }`, the map is already populated.
+When `WizardService.getGenerateStatus()` detects the job is `done` and finds the resulting changeset, it **auto-accepts** the changeset before returning the status response. By the time the client receives `{ status: "complete" }`, the map is already populated as long as the wizard is still actively polling.
+
+This shipped cleanly for the happy path, but it remained polling-coupled. If the browser stopped polling before the job reached a terminal phase, the draft could still be orphaned. That limitation is covered by the follow-up plan.
 
 Two implementation details matter here:
 - Preserve the caller's resolved `projectRole` when accepting. Do **not** hardcode `'owner'`, or editors will silently bypass the existing two-stage approval model.
@@ -38,14 +45,14 @@ Two implementation details matter here:
 
 **Why server-side, not client-side:**
 - No extra round trip from the browser
-- Map is populated before the user sees the review step
-- No race condition if user closes wizard early
-- The "View Story Map" button works immediately
+- When polling completes normally, the map is populated before the user sees the review step
+- Accept semantics stay on the server where `projectRole` is already resolved
+- The "View Story Map" button works immediately on the happy path
 
 #### Changes
 
 **`apps/api/src/wizard/wizard.controller.ts`**
-- Pass `(req as any).projectRole` into `WizardService.generateMap()` and `getGenerateStatus()`
+- Pass `(req as any).projectRole` into `WizardService.getGenerateStatus()`
 - Extend the generate-map body type with optional `source_id`
 
 **`apps/api/src/wizard/wizard.service.ts`**
@@ -71,7 +78,7 @@ if (changeset) {
 }
 ```
 
-**Implementation gap:** The current `getGenerateStatus()` primary lookup (`WHERE source = 'map-generator' ORDER BY created_at DESC`) does not filter by `job_id`, so it can match a changeset from a *different* generation run on the same project. Replace the primary lookup with the audit-bounded query below, and keep the existing fallback for changesets without a `source` tag:
+**Pre-v1 gap fixed in this slice:** The original `getGenerateStatus()` primary lookup (`WHERE source = 'map-generator' ORDER BY created_at DESC`) did not filter by `job_id`, so it could match a changeset from a different generation run on the same project. This slice replaced that lookup with the audit-bounded query below and kept the existing fallback for changesets without a `source` tag:
 
 ```sql
 SELECT c.id
@@ -178,12 +185,12 @@ Add an optional file upload zone to the **Context step** (Step 2). The three tex
 - Click zone or drag-and-drop to select file
 - Shows filename + remove button once selected
 - Single file only (keeps it simple; they can upload more on the Sources page later)
-- Accepted types: `.pdf`, `.md`, `.txt`, `.docx`, `.doc`
+- Accepted types: `.pdf`, `.md`, `.markdown`, `.txt`, `.docx`, `.doc`
 - Max size: 10MB (enforced client-side)
 - File is uploaded during the "Generate" step, not during selection (no wasted uploads if user cancels)
 - The wizard should surface inline validation for unsupported types / oversized files instead of silently ignoring them
 
-#### Upload Flow (3-phase, reuses existing infrastructure)
+#### Upload Flow (5 steps, reuses existing infrastructure)
 
 ```
 Step 2: User selects file → stored in local state (File object)
@@ -245,9 +252,10 @@ Create a changeset with: 3-5 personas, 4-6 activities, ...
 
 **`WizardService`**
 
-Add `EveIngestService` and `SourcesService` as dependencies:
-- `EveIngestService` — to build/fetch the uploaded document where supported
-- `SourcesService` — to look up source by ID and get `eve_ingest_id`
+Add `SourcesService` as a dependency in v1:
+- `SourcesService` — to look up the source by ID, verify project ownership, and use the source metadata/download URL for prompt enrichment
+
+`EveIngestService` was not part of the shipped v1 implementation. Binary extraction was deferred and later pulled into the follow-up plan via a dedicated extractor service.
 
 **`apps/api/src/wizard/wizard.module.ts`**
 
@@ -306,7 +314,7 @@ if (uploadedSourceId) {
 
   // Create source record
   const source = await api.post<{ id: string; upload_url: string }>(
-    `/projects/${project.id}/sources`,
+    `/projects/${pid}/sources`,
     {
       filename: file.name,
       content_type: file.type || 'application/octet-stream',
@@ -329,7 +337,7 @@ if (uploadedSourceId) {
 
 // Trigger generation (with optional source_id)
 const body = { ...contextFields, ...(sourceId && { source_id: sourceId }) };
-const result = await api.post(`/projects/${project.id}/generate-map`, body);
+const result = await api.post(`/projects/${pid}/generate-map`, body);
 ```
 
 GenerateStep status messages update:
@@ -339,14 +347,14 @@ GenerateStep status messages update:
 "Generating story map..."    → generate-map POST + agent working
 ```
 
-Note: The current code has an intermediate "Starting map generation..." message between project creation and "Generating story map...". Collapse these into a single "Generating story map..." for WS2 — the distinction between "starting" and "running" adds no user value.
+Note: The pre-v1 code had an intermediate "Starting map generation..." message between project creation and "Generating story map...". Collapse these into a single "Generating story map..." for WS2 — the distinction between "starting" and "running" adds no user value.
 
 ---
 
-## Implementation Order
+## Shipped Scope (v1)
 
 1. **WS1: Auto-accept** (small, high-impact)
-   - `wizard.controller.ts` — pass `projectRole` through to the service
+   - `wizard.controller.ts` — pass `projectRole` through to the status poll handler
    - `wizard.service.ts` — add auto-accept logic in `getGenerateStatus()` and tighten changeset/job correlation (replace unfiltered primary lookup with audit-bounded query)
    - `wizard.module.ts` — import `ChangesetsModule`
    - `ProjectWizard.tsx` — update ReviewStep copy, remove "Review Changeset" link, fix regenerate to reuse existing `projectId`
@@ -355,14 +363,14 @@ Note: The current code has an intermediate "Starting map generation..." message 
 2. **WS2: Document upload** (medium, builds on WS1)
    - `ProjectWizard.tsx` — add FileDropZone to ContextStep, upload logic in startGeneration
    - `wizard.controller.ts` — add `source_id` to body type
-   - `wizard.service.ts` — inject SourcesService + EveIngestService, validate `source_id`, persist it in audit, and inline supported text content into the prompt
+   - `wizard.service.ts` — inject `SourcesService`, validate `source_id`, persist it in audit, and inline supported text content into the prompt
    - `wizard.module.ts` — import `SourcesModule`
    - Test: upload markdown/text document → verify prompt-enriched generation path works
-   - Follow-up (separate issue): binary doc extraction and/or auto-confirm with dedupe
+   - Follow-up (separate plan): polling-independent orphan recovery and binary doc extraction
 
 ---
 
-## Files Changed
+## Files Touched In V1
 
 | File | WS | Change |
 |------|----|--------|
@@ -373,14 +381,25 @@ Note: The current code has an intermediate "Starting map generation..." message 
 
 ---
 
+## Remaining Gaps After V1
+
+- Auto-accept still depended on `GET /projects/:id/generate-map/status` being actively polled. Closing the tab, navigating away, or hitting the poll timeout could still leave a wizard-generated `draft` changeset behind.
+- Wizard uploads of `.pdf`, `.docx`, and `.doc` were accepted and audited, but only text-like files were excerpted into the initial prompt.
+- Sources intentionally remained in `uploaded` status after generation to avoid immediately creating a second ingestion-generated changeset from the same document.
+
+Those follow-ups are tracked in [`wizard-orphan-recovery-and-binary-docs.md`](wizard-orphan-recovery-and-binary-docs.md).
+
+---
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
 |------|------------|
 | Auto-accept fails (DB error during apply) | Return `failed` from the status endpoint and keep the wizard on an error state instead of falsely reporting success |
+| User closes the tab or polling times out before the job reaches a terminal phase | Not solved in v1; follow up with server-side orphan reconciliation on later map load |
 | Large file upload slow on mobile | Client-side 10MB limit; upload happens during "Generating" step with progress message |
 | Wrong changeset matched on poll | Filter lookup by the triggering `job_id` audit entry, not just `source = 'map-generator'` |
-| Binary docs are uploaded but not usable in the first wizard run | Limit v1 prompt enrichment to text-like files and document that PDF/DOCX support needs follow-up extraction work |
+| Binary docs are uploaded but not usable in the first wizard run | Limit v1 prompt enrichment to text-like files and track PDF/DOCX extraction as explicit follow-up work |
 | Document contains sensitive data | Same security model as Sources page — org-scoped, RLS-protected |
 | Auto-confirm creates duplicate second-pass changesets | Leave sources unconfirmed in this slice; revisit only with dedupe/source-attribution rules |
 | Regenerate after file upload | Cache and reuse `source_id` after the first successful upload instead of re-uploading the same file |
