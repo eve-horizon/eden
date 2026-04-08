@@ -3538,7 +3538,7 @@ function printMap(map) {
 // src/commands/changesets.ts
 var import_promises = require("fs/promises");
 function registerChangesets(program3) {
-  const cs = program3.command("changeset").description("Manage changesets");
+  const cs = program3.command("changeset").alias("changesets").description("Manage changesets");
   cs.command("list").description("List changesets").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (pending/accepted/rejected)").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const params = opts.status ? `?status=${opts.status}` : "";
@@ -3580,7 +3580,7 @@ function registerChangesets(program3) {
 
 // src/commands/personas.ts
 function registerPersonas(program3) {
-  const personas = program3.command("persona").description("Manage personas");
+  const personas = program3.command("persona").alias("personas").description("Manage personas");
   personas.command("list").description("List personas").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/personas`);
@@ -3602,7 +3602,7 @@ function registerPersonas(program3) {
 // src/commands/questions.ts
 var import_promises2 = require("fs/promises");
 function registerQuestions(program3) {
-  const questions = program3.command("question").description("Manage questions");
+  const questions = program3.command("question").alias("questions").description("Manage questions");
   questions.command("list").description("List questions").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (open/answered/dismissed)").option("--category <cat>", "Filter by category").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const params = new URLSearchParams();
@@ -3709,7 +3709,7 @@ function registerExport(program3) {
 // src/commands/reviews.ts
 var import_promises3 = require("fs/promises");
 function registerReviews(program3) {
-  const reviews = program3.command("review").description("Manage expert panel reviews");
+  const reviews = program3.command("review").alias("reviews").description("Manage expert panel reviews");
   reviews.command("list").description("List reviews").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/reviews`);
@@ -3756,7 +3756,7 @@ ${data.synthesis}`);
 var import_promises4 = require("fs/promises");
 var import_path = require("path");
 function registerSources(program3) {
-  const src = program3.command("source").description("Manage ingestion sources");
+  const src = program3.command("source").alias("sources").description("Manage ingestion sources");
   src.command("show").description("Show source details").argument("<id>", "Source ID").option("--json", "JSON output").action(async (id, opts) => {
     const data = await api("GET", `/sources/${id}`);
     if (opts.json) return json(data);
@@ -3836,7 +3836,7 @@ function inferContentType(filename) {
 // src/commands/tasks.ts
 var import_promises5 = require("fs/promises");
 function registerTasks(program3) {
-  const tasks = program3.command("task").description("Manage tasks");
+  const tasks = program3.command("task").alias("tasks").description("Manage tasks");
   tasks.command("list").description("List tasks").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const params = new URLSearchParams();
@@ -3898,7 +3898,7 @@ function registerTasks(program3) {
 
 // src/commands/activities.ts
 function registerActivities(program3) {
-  const activities = program3.command("activity").description("Manage activities");
+  const activities = program3.command("activity").alias("activities").description("Manage activities");
   activities.command("list").description("List activities").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/activities`);
@@ -3919,7 +3919,7 @@ function registerActivities(program3) {
 
 // src/commands/steps.ts
 function registerSteps(program3) {
-  const steps = program3.command("step").description("Manage steps");
+  const steps = program3.command("step").alias("steps").description("Manage steps");
   steps.command("list").description("List steps for an activity").requiredOption("--activity <id>", "Activity ID").option("--json", "JSON output").action(async (opts) => {
     const data = await api("GET", `/activities/${opts.activity}/steps`);
     if (opts.json) return json(data);
@@ -3938,7 +3938,7 @@ function registerSteps(program3) {
 
 // src/commands/releases.ts
 function registerReleases(program3) {
-  const releases = program3.command("release").description("Manage releases");
+  const releases = program3.command("release").alias("releases").description("Manage releases");
   releases.command("list").description("List releases").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     const data = await api("GET", `/projects/${pid}/releases`);
