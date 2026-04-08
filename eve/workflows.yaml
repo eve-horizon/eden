@@ -4,6 +4,10 @@ workflows:
     trigger:
       system:
         event: doc.ingest
+    resource_refs:
+      - uri: "ingest://${event.payload.ingest_id}/${event.payload.file_name}"
+        label: "Ingested document"
+        required: true
     with_apis:
       - service: api
         description: Eden Story Map API for reading map state and creating changesets

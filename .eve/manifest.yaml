@@ -108,6 +108,10 @@ workflows:
     trigger:
       system:
         event: doc.ingest
+    resource_refs:
+      - uri: "ingest://${event.payload.ingest_id}/${event.payload.file_name}"
+        label: "Ingested document"
+        required: true
     steps:
       - name: extract
         agent:
