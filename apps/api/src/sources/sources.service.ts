@@ -133,7 +133,11 @@ export class SourcesService {
     });
   }
 
-  async confirm(ctx: DbContext, id: string): Promise<SourceResponse> {
+  async confirm(
+    ctx: DbContext,
+    id: string,
+    eveToken?: string,
+  ): Promise<SourceResponse> {
     return this.db.withClient(ctx, async (client) => {
       const result = await client.query<IngestionSourceRow>(
         `UPDATE ingestion_sources
@@ -154,7 +158,10 @@ export class SourcesService {
       // Eve emits system.doc.ingest which the orchestrator picks up.
       if (source.eve_ingest_id) {
         try {
-          const eveResult = await this.eveIngest.confirmIngest(source.eve_ingest_id);
+          const eveResult = await this.eveIngest.confirmIngest(
+            source.eve_ingest_id,
+            eveToken,
+          );
           if (eveResult?.job_id) {
             await client.query(
               `UPDATE ingestion_sources SET eve_job_id = $1 WHERE id = $2`,
@@ -166,13 +173,16 @@ export class SourcesService {
               `Eve confirm returned done without event/job for source ${id}; invoking ingestion workflow directly`,
             );
 
-            const fallback = await this.eveIngest.invokeIngestionWorkflow({
-              ingest_id: source.eve_ingest_id,
-              file_name: source.filename,
-              mime_type: source.content_type,
-              size_bytes: source.file_size,
-              storage_key: source.storage_key,
-            });
+            const fallback = await this.eveIngest.invokeIngestionWorkflow(
+              {
+                ingest_id: source.eve_ingest_id,
+                file_name: source.filename,
+                mime_type: source.content_type,
+                size_bytes: source.file_size,
+                storage_key: source.storage_key,
+              },
+              eveToken,
+            );
 
             if (fallback?.job_id) {
               await client.query(

@@ -17,6 +17,11 @@ import { SourcesService } from './sources.service';
 
 import type { Request } from 'express';
 
+function bearerToken(req: Request): string | undefined {
+  const auth = req.headers.authorization;
+  return auth?.startsWith('Bearer ') ? auth.slice(7) : undefined;
+}
+
 @Controller()
 export class SourcesController {
   private readonly logger = new Logger(SourcesController.name);
@@ -61,7 +66,7 @@ export class SourcesController {
   @UseGuards(AuthGuard, EditorGuard)
   @HttpCode(HttpStatus.OK)
   confirm(@Req() req: Request, @Param('id') id: string) {
-    return this.sources.confirm(dbContext(req), id);
+    return this.sources.confirm(dbContext(req), id, bearerToken(req));
   }
 
   @Post('sources/:id/status')

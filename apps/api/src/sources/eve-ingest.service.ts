@@ -93,6 +93,7 @@ export class EveIngestService {
    */
   async confirmIngest(
     eveIngestId: string,
+    token?: string,
   ): Promise<EveIngestConfirmResponse | null> {
     if (!this.available) {
       this.logger.log(`Ingest (local): confirm ${eveIngestId} — Eve not configured`);
@@ -101,6 +102,8 @@ export class EveIngestService {
 
     return this.post<EveIngestConfirmResponse>(
       `/projects/${this.eveProjectId}/ingest/${eveIngestId}/confirm`,
+      undefined,
+      token,
     );
   }
 
@@ -111,6 +114,7 @@ export class EveIngestService {
    */
   async invokeIngestionWorkflow(
     payload: IngestionWorkflowPayload,
+    token?: string,
   ): Promise<EveWorkflowInvokeResponse | null> {
     if (!this.available) {
       this.logger.log(
@@ -122,6 +126,7 @@ export class EveIngestService {
     return this.post<EveWorkflowInvokeResponse>(
       `/projects/${this.eveProjectId}/workflows/ingestion-pipeline/invoke?wait=false`,
       { payload },
+      token,
     );
   }
 
@@ -138,14 +143,20 @@ export class EveIngestService {
   // HTTP helper
   // -------------------------------------------------------------------------
 
-  private async post<T>(path: string, body?: unknown): Promise<T> {
+  private async post<T>(
+    path: string,
+    body?: unknown,
+    token?: string,
+  ): Promise<T> {
     const url = `${this.eveApiUrl}${path}`;
     this.logger.debug(`POST ${url}`);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
-    if (this.eveServiceToken) {
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (this.eveServiceToken) {
       headers['Authorization'] = `Bearer ${this.eveServiceToken}`;
     }
 
