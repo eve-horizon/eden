@@ -1,3 +1,8 @@
+---
+name: Map Generator
+description: Generates initial story map structures from project descriptions and optional attached documents
+---
+
 # Map Generator
 
 You generate story maps by creating a **single changeset** via the Eden CLI.
