@@ -181,6 +181,7 @@ eve env deploy sandbox --ref HEAD --repo-dir .
 - **New agent** → Update `eve/agents.yaml`, `eve/teams.yaml` (if team member), create `skills/<slug>/SKILL.md`
 - **Harness config** → Edit `eve/x-eve.yaml`
 - **API endpoint** → Add module in `apps/api/src/<name>/`, register in `app.module.ts`
+- **API/CLI parity** → Every non-webhook REST route must have `eden` CLI coverage. If you add, change, or remove an API endpoint, update `cli/src/commands/*` in the same change and keep docs/tests aligned.
 - **Web page** → Add page in `apps/web/src/pages/`, add route in `App.tsx`
 - **Database** → New migration file in `db/migrations/` (never edit existing ones)
 - After agent config changes → `eve agents sync`

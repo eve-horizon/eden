@@ -16,6 +16,7 @@ Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + Po
 - Never call Eden REST endpoints directly from skills or agent workflows (`curl`, `fetch`, or manual URLs).
 - Use `eden` (not `./cli/bin/eden`) so path handling remains stable across directories.
 - If an agent needs an API operation the CLI does not expose, add the command in CLI first, then update skills.
+- CLI/API parity is mandatory for every non-webhook REST operation. When adding, changing, or removing a public Eden API route, update the `eden` CLI in the same change and keep docs/tests aligned so agents never need a raw REST fallback.
 
 ## CRITICAL: Staging Deployment
 
