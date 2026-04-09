@@ -326,7 +326,7 @@ export class SourcesService {
     eventId: string,
     eveToken?: string,
   ): Promise<string | null> {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    for (let attempt = 0; attempt < 16; attempt += 1) {
       const event = await this.eveIngest.getEvent(eventId, eveToken);
       if (event?.job_id) {
         return event.job_id;
