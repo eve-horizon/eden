@@ -1012,7 +1012,7 @@ export class ChangesetsService {
     if (table === 'personas') {
       const code = displayReference.replace(/^PER-/i, '');
       const { rows } = await client.query<{ id: string }>(
-        `SELECT id FROM personas WHERE code = $1 AND project_id = $2`,
+        `SELECT id FROM personas WHERE upper(code) = upper($1) AND project_id = $2 LIMIT 1`,
         [code, projectId],
       );
       if (!rows[0]) {
@@ -1028,13 +1028,26 @@ export class ChangesetsService {
       [displayReference, projectId],
     );
 
-    if (!rows[0]) {
-      throw new NotFoundException(
-        `${table} with display_id "${displayReference}" not found in project`,
-      );
+    if (rows[0]) {
+      return rows[0].id;
     }
 
-    return rows[0].id;
+    // Case-insensitive fallback for legacy/pre-normalization changesets
+    const { rows: fallbackRows } = await client.query<{ id: string }>(
+      `SELECT id FROM ${table} WHERE upper(display_id) = upper($1) AND project_id = $2 LIMIT 1`,
+      [displayReference, projectId],
+    );
+
+    if (fallbackRows[0]) {
+      console.warn(
+        `[changeset-apply] Case-insensitive fallback resolved ${table} display_id "${displayReference}" — normalization may have missed this`,
+      );
+      return fallbackRows[0].id;
+    }
+
+    throw new NotFoundException(
+      `${table} with display_id "${displayReference}" not found in project`,
+    );
   }
 
   /**

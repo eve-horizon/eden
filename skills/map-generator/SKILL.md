@@ -75,9 +75,26 @@ Before calling `eden changeset create`, verify all of the following:
 - `source` is set to `map-generator`
 - `items` exists and `items.length > 0`
 - Every item has `entity_type` and `operation`
-- Every `step/create` item includes an activity reference (`activity_ref`, `activity_display_id`, or `activity_id`)
-- Every `task/create` item includes a step reference (`step_ref` or `step_display_id`)
-- Every `task/create` item includes a non-empty task label (`title` or `name`)
+- Every `display_reference` uses uppercase canonical format: `ACT-{n}`, `STP-{a}.{s}`, `TSK-{a}.{s}.{t}`, `PER-{CODE}`, `Q-{n}`
+- Every `after_state.display_id` matches the item's `display_reference`
+- Activities use `name` (not `title`) and `sort_order` (not `position`)
+- Steps include `activity_display_id` with uppercase `ACT-` prefix
+- Tasks include `step_display_id` with uppercase `STP-` prefix
+- Every `task/create` item includes a non-empty `title`
+
+## Anti-Patterns (NEVER use these)
+
+| Wrong | Correct |
+|-------|---------|
+| `act-1`, `activity-1` | `ACT-1` |
+| `step-1-1`, `stp-1-1` | `STP-1.1` |
+| `task-1-1-1`, `tsk-1-1-1` | `TSK-1.1.1` |
+| `"title"` on activity/step | `"name"` |
+| `"position"` | `"sort_order"` |
+| `"activity_ref"` | `"activity_display_id"` |
+| `"step_ref"` | `"step_display_id"` |
+| `"name"` on task | `"title"` |
+| `"description"` on task | `"user_story"` |
 
 ### Persona: `{"entity_type":"persona","operation":"create","display_reference":"PER-{code}","description":"Add persona: {name}","after_state":{"name":"...","code":"...","color":"#3b82f6"}}`
 

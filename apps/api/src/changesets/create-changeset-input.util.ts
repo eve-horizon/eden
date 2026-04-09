@@ -158,6 +158,19 @@ export function normalizeCreateChangesetInput(
 
     if (afterState) {
       normalizeAfterState(entityType, operation, afterState, itemPath, warnings, errors);
+
+      // Canonicalize display_id in after_state
+      const rawDisplayId = normalizeOptionalString(afterState.display_id);
+      if (rawDisplayId) {
+        const canonicalDisplayId = canonicalizeDisplayRef(rawDisplayId);
+        if (canonicalDisplayId !== rawDisplayId) {
+          warnings.push({
+            path: `${itemPath}.after_state.display_id`,
+            message: `Canonicalized display_id "${rawDisplayId}" → "${canonicalDisplayId}"`,
+          });
+        }
+        afterState.display_id = canonicalDisplayId;
+      }
     }
 
     let displayReference = normalizeOptionalString(rawItem.display_reference);
@@ -177,6 +190,18 @@ export function normalizeCreateChangesetInput(
           path: `${itemPath}.display_reference`,
           message: `Missing display_reference; derived "${derived}"`,
         });
+      }
+    }
+
+    // Canonicalize display_reference
+    if (displayReference) {
+      const canonicalRef = canonicalizeDisplayRef(displayReference);
+      if (canonicalRef !== displayReference) {
+        warnings.push({
+          path: `${itemPath}.display_reference`,
+          message: `Canonicalized display_reference "${displayReference}" → "${canonicalRef}"`,
+        });
+        displayReference = canonicalRef;
       }
     }
 
@@ -339,20 +364,37 @@ function normalizeAfterState(
       break;
     }
 
+    case 'activity/create': {
+      aliasField(afterState, 'title', 'name', itemPath, warnings);
+      aliasField(afterState, 'position', 'sort_order', itemPath, warnings);
+      break;
+    }
+
     case 'step/create': {
+      aliasField(afterState, 'title', 'name', itemPath, warnings);
+      aliasField(afterState, 'position', 'sort_order', itemPath, warnings);
+      aliasField(afterState, 'activity_ref', 'activity_display_id', itemPath, warnings);
+
       const activityId = normalizeOptionalString(afterState.activity_id);
       const activityDisplayId = normalizeOptionalString(afterState.activity_display_id);
-      const activityRef = normalizeOptionalString(afterState.activity_ref);
 
       if (activityId) afterState.activity_id = activityId;
-      if (activityDisplayId) afterState.activity_display_id = activityDisplayId;
-      if (activityRef) afterState.activity_ref = activityRef;
+      if (activityDisplayId) {
+        const canonical = canonicalizeDisplayRef(activityDisplayId);
+        if (canonical !== activityDisplayId) {
+          warnings.push({
+            path: `${itemPath}.after_state.activity_display_id`,
+            message: `Canonicalized "${activityDisplayId}" → "${canonical}"`,
+          });
+        }
+        afterState.activity_display_id = canonical;
+      }
 
-      if (!activityId && !activityDisplayId && !activityRef) {
+      if (!activityId && !activityDisplayId) {
         errors.push({
-          path: `${itemPath}.after_state.activity_ref`,
+          path: `${itemPath}.after_state.activity_display_id`,
           message:
-            'step/create requires a parent activity reference via activity_id, activity_display_id, or activity_ref',
+            'step/create requires a parent activity reference via activity_id or activity_display_id',
         });
       }
       break;
@@ -382,6 +424,12 @@ function normalizeTaskAfterState(
   warnings: ChangesetValidationIssue[],
   errors: ChangesetValidationIssue[],
 ): void {
+  // Field name aliasing
+  aliasField(afterState, 'name', 'title', itemPath, warnings);
+  aliasField(afterState, 'description', 'user_story', itemPath, warnings);
+  // Consolidate step_ref → step_display_id
+  aliasField(afterState, 'step_ref', 'step_display_id', itemPath, warnings);
+
   if (operation === 'create') {
     applyDefault(afterState, 'priority', 'medium', itemPath, warnings, 'task priority');
     applyDefault(afterState, 'status', 'draft', itemPath, warnings, 'task status');
@@ -434,18 +482,23 @@ function normalizeTaskAfterState(
   }
 
   if (operation === 'create') {
-    const stepRef =
-      normalizeOptionalString(afterState.step_ref) ??
-      normalizeOptionalString(afterState.step_display_id);
+    const stepDisplayId = normalizeOptionalString(afterState.step_display_id);
 
-    if (!stepRef) {
+    if (!stepDisplayId) {
       errors.push({
-        path: `${itemPath}.after_state.step_ref`,
+        path: `${itemPath}.after_state.step_display_id`,
         message:
-          'task/create requires a step reference via step_ref or step_display_id',
+          'task/create requires a step reference via step_display_id or step_ref',
       });
-    } else if (!normalizeOptionalString(afterState.step_ref)) {
-      afterState.step_ref = stepRef;
+    } else {
+      const canonical = canonicalizeDisplayRef(stepDisplayId);
+      if (canonical !== stepDisplayId) {
+        warnings.push({
+          path: `${itemPath}.after_state.step_display_id`,
+          message: `Canonicalized "${stepDisplayId}" → "${canonical}"`,
+        });
+      }
+      afterState.step_display_id = canonical;
     }
   }
 }
@@ -587,6 +640,61 @@ function normalizeOptionalString(value: unknown): string | undefined {
 
 function hasOwn(object: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+/**
+ * Canonicalize a display reference to standard format:
+ * ACT-{n}, STP-{a}.{s}, TSK-{a}.{s}.{t}, PER-{CODE}, Q-{n}
+ */
+export function canonicalizeDisplayRef(raw: string): string {
+  const trimmed = raw.trim();
+
+  const actMatch = trimmed.match(/^(?:act|activity)[-_]?(\d+)$/i);
+  if (actMatch) return `ACT-${actMatch[1]}`;
+
+  const tskMatch = trimmed.match(
+    /^(?:tsk|task)[-_]?(\d+)[-._](\d+)[-._](\d+)$/i,
+  );
+  if (tskMatch)
+    return `TSK-${tskMatch[1]}.${tskMatch[2]}.${tskMatch[3]}`;
+
+  const stpMatch = trimmed.match(/^(?:stp|step)[-_]?(\d+)[-._](\d+)$/i);
+  if (stpMatch) return `STP-${stpMatch[1]}.${stpMatch[2]}`;
+
+  const qMatch = trimmed.match(/^q[-_]?(\d+)$/i);
+  if (qMatch) return `Q-${qMatch[1]}`;
+
+  const perMatch = trimmed.match(/^(?:per|persona)[-_](.+)$/i);
+  if (perMatch) return `PER-${perMatch[1].toUpperCase()}`;
+
+  if (/^(ACT|STP|TSK|PER|Q)-/i.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
+  return trimmed;
+}
+
+/**
+ * Alias a legacy field name to the canonical name in after_state.
+ * Only copies if the canonical field is not already set.
+ */
+function aliasField(
+  afterState: Record<string, unknown>,
+  legacyKey: string,
+  canonicalKey: string,
+  itemPath: string,
+  warnings: ChangesetValidationIssue[],
+): void {
+  if (hasOwn(afterState, legacyKey) && !hasOwn(afterState, canonicalKey)) {
+    afterState[canonicalKey] = afterState[legacyKey];
+    delete afterState[legacyKey];
+    warnings.push({
+      path: `${itemPath}.after_state.${legacyKey}`,
+      message: `Aliased "${legacyKey}" → "${canonicalKey}"`,
+    });
+  } else if (hasOwn(afterState, legacyKey) && hasOwn(afterState, canonicalKey)) {
+    delete afterState[legacyKey];
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
