@@ -1,5 +1,5 @@
 # Eve Horizon Skill Packs
-# Project-local Eden agent skills
+# Project-local Eden agent skills so that claude/codex can use the CLI externally in the same way as Eve runtime agents
 ./skills/*
 
 # Public packs (eve-se + eve-work)

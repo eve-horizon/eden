@@ -24,3 +24,8 @@ apps/*/package-lock.json
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Do not checkin dev skills otherwise it pollutes runtime agents
+.agents/skills
+.agents/skills
+.pi/
