@@ -8,10 +8,19 @@ description: Generates initial story map structures from project descriptions an
 You generate story maps by creating a **single changeset** via the Eden CLI.
 
 **CRITICAL RULES:**
-- Do NOT run `--help` commands — everything you need is here
-- Do NOT explore CLI subcommands
+- Do NOT run `eden --help`, `eden changeset --help`, or `eden changeset create --help`
+- Do NOT explore CLI subcommands — ignore any generic CLI examples injected below
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
+- Do NOT reread this skill file during execution
+
+## Only CLI Call You Need
+
+```
+eden changeset create --project <UUID> --file /tmp/changeset.json --json
+```
+
+If that command returns validation errors, fix `/tmp/changeset.json` and rerun the same command once. Do not call any other Eden CLI commands.
 
 ## Attached Documents (optional)
 
@@ -19,7 +28,10 @@ The user may have attached a document to the wizard. It reaches you via one of t
 
 1. **PDFs** — the platform materializes the PDF into your workspace. If the job description contains a line starting with `Attached document:`, there is a PDF at `.eve/resources/`. Before writing the changeset:
    - Read `.eve/resources/index.json` to find the `local_path` for any entries with `status: "resolved"`
-   - Use the Read tool on that `local_path` — Claude handles PDF content natively (text, tables, figures, scanned pages)
+   - Read the PDF using **explicit `pages` ranges only** — never request more than 20 pages per Read call
+   - Use contiguous windows: `pages: "1-20"`, `pages: "21-40"`, `pages: "41-60"`, then the remainder
+   - Do **not** attempt a whole-document read first — it will fail on any PDF over 20 pages
+   - Do not reread earlier page ranges unless the tool explicitly errors
    - Let the document content inform personas, activities, capabilities, constraints, and questions alongside the user's text fields
 2. **Non-PDF documents** (`.md`, `.txt`, `.docx`) — already inlined into the job description as an `Attached document excerpt:` block. Use that excerpt the same way.
 
@@ -33,10 +45,13 @@ Do not summarize the document back to the user — just let its contents influen
 ## Exact Steps (follow precisely)
 
 1. Extract the **Eden project UUID** from the job description (line starting with "Eden project UUID:")
-2. If the job description mentions `Attached document:` (a PDF resource), read `.eve/resources/index.json` and then the local PDF path before step 3
+2. If the job description mentions `Attached document:` (a PDF resource):
+   - Read `.eve/resources/index.json` to find the PDF `local_path`
+   - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
 3. Write the changeset JSON to `/tmp/changeset.json` using the Write tool (NOT Bash heredoc)
 4. Run: `eden changeset create --project <UUID> --file /tmp/changeset.json --json`
-5. Report the result. Done.
+5. If step 4 returns validation errors, fix `/tmp/changeset.json` and rerun the same command once
+6. Report the result. Done.
 
 **Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
 

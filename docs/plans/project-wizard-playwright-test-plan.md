@@ -193,9 +193,9 @@ Assert: Step indicator shows "Generate"
 Assert: Spinner (.animate-spin) visible
 Assert: "Generating your story map" heading visible
 Assert: Status text updates (at least "Creating project..." then "Generating story map...")
-Assert: "This usually takes 30-60 seconds..." subtitle visible
+Assert: "Most runs take 5-10 minutes..." subtitle visible
 
-Wait for review step (timeout 180s):
+Wait for review step (timeout 600s):
   Assert: "Story map generated!" heading visible
   Assert: Green checkmark icon visible
   Assert: "View Story Map" button visible
@@ -313,7 +313,7 @@ Wait 10 seconds (enough time for parent refetch to complete):
   Assert: Spinner STILL visible (or review step reached)
   Assert: #wiz-name is STILL NOT visible
 
-Wait for generation to complete (timeout 180s):
+Wait for generation to complete (timeout 600s):
   Assert: "Story map generated!" heading visible
   Assert: Step indicator shows "Review"
   Assert: Wizard NEVER showed "Basics" step after the initial progression
@@ -830,7 +830,7 @@ function uniqueSlug(prefix: string) {
 ### Wait for Generation Complete
 
 ```typescript
-async function waitForGeneration(page: Page, timeoutMs = 180_000) {
+async function waitForGeneration(page: Page, timeoutMs = 600_000) {
   await expect(page.locator('h3:has-text("Story map generated")')).toBeVisible({
     timeout: timeoutMs,
   });
@@ -903,7 +903,7 @@ async function waitForSourceDone(
 
 ## Execution Notes
 
-- **Timeouts:** Generation tests need 3-4 minute timeouts. Set `test.setTimeout(240_000)` for Group 1.6, 1.7, 2.x, 2B.x. Source upload tests need 2-minute timeouts for pipeline completion (2C.2, 2C.6).
+- **Timeouts:** Generation tests need 10-minute timeouts. Set `test.setTimeout(600_000)` for Group 1.6, 1.7, 2.x, 2B.x. Source upload tests need 2-minute timeouts for pipeline completion (2C.2, 2C.6).
 - **Parallelism:** Groups 3 and 5 are parallel-safe. Groups 1, 2, 2B, 2C, and 4 must run serial within their group.
 - **Cleanup:** Every test that creates a project must delete it in `test.afterEach` or `test.afterAll` to avoid slug collisions in re-runs.
 - **Shared sandbox:** Tests use unique slugs with timestamps to avoid conflicts with other users.

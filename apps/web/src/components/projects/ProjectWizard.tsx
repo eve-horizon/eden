@@ -31,8 +31,8 @@ const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.txt', '.docx', '.doc', '.markdown'
 const MAX_PDF_SIZE = 32 * 1024 * 1024; // 32 MB — Claude's native PDF ceiling
 const MAX_OTHER_SIZE = 10 * 1024 * 1024; // 10 MB — pdf-parse/mammoth fallback
 const LARGE_FILE_WARN_THRESHOLD = 10 * 1024 * 1024; // 10 MB — informational
-const MAX_POLL_DURATION_MS = 600_000; // 10 minutes
-const SLOW_POLL_THRESHOLD_MS = 90_000; // 90 seconds — show "taking longer" message
+const MAX_POLL_DURATION_MS = 900_000; // 15 minutes
+const SLOW_POLL_THRESHOLD_MS = 300_000; // 5 minutes — show status update
 
 function isPdfFile(file: File): boolean {
   return (
@@ -216,7 +216,7 @@ export function ProjectWizard({ onClose, onProjectCreated }: ProjectWizardProps)
 
         // Soft threshold — update progress message but keep polling
         if (elapsed >= SLOW_POLL_THRESHOLD_MS) {
-          setGenStatus('Still working \u2014 this is taking longer than usual...');
+          setGenStatus('Still working \u2014 document-backed generation can take several minutes.');
         }
 
         try {
@@ -749,7 +749,7 @@ function FileDropZone({
           data-testid="wizard-file-large-warning"
           className="text-xs text-eden-text-2 mt-1"
         >
-          Large document — Claude will read it directly from the Eve workspace, which adds a few extra seconds to generation.
+          Large document — Claude will read it directly from the Eve workspace, which can add a few minutes to generation.
         </p>
       )}
     </div>
@@ -783,7 +783,7 @@ function GenerateStep({
           </h3>
           <p className="text-sm text-eden-text-2">{status}</p>
           <p className="text-xs text-eden-text-2 mt-2">
-            This usually takes 30-60 seconds...
+            Most runs take 5-10 minutes. If you attached a PDF, generation may take longer while the document is read and structured.
           </p>
         </>
       ) : error ? (

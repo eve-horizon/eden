@@ -185,19 +185,17 @@ grep -c '\.eve/resources/index\.json' /tmp/wizard-pdf-log.txt
 **Expected:** `≥1`. This includes SKILL.md mentions (the skill instruction itself contains the path), but a completely absent match means the index was never loaded.
 
 ```bash
-# 7e. Negative check — no *fatal* Read errors on the PDF tool call.
-#     Claude Code's Read tool has a 20-page-per-call limit on PDFs. Larger
-#     documents (including this fixture, which Claude Code treats as ~32
-#     pages) trigger one expected "too many to read at once" error before
-#     the agent retries with the `pages` parameter. Filter that out and
-#     check for anything else.
+# 7e. Negative check — no Read errors on the PDF tool call.
+#     The skill and prompt now encode explicit page-window rules (pages
+#     "1-20", "21-40", etc.), so the agent should never trigger the "too
+#     many to read at once" error. Any is_error:true on the PDF is a real
+#     failure — including the previously-benign pagination retry.
 grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | \
     grep '"is_error":true' | \
-    grep -v 'too many to read at once\|pages parameter' | \
     wc -l
 ```
 
-**Expected:** `0` — any remaining error after filtering out the benign pagination retry is a real failure. The "too many pages" retry is part of Claude Code's normal large-PDF flow, not a regression.
+**Expected:** `0` — with the deterministic paging rules in place, there should be zero Read errors on the PDF, including zero "too many pages" retries.
 
 ```bash
 # 7f. Changeset hardening checks — the wizard should create the changeset
@@ -401,6 +399,7 @@ grep -B2 -A5 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | grep -C3 'is_erro
 - [ ] Agent logs show at least one `Read` call on `.eve/resources/index.json`
 - [ ] Agent logs show at least one `Read` call on the PDF file
 - [ ] Agent logs contain **zero** `pdftoppm not available` / `PDF could not be rendered` errors
+- [ ] Agent logs contain **zero** `too many to read at once` pagination retries (deterministic paging rules should prevent this)
 - [ ] Agent logs show `help_calls=0`, `create_calls>=1`, and no `invalid_changeset` / `400` / `500` / approval-failure signals
 - [ ] Changeset `status: "accepted"` without any manual intervention
 - [ ] Map populated (≥3 personas, ≥4 activities, ≥16 tasks)

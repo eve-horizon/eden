@@ -79,7 +79,7 @@ Fill context:
 
 Click "Generate Story Map"
 
-Wait for review step (timeout 180s):
+Wait for review step (timeout 600s):
   Assert: "Story map generated!" heading visible
   Assert: "View Story Map" button visible
   Assert: "Review Changeset" link is NOT visible (changeset already accepted)
@@ -156,7 +156,7 @@ Modify one field (add text to #wiz-caps)
 Click "Generate Story Map"
 
 Assert: Status does NOT show "Creating project..." (project already exists)
-Wait for review step again (timeout 180s):
+Wait for review step again (timeout 600s):
   Assert: "Story map generated!" heading visible
 
 Click "View Story Map"
@@ -390,7 +390,7 @@ Assert: Status text updates through:
   "Uploading document..."     ← NEW: shows during file upload
   "Generating story map..."
 
-Wait for review step (timeout 180s):
+Wait for review step (timeout 600s):
   Assert: "Story map generated!" heading visible
 
 Click "View Story Map"
@@ -434,7 +434,7 @@ Click "Generate Story Map"
 Assert: Status text shows "Creating project..." then "Generating story map..."
 Assert: Status text does NOT show "Uploading document..." (no file to upload)
 
-Wait for completion (timeout 180s):
+Wait for completion (timeout 600s):
   Assert: "Story map generated!" heading visible
 
 Click "View Story Map"
@@ -460,7 +460,7 @@ Click "Generate Story Map"
 Assert: Generation starts (no validation error blocking it)
 Assert: Spinner visible
 
-Wait for completion (timeout 180s):
+Wait for completion (timeout 600s):
   Assert: "Story map generated!" heading visible
   Verify map has content informed by the document
 
@@ -577,7 +577,7 @@ Create project
 Trigger generation: POST /projects/{id}/generate-map { description: "Auto accept API test" }
 Record job_id
 
-Poll status until complete (timeout 180s):
+Poll status until complete (timeout 600s):
   GET /projects/{id}/generate-map/status?job_id={job_id}
   When status === "complete":
     Record changeset_id
@@ -812,7 +812,7 @@ async function runWizardWithDocument(
 
   // Wait for generation to complete
   await expect(page.locator('h3:has-text("Story map generated")')).toBeVisible({
-    timeout: 180_000,
+    timeout: 600_000,
   });
 }
 ```

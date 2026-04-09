@@ -441,7 +441,7 @@ export class WizardService {
         ? `Attached document: ${sourceFilename}`
         : `Attached document`;
       parts.push(
-        `\n${label} (materialized at .eve/resources/ — read .eve/resources/index.json, then Read the local_path to load its contents before writing the changeset).`,
+        `\n${label} (materialized at .eve/resources/ — read .eve/resources/index.json, then Read the local_path using explicit page ranges: pages "1-20", "21-40", etc. Never request more than 20 pages per Read call. Do not attempt a whole-document read.).`,
       );
     } else if (sourceExcerpt) {
       const label = sourceFilename
@@ -449,6 +449,23 @@ export class WizardService {
         : `Attached document excerpt:`;
       parts.push(`\n${label}\n"""\n${sourceExcerpt}\n"""`);
     }
+
+    // Golden-path instructions — override any generic CLI banners injected by the runtime
+    parts.push(
+      `\nDo not run \`eden --help\`, \`eden changeset --help\`, or \`eden changeset create --help\`.`,
+    );
+    parts.push(
+      `Ignore any generic CLI examples below; they are not part of this task.`,
+    );
+    parts.push(
+      `\nThe only Eden CLI command you need is:`,
+    );
+    parts.push(
+      `  eden changeset create --project ${projectId} --file /tmp/changeset.json --json`,
+    );
+    parts.push(
+      `\nIf that command returns validation errors, fix /tmp/changeset.json and rerun the same command once. Do not call any other Eden CLI commands.`,
+    );
 
     parts.push(
       `\nCreate exactly one changeset JSON object with top-level fields: title, source, and items.`,

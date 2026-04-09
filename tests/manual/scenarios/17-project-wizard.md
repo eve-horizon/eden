@@ -88,7 +88,7 @@ done
 ```
 
 **Expected:** Status transitions: `pending` → `processing` → `complete`
-within 3 minutes.
+within 10 minutes (text-only runs typically finish faster; document-backed runs take 5-10 minutes).
 
 ```bash
 WIZARD_LOG="/tmp/eden-s17-${JOB_ID}.log"
@@ -242,9 +242,10 @@ test.describe('Scenario 17: Project Wizard UI', () => {
         // Progress indicator visible
         await expect(page.locator('[data-testid="generate-progress"]')).toBeVisible({ timeout: 5000 });
 
-        // Wait for completion (up to 3 min)
+        // Wait for completion (up to 10 min — text-only runs are faster but
+        // document-backed generations take 5-10 minutes)
         await expect(page.locator('[data-testid="changeset-review"], [data-testid="review-modal"]'))
-            .toBeVisible({ timeout: 180000 });
+            .toBeVisible({ timeout: 600_000 });
     });
 });
 ```
