@@ -161,6 +161,30 @@ export class SourcesService {
               [eveResult.job_id, id],
             );
             source.eve_job_id = eveResult.job_id;
+          } else if (eveResult?.status === 'done' && !eveResult.event_id) {
+            this.logger.warn(
+              `Eve confirm returned done without event/job for source ${id}; invoking ingestion workflow directly`,
+            );
+
+            const fallback = await this.eveIngest.invokeIngestionWorkflow({
+              ingest_id: source.eve_ingest_id,
+              file_name: source.filename,
+              mime_type: source.content_type,
+              size_bytes: source.file_size,
+              storage_key: source.storage_key,
+            });
+
+            if (fallback?.job_id) {
+              await client.query(
+                `UPDATE ingestion_sources SET eve_job_id = $1 WHERE id = $2`,
+                [fallback.job_id, id],
+              );
+              source.eve_job_id = fallback.job_id;
+            } else {
+              this.logger.warn(
+                `Fallback ingestion workflow invoke returned no job for source ${id}`,
+              );
+            }
           }
         } catch (err) {
           this.logger.error(`Eve confirm failed for source ${id}: ${(err as Error).message}`);

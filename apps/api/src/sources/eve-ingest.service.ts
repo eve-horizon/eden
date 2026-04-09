@@ -27,6 +27,24 @@ export interface EveIngestConfirmResponse {
   job_id: string | null;
 }
 
+export interface EveWorkflowInvokeResponse {
+  job_id: string;
+  status: string;
+  step_jobs?: Array<{
+    job_id: string;
+    step_name: string;
+    depends_on?: string[];
+  }>;
+}
+
+export interface IngestionWorkflowPayload {
+  ingest_id: string;
+  file_name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  storage_key?: string | null;
+}
+
 @Injectable()
 export class EveIngestService {
   private readonly logger = new Logger(EveIngestService.name);
@@ -83,6 +101,27 @@ export class EveIngestService {
 
     return this.post<EveIngestConfirmResponse>(
       `/projects/${this.eveProjectId}/ingest/${eveIngestId}/confirm`,
+    );
+  }
+
+  /**
+   * Fallback when confirm() reports success but does not emit an event/job.
+   * This invokes the ingestion workflow directly so Eden can still correlate
+   * the source to a concrete Eve job instead of leaving it stranded.
+   */
+  async invokeIngestionWorkflow(
+    payload: IngestionWorkflowPayload,
+  ): Promise<EveWorkflowInvokeResponse | null> {
+    if (!this.available) {
+      this.logger.log(
+        `Ingest (local): invoke workflow ${payload.ingest_id} — Eve not configured`,
+      );
+      return null;
+    }
+
+    return this.post<EveWorkflowInvokeResponse>(
+      `/projects/${this.eveProjectId}/workflows/ingestion-pipeline/invoke?wait=false`,
+      { payload },
     );
   }
 
