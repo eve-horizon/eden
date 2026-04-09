@@ -27,17 +27,15 @@ export interface EveIngestConfirmResponse {
   job_id: string | null;
 }
 
-export interface EveWorkflowInvokeResponse {
-  job_id: string;
+export interface EveEventResponse {
+  id: string;
   status: string;
-  step_jobs?: Array<{
-    job_id: string;
-    step_name: string;
-    depends_on?: string[];
-  }>;
+  job_id: string | null;
+  trigger_match_count?: number | null;
 }
 
-export interface IngestionWorkflowPayload {
+export interface IngestionEventPayload {
+  org_id: string;
   ingest_id: string;
   file_name: string;
   mime_type?: string | null;
@@ -109,23 +107,57 @@ export class EveIngestService {
 
   /**
    * Fallback when confirm() reports success but does not emit an event/job.
-   * This invokes the ingestion workflow directly so Eden can still correlate
-   * the source to a concrete Eve job instead of leaving it stranded.
+   * Re-emit the missing system event so Eve creates the workflow with the
+   * correct resource refs and hydrated ingest document.
    */
-  async invokeIngestionWorkflow(
-    payload: IngestionWorkflowPayload,
+  async emitDocIngestEvent(
+    payload: IngestionEventPayload,
     token?: string,
-  ): Promise<EveWorkflowInvokeResponse | null> {
+  ): Promise<EveEventResponse | null> {
     if (!this.available) {
       this.logger.log(
-        `Ingest (local): invoke workflow ${payload.ingest_id} — Eve not configured`,
+        `Ingest (local): emit event ${payload.ingest_id} — Eve not configured`,
       );
       return null;
     }
 
-    return this.post<EveWorkflowInvokeResponse>(
-      `/projects/${this.eveProjectId}/workflows/ingestion-pipeline/invoke?wait=false`,
-      { payload },
+    const callbackUrl = this.edenApiUrl
+      ? `${this.edenApiUrl}/webhooks/ingest-complete`
+      : undefined;
+
+    return this.post<EveEventResponse>(
+      `/projects/${this.eveProjectId}/events`,
+      {
+        type: 'system.doc.ingest',
+        source: 'system',
+        dedupe_key: `ingest:${payload.ingest_id}`,
+        payload_json: {
+          org_id: payload.org_id,
+          project_id: this.eveProjectId,
+          ingest_id: payload.ingest_id,
+          file_name: payload.file_name,
+          mime_type: payload.mime_type,
+          size_bytes: payload.size_bytes,
+          storage_key: payload.storage_key,
+          source_channel: 'upload',
+          ...(callbackUrl ? { callback_url: callbackUrl } : {}),
+        },
+      },
+      token,
+    );
+  }
+
+  async getEvent(
+    eventId: string,
+    token?: string,
+  ): Promise<EveEventResponse | null> {
+    if (!this.available) {
+      this.logger.log(`Ingest (local): get event ${eventId} — Eve not configured`);
+      return null;
+    }
+
+    return this.get<EveEventResponse>(
+      `/projects/${this.eveProjectId}/events/${eventId}`,
       token,
     );
   }
@@ -148,8 +180,21 @@ export class EveIngestService {
     body?: unknown,
     token?: string,
   ): Promise<T> {
+    return this.request<T>('POST', path, token, body);
+  }
+
+  private async get<T>(path: string, token?: string): Promise<T> {
+    return this.request<T>('GET', path, token);
+  }
+
+  private async request<T>(
+    method: 'GET' | 'POST',
+    path: string,
+    token?: string,
+    body?: unknown,
+  ): Promise<T> {
     const url = `${this.eveApiUrl}${path}`;
-    this.logger.debug(`POST ${url}`);
+    this.logger.debug(`${method} ${url}`);
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -161,14 +206,14 @@ export class EveIngestService {
     }
 
     const response = await fetch(url, {
-      method: 'POST',
+      method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
 
     if (!response.ok) {
       const text = await response.text().catch(() => '');
-      this.logger.error(`Eve ingest error: POST ${path} → ${response.status} ${text}`);
+      this.logger.error(`Eve ingest error: ${method} ${path} → ${response.status} ${text}`);
       throw new Error(`Eve ingest API returned ${response.status}: ${text}`);
     }
 

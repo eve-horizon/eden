@@ -170,11 +170,12 @@ export class SourcesService {
             source.eve_job_id = eveResult.job_id;
           } else if (eveResult?.status === 'done' && !eveResult.event_id) {
             this.logger.warn(
-              `Eve confirm returned done without event/job for source ${id}; invoking ingestion workflow directly`,
+              `Eve confirm returned done without event/job for source ${id}; emitting fallback doc.ingest event`,
             );
 
-            const fallback = await this.eveIngest.invokeIngestionWorkflow(
+            const fallback = await this.eveIngest.emitDocIngestEvent(
               {
+                org_id: source.org_id,
                 ingest_id: source.eve_ingest_id,
                 file_name: source.filename,
                 mime_type: source.content_type,
@@ -184,15 +185,20 @@ export class SourcesService {
               eveToken,
             );
 
-            if (fallback?.job_id) {
+            const fallbackJobId = fallback?.job_id
+              ?? (fallback?.id
+                ? await this.waitForEventJob(fallback.id, eveToken)
+                : null);
+
+            if (fallbackJobId) {
               await client.query(
                 `UPDATE ingestion_sources SET eve_job_id = $1 WHERE id = $2`,
-                [fallback.job_id, id],
+                [fallbackJobId, id],
               );
-              source.eve_job_id = fallback.job_id;
+              source.eve_job_id = fallbackJobId;
             } else {
               this.logger.warn(
-                `Fallback ingestion workflow invoke returned no job for source ${id}`,
+                `Fallback doc.ingest event returned no job for source ${id}`,
               );
             }
           }
@@ -314,5 +320,25 @@ export class SourcesService {
         ? this.eveIngest.downloadUrl(row.eve_ingest_id)
         : null,
     };
+  }
+
+  private async waitForEventJob(
+    eventId: string,
+    eveToken?: string,
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const event = await this.eveIngest.getEvent(eventId, eveToken);
+      if (event?.job_id) {
+        return event.job_id;
+      }
+
+      if (event?.status === 'failed') {
+        return null;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    return null;
   }
 }
