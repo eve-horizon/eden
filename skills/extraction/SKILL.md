@@ -41,14 +41,13 @@ The document has been **materialized into your workspace** by the platform.
    - **Cross-cutting Questions**: Questions that span multiple features or activities
 4. Map relationships between entities
 5. Track source mappings (which part of the document each entity came from)
-6. Update the source status (see below)
 
 You already have everything you need after reading:
 - `.eve/resources/index.json`
 - the materialized document file
 - this skill file
 
-Do not spend time exploring the application codebase or probing endpoints. That creates noisy logs and does not help extraction.
+Do not spend time exploring the application codebase, probing endpoints, or looking for the Eden CLI. That creates noisy logs and does not help extraction.
 
 ## Output Schema
 
@@ -76,29 +75,13 @@ Return a JSON object matching this structure:
 
 Return the final result as a raw JSON object only. Do not wrap it in markdown fences. Do not prepend analysis or commentary.
 
-## After Extraction: Update Source Status
+## Status Updates
 
-The Eden CLI is available as `eden` on PATH. Update the source status so the UI reflects progress.
+Do not update source status from this step.
 
-**CRITICAL: `payload.project_id` in the workflow input is the Eve project ID (e.g., `proj_xxx`), NOT the Eden project UUID.** Discover the Eden UUID first:
-
-```bash
-PID=$(eden projects list --json | jq -r '.[0].id')
-```
-
-Then find and update the source:
-
-```bash
-INGEST_ID="<payload.ingest_id from workflow input>"
-SRC_ID=$(eden source list --project "$PID" --json | jq -r --arg iid "$INGEST_ID" '.[] | select(.eve_ingest_id == $iid) | .id')
-eden source update-status --source "$SRC_ID" --status extracted
-```
-
-**Do NOT:**
-- Use anything other than `eden` on PATH for CLI commands
-- Use Eve project IDs directly with Eden CLI commands — always resolve the Eden UUID first
-- Try commands like `eden ingestion` — they don't exist. Available: `eden projects`, `eden source`, `eden map`, `eden changeset`, `eden question`
-- Probe API docs, swagger endpoints, or controller source files to discover routes
+- Eve's ingest callback already marks the source `extracted` when the ingest completes.
+- The synthesis step is responsible for marking the source `synthesized` or `failed`.
+- This extraction step should not call `eden`, inspect API routes, or look for controllers.
 
 ## Minimal Execution Path
 
@@ -107,14 +90,7 @@ Follow this exact path and then stop:
 1. Read `.eve/resources/index.json`
 2. Read the materialized document from `local_path`
 3. Produce the extraction JSON
-4. Run:
-   ```bash
-   PID=$(eden projects list --json | jq -r '.[0].id')
-   INGEST_ID="<payload.ingest_id from workflow input>"
-   SRC_ID=$(eden source list --project "$PID" --json | jq -r --arg iid "$INGEST_ID" '.[] | select(.eve_ingest_id == $iid) | .id')
-   eden source update-status --source "$SRC_ID" --status extracted
-   ```
-5. Return the raw JSON object and finish
+4. Return the raw JSON object and finish
 
 ## Guidelines
 
