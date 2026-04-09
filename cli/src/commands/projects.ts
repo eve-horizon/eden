@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
+import { ensureBody, UUID_RE } from '../utils.js';
 
 interface Project {
   id: string;
@@ -60,9 +61,24 @@ export function registerProjects(program: Command): void {
       await api('DELETE', `/projects/${id}`);
       console.log(`Deleted project: ${id}`);
     });
-}
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  projects
+    .command('update')
+    .description('Update a project')
+    .argument('<id>', 'Project ID or slug')
+    .option('--name <name>', 'Project name')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const projectId = await autoDetectProject(id);
+      const body = {
+        ...(opts.name && { name: opts.name }),
+      };
+      ensureBody(body);
+      const data = await api<Project>('PATCH', `/projects/${projectId}`, body);
+      if (opts.json) return json(data);
+      console.log(`Updated project: ${data.id} (${data.slug})`);
+    });
+}
 
 /** Resolve a project identifier (UUID or slug) to a UUID, or auto-detect when only one exists. */
 export async function autoDetectProject(explicit?: string): Promise<string> {

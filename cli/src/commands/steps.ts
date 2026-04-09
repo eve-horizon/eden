@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
+import { ensureBody, parseInteger, resolveIdFromItems } from '../utils.js';
 import { autoDetectProject } from './projects.js';
 
 interface Step {
@@ -110,6 +111,85 @@ export function registerSteps(program: Command): void {
         project: opts.project ?? parentOpts.project,
       });
     });
+
+  steps
+    .command('update')
+    .description('Update a step')
+    .argument('<id>', 'Step ID, display ID, or name')
+    .option('--activity <id>', 'Activity ID')
+    .option('--project <id>', 'Project ID or slug')
+    .option('--name <name>', 'Step name')
+    .option('--sort-order <n>', 'Sort order', (value) => parseInteger(value, 'sort order'))
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const stepId = await resolveStepId(id, {
+        activity: opts.activity,
+        project: opts.project,
+      });
+      const body = {
+        ...(opts.name && { name: opts.name }),
+        ...(opts.sortOrder !== undefined && { sort_order: opts.sortOrder }),
+      };
+      ensureBody(body);
+      const data = await api<Step>('PATCH', `/steps/${stepId}`, body);
+      if (opts.json) return json(data);
+      console.log(`Updated step: ${data.display_id} (${data.id})`);
+    });
+
+  steps
+    .command('move')
+    .description('Move a step to a different activity')
+    .argument('<id>', 'Step ID, display ID, or name')
+    .requiredOption('--activity <id>', 'Target activity ID or display ID')
+    .option('--project <id>', 'Project ID or slug')
+    .option('--sort-order <n>', 'Sort order', (value) => parseInteger(value, 'sort order'))
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const stepId = await resolveStepId(id, { project: opts.project });
+      const activityId = await resolveActivityId(opts.activity, opts.project);
+      const data = await api<Step>('PATCH', `/steps/${stepId}/move`, {
+        activity_id: activityId,
+        ...(opts.sortOrder !== undefined && { sort_order: opts.sortOrder }),
+      });
+      if (opts.json) return json(data);
+      console.log(`Moved step: ${data.display_id} -> activity ${activityId}`);
+    });
+
+  steps
+    .command('reorder')
+    .description('Reorder steps within an activity')
+    .requiredOption('--activity <id>', 'Activity ID or display ID')
+    .option('--project <id>', 'Project ID or slug')
+    .argument('<stepIds...>', 'Ordered list of step IDs, display IDs, or names')
+    .option('--json', 'JSON output')
+    .action(async (stepIds: string[], opts) => {
+      const activityId = await resolveActivityId(opts.activity, opts.project);
+      const ids = await Promise.all(
+        stepIds.map((value) => resolveStepId(value, { activity: activityId, project: opts.project })),
+      );
+      await api('POST', `/activities/${activityId}/steps/reorder`, { ids });
+      const result = { activity_id: activityId, ids, reordered: ids.length };
+      if (opts.json) return json(result);
+      console.log(`Reordered ${ids.length} steps in activity: ${activityId}`);
+    });
+
+  steps
+    .command('delete')
+    .description('Delete a step')
+    .argument('<id>', 'Step ID, display ID, or name')
+    .option('--activity <id>', 'Activity ID')
+    .option('--project <id>', 'Project ID or slug')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const stepId = await resolveStepId(id, {
+        activity: opts.activity,
+        project: opts.project,
+      });
+      await api('DELETE', `/steps/${stepId}`);
+      const result = { id: stepId, deleted: true };
+      if (opts.json) return json(result);
+      console.log(`Deleted step: ${stepId}`);
+    });
 }
 
 async function listSteps(opts: {
@@ -198,4 +278,34 @@ async function listStepsData(opts: {
   }
 
   return api<Step[]>('GET', `/activities/${opts.activity}/steps`);
+}
+
+async function resolveStepId(id: string, opts: {
+  activity?: string;
+  project?: string;
+}): Promise<string> {
+  if (!opts.activity && !opts.project) {
+    return id;
+  }
+
+  const steps = await listStepsData(opts);
+  return resolveIdFromItems(id, steps, {
+    label: 'Step',
+    fields: ['id', 'display_id', 'name'],
+    formatter: (step) => `${step.display_id}  ${step.id}  ${step.name}`,
+  });
+}
+
+async function resolveActivityId(id: string, project?: string): Promise<string> {
+  if (!project) {
+    return id;
+  }
+
+  const pid = await autoDetectProject(project);
+  const activities = await api<MapActivity[]>('GET', `/projects/${pid}/activities`);
+  return resolveIdFromItems(id, activities, {
+    label: 'Activity',
+    fields: ['id', 'display_id', 'name'],
+    formatter: (activity) => `${activity.display_id}  ${activity.id}  ${activity.name}`,
+  });
 }

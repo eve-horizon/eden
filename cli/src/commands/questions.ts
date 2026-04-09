@@ -2,10 +2,12 @@ import { readFile } from 'fs/promises';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
+import { resolveIdFromItems } from '../utils.js';
 import { autoDetectProject } from './projects.js';
 
 interface Question {
   id: string;
+  display_id?: string;
   text?: string;
   question?: string;
   status: string;
@@ -145,6 +147,20 @@ export function registerQuestions(program: Command): void {
       await api('POST', `/questions/${id}/evolve`, { answer: opts.answer });
       console.log(`Evolved: ${id}`);
     });
+
+  questions
+    .command('delete')
+    .description('Delete a question')
+    .argument('<id>', 'Question ID or display ID')
+    .option('--project <id>', 'Project ID or slug (used to resolve display IDs)')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const questionId = await resolveQuestionId(id, opts.project);
+      await api('DELETE', `/questions/${questionId}`);
+      const result = { id: questionId, deleted: true };
+      if (opts.json) return json(result);
+      console.log(`Deleted question: ${questionId}`);
+    });
 }
 
 async function showQuestion(
@@ -164,4 +180,19 @@ async function showQuestion(
       console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
     }
   }
+}
+
+async function resolveQuestionId(id: string, project?: string): Promise<string> {
+  if (!project) {
+    return id;
+  }
+
+  const pid = await autoDetectProject(project);
+  const questions = await api<Question[]>('GET', `/projects/${pid}/questions`);
+  return resolveIdFromItems(id, questions, {
+    label: 'Question',
+    fields: ['id', 'display_id', 'question', 'text'],
+    formatter: (question) =>
+      `${question.display_id ?? '(no display id)'}  ${question.id}  ${question.question ?? question.text ?? ''}`,
+  });
 }

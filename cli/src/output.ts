@@ -2,7 +2,7 @@ export function json(data: unknown): void {
   console.log(JSON.stringify(data, null, 2));
 }
 
-export function table(rows: object[], columns?: string[]): void {
+export function table<T extends object>(rows: T[], columns?: string[]): void {
   if (rows.length === 0) {
     console.log('(no results)');
     return;

@@ -3,6 +3,7 @@ import { basename, extname } from 'path';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
+import { resolveIdFromItems } from '../utils.js';
 import { autoDetectProject } from './projects.js';
 
 interface Source {
@@ -17,6 +18,14 @@ interface Source {
   download_url?: string | null;
   error_message?: string | null;
   created_at: string;
+}
+
+interface SourceTask {
+  id: string;
+  display_id: string;
+  title: string;
+  priority: string;
+  status: string;
 }
 
 export function registerSources(program: Command): void {
@@ -103,6 +112,18 @@ export function registerSources(program: Command): void {
       console.log(`Confirmed source: ${id} (${result.status})`);
     });
 
+  src.command('tasks')
+    .description('List tasks linked to a source')
+    .argument('<id>', 'Source ID or filename')
+    .option('--project <id>', 'Project ID or slug (used to resolve filenames)')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const sourceId = await resolveSourceId(id, opts.project);
+      const data = await api<SourceTask[]>('GET', `/sources/${sourceId}/tasks`);
+      if (opts.json) return json(data);
+      table(data, ['display_id', 'title', 'priority', 'status']);
+    });
+
   src.command('update-status')
     .description('Update source processing status')
     .requiredOption('--source <id>', 'Source ID')
@@ -131,4 +152,18 @@ function inferContentType(filename: string): string {
     default:
       return 'application/octet-stream';
   }
+}
+
+async function resolveSourceId(id: string, project?: string): Promise<string> {
+  if (!project) {
+    return id;
+  }
+
+  const pid = await autoDetectProject(project);
+  const sources = await api<Source[]>('GET', `/projects/${pid}/sources`);
+  return resolveIdFromItems(id, sources, {
+    label: 'Source',
+    fields: ['id', 'filename'],
+    formatter: (source) => `${source.filename}  ${source.id}  ${source.status}`,
+  });
 }

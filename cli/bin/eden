@@ -3453,6 +3453,70 @@ function table(rows, columns) {
   }
 }
 
+// src/utils.ts
+var import_promises = require("fs/promises");
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value) {
+  return UUID_RE.test(value);
+}
+function parseInteger(value, label = "number") {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isNaN(parsed)) {
+    return parsed;
+  }
+  console.error(`Invalid ${label}: ${value}`);
+  process.exit(1);
+}
+async function readJsonFile(filePath) {
+  try {
+    const content = await (0, import_promises.readFile)(filePath, "utf8");
+    return JSON.parse(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to read JSON from ${filePath}: ${message}`);
+    process.exit(1);
+  }
+}
+function parseJsonOption(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Invalid ${label} JSON: ${message}`);
+    process.exit(1);
+  }
+}
+function ensureBody(body, message = "Provide at least one field to update") {
+  if (Object.keys(body).length > 0) {
+    return;
+  }
+  console.error(message);
+  process.exit(1);
+}
+function resolveIdFromItems(explicit, items, opts) {
+  if (isUuid(explicit)) {
+    return explicit;
+  }
+  const target = opts.caseInsensitive ? explicit.toLowerCase() : explicit;
+  const matches = items.filter((item) => {
+    const record = item;
+    return opts.fields.some((field) => {
+      const raw = record[field];
+      if (typeof raw !== "string") return false;
+      return opts.caseInsensitive ? raw.toLowerCase() === target : raw === target;
+    });
+  });
+  if (matches.length === 1) {
+    return matches[0].id;
+  }
+  const formatter = opts.formatter ?? ((item) => item.id);
+  console.error(`${opts.label} not found: "${explicit}". Available ${opts.label.toLowerCase()}s:`);
+  for (const item of items) {
+    console.error(`  ${formatter(item)}`);
+  }
+  process.exit(1);
+}
+
 // src/commands/projects.ts
 function registerProjects(program3) {
   const projects = program3.command("projects").alias("project").description("Manage Eden projects");
@@ -3481,8 +3545,17 @@ function registerProjects(program3) {
     await api("DELETE", `/projects/${id}`);
     console.log(`Deleted project: ${id}`);
   });
+  projects.command("update").description("Update a project").argument("<id>", "Project ID or slug").option("--name <name>", "Project name").option("--json", "JSON output").action(async (id, opts) => {
+    const projectId = await autoDetectProject(id);
+    const body = {
+      ...opts.name && { name: opts.name }
+    };
+    ensureBody(body);
+    const data = await api("PATCH", `/projects/${projectId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated project: ${data.id} (${data.slug})`);
+  });
 }
-var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function autoDetectProject(explicit) {
   if (explicit && UUID_RE.test(explicit)) return explicit;
   const projects = await api("GET", "/projects");
@@ -3547,7 +3620,7 @@ function printMap(map) {
 }
 
 // src/commands/changesets.ts
-var import_promises = require("fs/promises");
+var import_promises2 = require("fs/promises");
 function registerChangesets(program3) {
   const cs = program3.command("changeset").alias("changesets").description("Manage changesets");
   cs.command("list").description("List changesets").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--status <status>", "Filter by status (pending/accepted/rejected)").option("--json", "JSON output").action(async (project, opts) => {
@@ -3559,7 +3632,7 @@ function registerChangesets(program3) {
   });
   cs.command("create").description("Create a changeset from a JSON file").option("--project <id>", "Project ID or slug").requiredOption("--file <path>", "JSON file with changeset data").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
-    const body = JSON.parse(await (0, import_promises.readFile)(opts.file, "utf8"));
+    const body = JSON.parse(await (0, import_promises2.readFile)(opts.file, "utf8"));
     const result = await api("POST", `/projects/${pid}/changesets`, body);
     if (opts.json) return json(result);
     console.log(`Created changeset: ${result.id} (${result.status})`);
@@ -3592,6 +3665,35 @@ function registerChangesets(program3) {
     await api("POST", `/changesets/${id}/reject`);
     console.log(`Rejected: ${id}`);
   });
+  cs.command("review").description("Review a changeset with per-item decisions").argument("<id>", "Changeset ID").requiredOption("--file <path>", "JSON file with review decisions").option("--json", "JSON output").action(async (id, opts) => {
+    const payload = await readJsonFile(opts.file);
+    const decisions = Array.isArray(payload) ? payload : payload.decisions ?? [];
+    const data = await api("POST", `/changesets/${id}/review`, { decisions });
+    if (opts.json) return json(data);
+    console.log(`Reviewed changeset: ${data.id} (${data.status})`);
+  });
+  cs.command("pending-approvals").description("List changeset items awaiting owner approval").requiredOption("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/pending-approvals`);
+    if (opts.json) return json(data);
+    table(data, ["id", "changeset_id", "entity_type", "operation", "display_reference", "created_at"]);
+  });
+  cs.command("approve-items").description("Approve pending changeset items").requiredOption("--project <id>", "Project ID or slug").argument("<itemIds...>", "Changeset item IDs").option("--json", "JSON output").action(async (itemIds, opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/approve-items`, {
+      item_ids: itemIds
+    });
+    if (opts.json) return json(data);
+    console.log(`Approved ${data.approved} item(s)`);
+  });
+  cs.command("reject-items").description("Reject pending changeset items").requiredOption("--project <id>", "Project ID or slug").argument("<itemIds...>", "Changeset item IDs").option("--json", "JSON output").action(async (itemIds, opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/reject-items`, {
+      item_ids: itemIds
+    });
+    if (opts.json) return json(data);
+    console.log(`Rejected ${data.rejected} item(s)`);
+  });
 }
 
 // src/commands/personas.ts
@@ -3620,6 +3722,24 @@ function registerPersonas(program3) {
     if (opts.json) return json(data);
     console.log(`Created persona: ${data.code} (${data.id})`);
   });
+  personas.command("update").description("Update a persona").argument("<id>", "Persona ID, code, or name").option("--project <id>", "Project ID or slug").option("--name <name>", "Persona name").option("--color <color>", "Hex color").option("--json", "JSON output").action(async (id, opts) => {
+    const personaId = await resolvePersonaId(id, opts.project);
+    const body = {
+      ...opts.name && { name: opts.name },
+      ...opts.color && { color: opts.color }
+    };
+    ensureBody(body);
+    const data = await api("PATCH", `/personas/${personaId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated persona: ${data.code} (${data.id})`);
+  });
+  personas.command("delete").description("Delete a persona").argument("<id>", "Persona ID, code, or name").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const personaId = await resolvePersonaId(id, opts.project);
+    await api("DELETE", `/personas/${personaId}`);
+    const result = { id: personaId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted persona: ${personaId}`);
+  });
 }
 async function listPersonas(opts) {
   const pid = await autoDetectProject(opts.project);
@@ -3627,9 +3747,19 @@ async function listPersonas(opts) {
   if (opts.json) return json(data);
   table(data, ["id", "code", "name", "color"]);
 }
+async function resolvePersonaId(id, project) {
+  if (!project) return id;
+  const pid = await autoDetectProject(project);
+  const personas = await api("GET", `/projects/${pid}/personas`);
+  return resolveIdFromItems(id, personas, {
+    label: "Persona",
+    fields: ["id", "code", "name"],
+    formatter: (persona) => `${persona.code}  ${persona.id}  ${persona.name}`
+  });
+}
 
 // src/commands/questions.ts
-var import_promises2 = require("fs/promises");
+var import_promises3 = require("fs/promises");
 function registerQuestions(program3) {
   const questions = program3.command("question").alias("questions").description("Manage questions").argument("[id]", "Question ID").option("--project <id>", "Project ID (ignored for question lookups)").option("--json", "JSON output").action(async (id, opts) => {
     if (!id) {
@@ -3667,7 +3797,7 @@ function registerQuestions(program3) {
     const pid = await autoDetectProject(opts.project);
     let body;
     if (opts.file) {
-      body = JSON.parse(await (0, import_promises2.readFile)(opts.file, "utf8"));
+      body = JSON.parse(await (0, import_promises3.readFile)(opts.file, "utf8"));
     } else if (opts.question) {
       body = {
         question: opts.question,
@@ -3702,6 +3832,13 @@ function registerQuestions(program3) {
     await api("POST", `/questions/${id}/evolve`, { answer: opts.answer });
     console.log(`Evolved: ${id}`);
   });
+  questions.command("delete").description("Delete a question").argument("<id>", "Question ID or display ID").option("--project <id>", "Project ID or slug (used to resolve display IDs)").option("--json", "JSON output").action(async (id, opts) => {
+    const questionId = await resolveQuestionId(id, opts.project);
+    await api("DELETE", `/questions/${questionId}`);
+    const result = { id: questionId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted question: ${questionId}`);
+  });
 }
 async function showQuestion(id, opts) {
   const data = await api("GET", `/questions/${id}`);
@@ -3717,6 +3854,18 @@ async function showQuestion(id, opts) {
       console.log(`  ${ref.entity_type}: ${ref.entity_id}`);
     }
   }
+}
+async function resolveQuestionId(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const questions = await api("GET", `/projects/${pid}/questions`);
+  return resolveIdFromItems(id, questions, {
+    label: "Question",
+    fields: ["id", "display_id", "question", "text"],
+    formatter: (question) => `${question.display_id ?? "(no display id)"}  ${question.id}  ${question.question ?? question.text ?? ""}`
+  });
 }
 
 // src/commands/search.ts
@@ -3749,7 +3898,7 @@ function registerExport(program3) {
 }
 
 // src/commands/reviews.ts
-var import_promises3 = require("fs/promises");
+var import_promises4 = require("fs/promises");
 function registerReviews(program3) {
   const reviews = program3.command("review").alias("reviews").description("Manage expert panel reviews");
   reviews.command("list").description("List reviews").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID").option("--json", "JSON output").action(async (project, opts) => {
@@ -3779,7 +3928,7 @@ ${data.synthesis}`);
     const pid = await autoDetectProject(opts.project);
     let body;
     if (opts.file) {
-      body = JSON.parse(await (0, import_promises3.readFile)(opts.file, "utf8"));
+      body = JSON.parse(await (0, import_promises4.readFile)(opts.file, "utf8"));
     } else {
       body = {
         ...opts.title && { title: opts.title },
@@ -3795,7 +3944,7 @@ ${data.synthesis}`);
 }
 
 // src/commands/sources.ts
-var import_promises4 = require("fs/promises");
+var import_promises5 = require("fs/promises");
 var import_path = require("path");
 function registerSources(program3) {
   const src = program3.command("source").alias("sources").description("Manage ingestion sources");
@@ -3822,7 +3971,7 @@ function registerSources(program3) {
       console.error("Provide --file <path> or --filename <name>");
       process.exit(1);
     }
-    const fileSize = opts.file ? (await (0, import_promises4.stat)(opts.file)).size : void 0;
+    const fileSize = opts.file ? (await (0, import_promises5.stat)(opts.file)).size : void 0;
     const contentType = opts.contentType ?? inferContentType(filename);
     const result = await api("POST", `/projects/${pid}/sources`, {
       filename,
@@ -3830,7 +3979,7 @@ function registerSources(program3) {
       ...fileSize !== void 0 && { file_size: fileSize }
     });
     if (opts.file && result.upload_url && !result.upload_url.startsWith("data:")) {
-      const contents = await (0, import_promises4.readFile)(opts.file);
+      const contents = await (0, import_promises5.readFile)(opts.file);
       const upload = await fetch(result.upload_url, {
         method: "PUT",
         headers: {
@@ -3851,6 +4000,12 @@ function registerSources(program3) {
     const result = await api("POST", `/sources/${id}/confirm`);
     if (opts.json) return json(result);
     console.log(`Confirmed source: ${id} (${result.status})`);
+  });
+  src.command("tasks").description("List tasks linked to a source").argument("<id>", "Source ID or filename").option("--project <id>", "Project ID or slug (used to resolve filenames)").option("--json", "JSON output").action(async (id, opts) => {
+    const sourceId = await resolveSourceId(id, opts.project);
+    const data = await api("GET", `/sources/${sourceId}/tasks`);
+    if (opts.json) return json(data);
+    table(data, ["display_id", "title", "priority", "status"]);
   });
   src.command("update-status").description("Update source processing status").requiredOption("--source <id>", "Source ID").requiredOption("--status <status>", "New status (extracted, synthesized, done, failed)").option("--error <message>", "Error message (for failed status)").option("--json", "JSON output").action(async (opts) => {
     const body = { status: opts.status };
@@ -3874,9 +4029,20 @@ function inferContentType(filename) {
       return "application/octet-stream";
   }
 }
+async function resolveSourceId(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const sources = await api("GET", `/projects/${pid}/sources`);
+  return resolveIdFromItems(id, sources, {
+    label: "Source",
+    fields: ["id", "filename"],
+    formatter: (source) => `${source.filename}  ${source.id}  ${source.status}`
+  });
+}
 
 // src/commands/tasks.ts
-var import_promises5 = require("fs/promises");
 function registerTasks(program3) {
   const tasks = program3.command("task").alias("tasks").description("Manage tasks").argument("[id]", "Task ID or display ID").option("--project <id>", "Project ID").option("--status <status>", "Filter by status").option("--priority <priority>", "Filter by priority").option("--release-id <id>", "Filter by release ID").option("--step <id>", "Filter by step ID or display ID").option("--json", "JSON output").action(async (id, opts) => {
     if (!id && !opts.project && !opts.status && !opts.priority && !opts.releaseId && !opts.step) {
@@ -3907,11 +4073,11 @@ function registerTasks(program3) {
       project: opts.project ?? parentOpts.project
     });
   });
-  tasks.command("create").description("Create a task").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with task data").option("--title <title>", "Task title").option("--display-id <displayId>", "Task display ID").option("--user-story <story>", "User story").option("--acceptance-criteria <text>", "Acceptance criteria text").option("--priority <priority>", "Priority").option("--status <status>", "Status").option("--device <device>", "Device").option("--lifecycle <lifecycle>", "Lifecycle").option("--source-type <type>", "Source type").option("--source-excerpt <text>", "Source excerpt").option("--json", "JSON output").action(async (opts) => {
+  tasks.command("create").description("Create a task").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with task data").option("--title <title>", "Task title").option("--display-id <displayId>", "Task display ID").option("--user-story <story>", "User story").option("--acceptance-criteria <text>", "Acceptance criteria text").option("--acceptance-criteria-json <json>", "Acceptance criteria JSON").option("--priority <priority>", "Priority").option("--status <status>", "Status").option("--device <device>", "Device").option("--lifecycle <lifecycle>", "Lifecycle").option("--source-type <type>", "Source type").option("--source-excerpt <text>", "Source excerpt").option("--json", "JSON output").action(async (opts) => {
     const pid = await autoDetectProject(opts.project);
     let body;
     if (opts.file) {
-      body = JSON.parse(await (0, import_promises5.readFile)(opts.file, "utf8"));
+      body = await readJsonFile(opts.file);
     } else {
       if (!opts.title || !opts.displayId) {
         console.error("Provide --file <path> or both --title and --display-id");
@@ -3922,6 +4088,9 @@ function registerTasks(program3) {
         display_id: opts.displayId,
         ...opts.userStory && { user_story: opts.userStory },
         ...opts.acceptanceCriteria && { acceptance_criteria: opts.acceptanceCriteria },
+        ...opts.acceptanceCriteriaJson && {
+          acceptance_criteria: parseJsonOption(opts.acceptanceCriteriaJson, "acceptance criteria")
+        },
         ...opts.priority && { priority: opts.priority },
         ...opts.status && { status: opts.status },
         ...opts.device && { device: opts.device },
@@ -3934,15 +4103,84 @@ function registerTasks(program3) {
     if (opts.json) return json(data);
     console.log(`Created task: ${data.display_id} (${data.id})`);
   });
-  tasks.command("place").description("Place a task on a step with a persona").argument("<id>", "Task ID").requiredOption("--step <id>", "Step ID").requiredOption("--persona <id>", "Persona ID").option("--role <role>", "Placement role", "owner").option("--sort-order <n>", "Sort order", (value) => parseInt(value, 10)).option("--json", "JSON output").action(async (id, opts) => {
-    const data = await api("POST", `/tasks/${id}/place`, {
-      step_id: opts.step,
-      persona_id: opts.persona,
+  tasks.command("update").description("Update a task").argument("<id>", "Task ID or display ID").option("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with task data").option("--title <title>", "Task title").option("--display-id <displayId>", "Task display ID").option("--user-story <story>", "User story").option("--acceptance-criteria <text>", "Acceptance criteria text").option("--acceptance-criteria-json <json>", "Acceptance criteria JSON").option("--priority <priority>", "Priority").option("--status <status>", "Status").option("--device <device>", "Device").option("--lifecycle <lifecycle>", "Lifecycle").option("--source-type <type>", "Source type").option("--source-excerpt <text>", "Source excerpt").option("--release-id <id>", "Release ID or name").option("--clear-release", "Clear the release assignment").option("--json", "JSON output").action(async (id, opts) => {
+    const taskId = await resolveTaskId(id, opts.project);
+    let body;
+    if (opts.file) {
+      body = await readJsonFile(opts.file);
+    } else {
+      const releaseId = opts.releaseId && opts.project ? await resolveReleaseId(opts.releaseId, opts.project) : opts.releaseId;
+      body = {
+        ...opts.title && { title: opts.title },
+        ...opts.displayId && { display_id: opts.displayId },
+        ...opts.userStory && { user_story: opts.userStory },
+        ...opts.acceptanceCriteria && { acceptance_criteria: opts.acceptanceCriteria },
+        ...opts.acceptanceCriteriaJson && {
+          acceptance_criteria: parseJsonOption(opts.acceptanceCriteriaJson, "acceptance criteria")
+        },
+        ...opts.priority && { priority: opts.priority },
+        ...opts.status && { status: opts.status },
+        ...opts.device && { device: opts.device },
+        ...opts.lifecycle && { lifecycle: opts.lifecycle },
+        ...opts.sourceType && { source_type: opts.sourceType },
+        ...opts.sourceExcerpt && { source_excerpt: opts.sourceExcerpt },
+        ...releaseId && { release_id: releaseId },
+        ...opts.clearRelease && { release_id: null }
+      };
+    }
+    ensureBody(body);
+    const data = await api("PATCH", `/tasks/${taskId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated task: ${data.display_id} (${data.id})`);
+  });
+  tasks.command("place").description("Place a task on a step with a persona").argument("<id>", "Task ID or display ID").requiredOption("--step <id>", "Step ID or display ID").requiredOption("--persona <id>", "Persona ID, code, or name").option("--project <id>", "Project ID or slug").option("--role <role>", "Placement role", "owner").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const taskId = await resolveTaskId(id, opts.project);
+    const stepId = await resolveStepId(opts.step, opts.project);
+    const personaId = await resolvePersonaId2(opts.persona, opts.project);
+    const data = await api("POST", `/tasks/${taskId}/place`, {
+      step_id: stepId,
+      persona_id: personaId,
       role: opts.role,
       ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
     });
     if (opts.json) return json(data);
-    console.log(`Placed task: ${id} -> ${opts.step} as ${opts.role}`);
+    console.log(`Placed task: ${taskId} -> ${stepId} as ${opts.role}`);
+  });
+  tasks.command("move").description("Move a task placement to a different step").argument("<id>", "Task ID or display ID").requiredOption("--step <id>", "Target step ID or display ID").option("--from-step <id>", "Current step ID or display ID").option("--project <id>", "Project ID or slug").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const taskId = await resolveTaskId(id, opts.project);
+    const stepId = await resolveStepId(opts.step, opts.project);
+    const fromStepId = opts.fromStep ? await resolveStepId(opts.fromStep, opts.project) : void 0;
+    const data = await api("PATCH", `/tasks/${taskId}/move`, {
+      step_id: stepId,
+      ...fromStepId && { from_step_id: fromStepId },
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    });
+    if (opts.json) return json(data);
+    console.log(`Moved task: ${taskId} -> ${stepId}`);
+  });
+  tasks.command("remove-placement").description("Remove a task placement by step-task ID").argument("<id>", "Step-task placement ID").option("--json", "JSON output").action(async (id, opts) => {
+    await api("DELETE", `/step-tasks/${id}`);
+    const result = { id, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Removed task placement: ${id}`);
+  });
+  tasks.command("reorder").description("Reorder task placements within a step").requiredOption("--project <id>", "Project ID or slug").requiredOption("--step <id>", "Step ID or display ID").argument("<placementIds...>", "Ordered list of step-task placement IDs").option("--json", "JSON output").action(async (placementIds, opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const stepId = await resolveStepId(opts.step, pid);
+    await api("POST", `/projects/${pid}/tasks/reorder`, {
+      step_id: stepId,
+      ids: placementIds
+    });
+    const result = { project_id: pid, step_id: stepId, ids: placementIds, reordered: placementIds.length };
+    if (opts.json) return json(result);
+    console.log(`Reordered ${placementIds.length} task placements in step: ${stepId}`);
+  });
+  tasks.command("delete").description("Delete a task").argument("<id>", "Task ID or display ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const taskId = await resolveTaskId(id, opts.project);
+    await api("DELETE", `/tasks/${taskId}`);
+    const result = { id: taskId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted task: ${taskId}`);
   });
 }
 async function listTasks(opts) {
@@ -3968,13 +4206,15 @@ async function listTasks(opts) {
   const params = new URLSearchParams();
   if (opts.status) params.set("status", opts.status);
   if (opts.priority) params.set("priority", opts.priority);
-  if (opts.releaseId) params.set("release_id", opts.releaseId);
+  if (opts.releaseId) {
+    const releaseId = await resolveReleaseId(opts.releaseId, pid);
+    params.set("release_id", releaseId);
+  }
   const qs = params.toString() ? `?${params}` : "";
   const data = await api("GET", `/projects/${pid}/tasks${qs}`);
   if (opts.json) return json(data);
   table(data, ["id", "display_id", "title", "status", "priority"]);
 }
-var UUID_RE2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function showTask(id, opts) {
   const resolved = await resolveTaskId(id, opts.project);
   const data = await api("GET", `/tasks/${resolved}`);
@@ -3983,24 +4223,71 @@ async function showTask(id, opts) {
   console.log(`Title: ${data.title}`);
   console.log(`Status: ${data.status}`);
   console.log(`Priority: ${data.priority}`);
+  if (data.user_story) console.log(`User Story: ${data.user_story}`);
+  if (data.device) console.log(`Device: ${data.device}`);
+  if (data.lifecycle) console.log(`Lifecycle: ${data.lifecycle}`);
   if (data.release_id) console.log(`Release: ${data.release_id}`);
+  if (data.source_type) console.log(`Source Type: ${data.source_type}`);
+  if (data.source_excerpt) console.log(`Source Excerpt: ${data.source_excerpt}`);
+  const criteria = Array.isArray(data.acceptance_criteria) ? data.acceptance_criteria : [];
+  console.log(`Acceptance Criteria: ${criteria.length}`);
+  if (Array.isArray(data.placements) && data.placements.length > 0) {
+    console.log("Placements:");
+    for (const placement of data.placements) {
+      console.log(
+        `  ${placement.id}  [${placement.step_display_id}] ${placement.step_name}  @${placement.persona_code}  ${placement.role}`
+      );
+    }
+  }
 }
 async function resolveTaskId(id, project) {
   if (project) {
     const pid = await autoDetectProject(project);
     const tasks = await api("GET", `/projects/${pid}/tasks`);
-    const match = tasks.find(
-      (candidate) => candidate.id === id || candidate.display_id === id || candidate.title === id
-    );
-    if (match) {
-      return match.id;
-    }
+    return resolveIdFromItems(id, tasks, {
+      label: "Task",
+      fields: ["id", "display_id", "title"],
+      formatter: (task) => `${task.display_id}  ${task.id}  ${task.title}`
+    });
   }
-  if (UUID_RE2.test(id)) {
+  return id;
+}
+async function resolveStepId(id, project) {
+  if (!project) {
     return id;
   }
-  console.error(`Task "${id}" looks like a display ID or title. Re-run with --project <id-or-slug> so it can be resolved safely.`);
-  process.exit(1);
+  const pid = await autoDetectProject(project);
+  const map = await api("GET", `/projects/${pid}/map`);
+  const steps = map.activities.flatMap((activity) => activity.steps);
+  return resolveIdFromItems(id, steps, {
+    label: "Step",
+    fields: ["id", "display_id", "name"],
+    formatter: (step) => `${step.display_id}  ${step.id}  ${step.name}`
+  });
+}
+async function resolveReleaseId(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const releases = await api("GET", `/projects/${pid}/releases`);
+  return resolveIdFromItems(id, releases, {
+    label: "Release",
+    fields: ["id", "name"],
+    formatter: (release) => `${release.name}  ${release.id}  ${release.status}`
+  });
+}
+async function resolvePersonaId2(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const personas = await api("GET", `/projects/${pid}/personas`);
+  return resolveIdFromItems(id, personas, {
+    label: "Persona",
+    fields: ["id", "code", "name"],
+    formatter: (persona) => `${persona.code}  ${persona.id}  ${persona.name}`
+  });
 }
 
 // src/commands/activities.ts
@@ -4021,6 +4308,59 @@ function registerActivities(program3) {
     });
     if (opts.json) return json(data);
     console.log(`Created activity: ${data.display_id} (${data.id})`);
+  });
+  activities.command("update").description("Update an activity").argument("<id>", "Activity ID or display ID").option("--project <id>", "Project ID or slug").option("--name <name>", "Activity name").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const activityId = await resolveActivityId(id, opts.project);
+    const body = {
+      ...opts.name && { name: opts.name },
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    };
+    ensureBody(body);
+    const data = await api("PATCH", `/activities/${activityId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated activity: ${data.display_id} (${data.id})`);
+  });
+  activities.command("reorder").description("Reorder activities within a project").requiredOption("--project <id>", "Project ID or slug").argument("<activityIds...>", "Ordered list of activity IDs or display IDs").option("--json", "JSON output").action(async (activityIds, opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const ids = await Promise.all(activityIds.map((value) => resolveActivityId(value, pid)));
+    await api("POST", `/projects/${pid}/activities/reorder`, { ids });
+    const result = { project_id: pid, ids, reordered: ids.length };
+    if (opts.json) return json(result);
+    console.log(`Reordered ${ids.length} activities in project: ${pid}`);
+  });
+  activities.command("set-order").description("Set the sort order for a single activity").argument("<id>", "Activity ID or display ID").requiredOption("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const activityId = await resolveActivityId(id, opts.project);
+    const data = await api("PATCH", `/activities/${activityId}/reorder`, {
+      sort_order: opts.sortOrder
+    });
+    if (opts.json) return json(data);
+    console.log(`Updated activity order: ${data.display_id} -> ${data.sort_order}`);
+  });
+  activities.command("delete").description("Delete an activity").argument("<id>", "Activity ID or display ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const activityId = await resolveActivityId(id, opts.project);
+    await api("DELETE", `/activities/${activityId}`);
+    const result = { id: activityId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted activity: ${activityId}`);
+  });
+}
+async function listActivities(project) {
+  const pid = await autoDetectProject(project);
+  const data = await api("GET", `/projects/${pid}/activities`);
+  return data.map((activity) => ({
+    id: activity.id,
+    name: activity.name,
+    display_id: activity.display_id,
+    sort_order: activity.sort_order
+  }));
+}
+async function resolveActivityId(id, project) {
+  if (!project) return id;
+  const activities = await listActivities(project);
+  return resolveIdFromItems(id, activities, {
+    label: "Activity",
+    fields: ["id", "display_id", "name"],
+    formatter: (activity) => `${activity.display_id}  ${activity.id}  ${activity.name}`
   });
 }
 
@@ -4061,6 +4401,50 @@ function registerSteps(program3) {
       json: opts.json ?? parentOpts.json,
       project: opts.project ?? parentOpts.project
     });
+  });
+  steps.command("update").description("Update a step").argument("<id>", "Step ID, display ID, or name").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--name <name>", "Step name").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const stepId = await resolveStepId2(id, {
+      activity: opts.activity,
+      project: opts.project
+    });
+    const body = {
+      ...opts.name && { name: opts.name },
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    };
+    ensureBody(body);
+    const data = await api("PATCH", `/steps/${stepId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated step: ${data.display_id} (${data.id})`);
+  });
+  steps.command("move").description("Move a step to a different activity").argument("<id>", "Step ID, display ID, or name").requiredOption("--activity <id>", "Target activity ID or display ID").option("--project <id>", "Project ID or slug").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const stepId = await resolveStepId2(id, { project: opts.project });
+    const activityId = await resolveActivityId2(opts.activity, opts.project);
+    const data = await api("PATCH", `/steps/${stepId}/move`, {
+      activity_id: activityId,
+      ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+    });
+    if (opts.json) return json(data);
+    console.log(`Moved step: ${data.display_id} -> activity ${activityId}`);
+  });
+  steps.command("reorder").description("Reorder steps within an activity").requiredOption("--activity <id>", "Activity ID or display ID").option("--project <id>", "Project ID or slug").argument("<stepIds...>", "Ordered list of step IDs, display IDs, or names").option("--json", "JSON output").action(async (stepIds, opts) => {
+    const activityId = await resolveActivityId2(opts.activity, opts.project);
+    const ids = await Promise.all(
+      stepIds.map((value) => resolveStepId2(value, { activity: activityId, project: opts.project }))
+    );
+    await api("POST", `/activities/${activityId}/steps/reorder`, { ids });
+    const result = { activity_id: activityId, ids, reordered: ids.length };
+    if (opts.json) return json(result);
+    console.log(`Reordered ${ids.length} steps in activity: ${activityId}`);
+  });
+  steps.command("delete").description("Delete a step").argument("<id>", "Step ID, display ID, or name").option("--activity <id>", "Activity ID").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const stepId = await resolveStepId2(id, {
+      activity: opts.activity,
+      project: opts.project
+    });
+    await api("DELETE", `/steps/${stepId}`);
+    const result = { id: stepId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted step: ${stepId}`);
   });
 }
 async function listSteps(opts) {
@@ -4129,6 +4513,29 @@ async function listStepsData(opts) {
   }
   return api("GET", `/activities/${opts.activity}/steps`);
 }
+async function resolveStepId2(id, opts) {
+  if (!opts.activity && !opts.project) {
+    return id;
+  }
+  const steps = await listStepsData(opts);
+  return resolveIdFromItems(id, steps, {
+    label: "Step",
+    fields: ["id", "display_id", "name"],
+    formatter: (step) => `${step.display_id}  ${step.id}  ${step.name}`
+  });
+}
+async function resolveActivityId2(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const activities = await api("GET", `/projects/${pid}/activities`);
+  return resolveIdFromItems(id, activities, {
+    label: "Activity",
+    fields: ["id", "display_id", "name"],
+    formatter: (activity) => `${activity.display_id}  ${activity.id}  ${activity.name}`
+  });
+}
 
 // src/commands/releases.ts
 function registerReleases(program3) {
@@ -4149,13 +4556,54 @@ function registerReleases(program3) {
     if (opts.json) return json(data);
     console.log(`Created release: ${data.name} (${data.id})`);
   });
-  releases.command("assign").description("Assign tasks to a release").argument("<id>", "Release ID").argument("<taskIds...>", "One or more task IDs").action(async (id, taskIds) => {
+  releases.command("assign").description("Assign tasks to a release").argument("<id>", "Release ID").argument("<taskIds...>", "One or more task IDs").option("--json", "JSON output").action(async (id, taskIds, opts) => {
     await api("POST", `/releases/${id}/tasks`, { task_ids: taskIds });
+    const result = { id, task_ids: taskIds, assigned: taskIds.length };
+    if (opts.json) return json(result);
     console.log(`Assigned ${taskIds.length} task(s) to release: ${id}`);
   });
-  releases.command("remove-task").description("Remove a task from a release").argument("<id>", "Release ID").argument("<taskId>", "Task ID").action(async (id, taskId) => {
+  releases.command("remove-task").description("Remove a task from a release").argument("<id>", "Release ID").argument("<taskId>", "Task ID").option("--json", "JSON output").action(async (id, taskId, opts) => {
     await api("DELETE", `/releases/${id}/tasks/${taskId}`);
+    const result = { id, task_id: taskId, removed: true };
+    if (opts.json) return json(result);
     console.log(`Removed task ${taskId} from release: ${id}`);
+  });
+  releases.command("tasks").description("List tasks assigned to a release").argument("<id>", "Release ID or name").option("--project <id>", "Project ID or slug (used to resolve release names)").option("--json", "JSON output").action(async (id, opts) => {
+    const releaseId = await resolveReleaseId2(id, opts.project);
+    const data = await api("GET", `/releases/${releaseId}/tasks`);
+    if (opts.json) return json(data);
+    table(data, ["display_id", "title", "priority", "role", "persona_color"]);
+  });
+  releases.command("update").description("Update a release").argument("<id>", "Release ID or name").option("--project <id>", "Project ID or slug (used to resolve release names)").option("--name <name>", "Release name").option("--target-date <date>", "Target date (YYYY-MM-DD)").option("--status <status>", "Release status").option("--json", "JSON output").action(async (id, opts) => {
+    const releaseId = await resolveReleaseId2(id, opts.project);
+    const body = {
+      ...opts.name && { name: opts.name },
+      ...opts.targetDate && { target_date: opts.targetDate },
+      ...opts.status && { status: opts.status }
+    };
+    ensureBody(body);
+    const data = await api("PATCH", `/releases/${releaseId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated release: ${data.name} (${data.id})`);
+  });
+  releases.command("delete").description("Delete a release").argument("<id>", "Release ID or name").option("--project <id>", "Project ID or slug (used to resolve release names)").option("--json", "JSON output").action(async (id, opts) => {
+    const releaseId = await resolveReleaseId2(id, opts.project);
+    await api("DELETE", `/releases/${releaseId}`);
+    const result = { id: releaseId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted release: ${releaseId}`);
+  });
+}
+async function resolveReleaseId2(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const releases = await api("GET", `/projects/${pid}/releases`);
+  return resolveIdFromItems(id, releases, {
+    label: "Release",
+    fields: ["id", "name"],
+    formatter: (release) => `${release.name}  ${release.id}  ${release.status}`
   });
 }
 
@@ -4235,6 +4683,265 @@ function registerChat(program3) {
   });
 }
 
+// src/commands/members.ts
+function registerMembers(program3) {
+  const members = program3.command("member").alias("members").description("Manage project members");
+  members.command("list").description("List project members").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
+    const data = await api("GET", `/projects/${pid}/members`);
+    if (opts.json) return json(data);
+    table(data, ["id", "user_id", "email", "role", "created_at"]);
+  });
+  members.command("add").description("Add a member to a project").requiredOption("--project <id>", "Project ID or slug").requiredOption("--user <id>", "User ID").requiredOption("--role <role>", "Role (owner/editor/viewer)").option("--email <email>", "User email").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/members`, {
+      user_id: opts.user,
+      role: opts.role,
+      ...opts.email && { email: opts.email }
+    });
+    if (opts.json) return json(data);
+    console.log(`Added project member: ${data.id} (${data.role})`);
+  });
+  members.command("update").description("Update a project member role").argument("<id>", "Member ID, user ID, or email").requiredOption("--role <role>", "Role (owner/editor/viewer)").option("--project <id>", "Project ID or slug (used to resolve non-UUID identifiers)").option("--json", "JSON output").action(async (id, opts) => {
+    const memberId = await resolveMemberId(id, opts.project);
+    const data = await api("PATCH", `/project-members/${memberId}`, {
+      role: opts.role
+    });
+    if (opts.json) return json(data);
+    console.log(`Updated project member: ${data.id} (${data.role})`);
+  });
+  members.command("remove").description("Remove a project member").argument("<id>", "Member ID, user ID, or email").option("--project <id>", "Project ID or slug (used to resolve non-UUID identifiers)").option("--json", "JSON output").action(async (id, opts) => {
+    const memberId = await resolveMemberId(id, opts.project);
+    await api("DELETE", `/project-members/${memberId}`);
+    const result = { id: memberId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Removed project member: ${memberId}`);
+  });
+  members.command("my-role").description("Show your effective role on a project").requiredOption("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/my-role`);
+    if (opts.json) return json(data);
+    console.log(`Role: ${data.role}`);
+  });
+  const orgMembers = program3.command("org-member").alias("org-members").description("Search org members");
+  orgMembers.command("search").description("Search for org members").argument("<query>", "Search query").option("--json", "JSON output").action(async (query, opts) => {
+    const data = await api("GET", `/org-members/search?q=${encodeURIComponent(query)}`);
+    if (opts.json) return json(data);
+    table(data.data ?? [], ["user_id", "email", "display_name", "role"]);
+  });
+}
+async function resolveMemberId(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const members = await api("GET", `/projects/${pid}/members`);
+  return resolveIdFromItems(id, members, {
+    label: "Member",
+    fields: ["id", "user_id", "email"],
+    formatter: (member) => `${member.id}  ${member.user_id}  ${member.email ?? ""}  ${member.role}`,
+    caseInsensitive: true
+  });
+}
+
+// src/commands/invites.ts
+function registerInvites(program3) {
+  const invites = program3.command("invite").alias("invites").description("Manage project invites");
+  invites.command("list").description("List pending invites").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
+    const data = await api("GET", `/projects/${pid}/invites`);
+    if (opts.json) return json(data);
+    table(data, ["id", "email", "role", "status", "created_at"]);
+  });
+  invites.command("create").description("Invite a user to a project by email").requiredOption("--project <id>", "Project ID or slug").requiredOption("--email <email>", "Email address").requiredOption("--role <role>", "Role (owner/editor/viewer)").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/invite`, {
+      email: opts.email,
+      role: opts.role
+    });
+    if (opts.json) return json(data);
+    console.log(`Invite result: ${data.status}`);
+    if (data.user_id) console.log(`User ID: ${data.user_id}`);
+    if (data.invite_code) console.log(`Invite Code: ${data.invite_code}`);
+  });
+  invites.command("cancel").description("Cancel a pending invite").argument("<id>", "Invite ID or email").requiredOption("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (id, opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const inviteId = await resolveInviteId(id, pid);
+    await api("DELETE", `/projects/${pid}/invites/${inviteId}`);
+    const result = { id: inviteId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Cancelled invite: ${inviteId}`);
+  });
+  invites.command("claim").description("Claim any pending invite for the current user").requiredOption("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("POST", `/projects/${pid}/claim-invite`);
+    if (opts.json) return json(data);
+    console.log(data.claimed ? `Claimed invite as ${data.role}` : "No pending invite to claim");
+  });
+}
+async function resolveInviteId(id, project) {
+  const invites = await api("GET", `/projects/${project}/invites`);
+  return resolveIdFromItems(id, invites, {
+    label: "Invite",
+    fields: ["id", "email"],
+    formatter: (invite) => `${invite.id}  ${invite.email}  ${invite.role}`,
+    caseInsensitive: true
+  });
+}
+
+// src/commands/views.ts
+function registerViews(program3) {
+  const views = program3.command("view").alias("views").description("Manage saved map views");
+  views.command("list").description("List saved views").argument("[project]", "Project ID or slug").option("--project <id>", "Project ID or slug").option("--json", "JSON output").action(async (project, opts) => {
+    const pid = await autoDetectProject(opts.project ?? project);
+    const data = await api("GET", `/projects/${pid}/views`);
+    if (opts.json) return json(data);
+    table(data, ["id", "name", "slug", "sort_order", "created_at"]);
+  });
+  views.command("create").description("Create a saved view").requiredOption("--project <id>", "Project ID or slug").option("--file <path>", "JSON file with view data").option("--name <name>", "View name").option("--slug <slug>", "View slug").option("--description <text>", "View description").option("--filter <json>", "Filter JSON").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const body = await loadViewInput(opts);
+    ensureBody(body, "Provide --file <path> or at least --name <name>");
+    if (!body.name) {
+      console.error("View creation requires a name");
+      process.exit(1);
+    }
+    const data = await api("POST", `/projects/${pid}/views`, body);
+    if (opts.json) return json(data);
+    console.log(`Created view: ${data.name} (${data.id})`);
+  });
+  views.command("update").description("Update a saved view").argument("<id>", "View ID, slug, or name").option("--project <id>", "Project ID or slug (used to resolve non-UUID identifiers)").option("--file <path>", "JSON file with view data").option("--name <name>", "View name").option("--slug <slug>", "View slug").option("--description <text>", "View description").option("--filter <json>", "Filter JSON").option("--sort-order <n>", "Sort order", (value) => parseInteger(value, "sort order")).option("--json", "JSON output").action(async (id, opts) => {
+    const viewId = await resolveViewId(id, opts.project);
+    const body = await loadViewInput(opts);
+    ensureBody(body);
+    const data = await api("PATCH", `/views/${viewId}`, body);
+    if (opts.json) return json(data);
+    console.log(`Updated view: ${data.name} (${data.id})`);
+  });
+  views.command("delete").description("Delete a saved view").argument("<id>", "View ID, slug, or name").option("--project <id>", "Project ID or slug (used to resolve non-UUID identifiers)").option("--json", "JSON output").action(async (id, opts) => {
+    const viewId = await resolveViewId(id, opts.project);
+    await api("DELETE", `/views/${viewId}`);
+    const result = { id: viewId, deleted: true };
+    if (opts.json) return json(result);
+    console.log(`Deleted view: ${viewId}`);
+  });
+}
+async function loadViewInput(opts) {
+  if (opts.file) {
+    return readJsonFile(opts.file);
+  }
+  return {
+    ...opts.name && { name: opts.name },
+    ...opts.slug && { slug: opts.slug },
+    ...opts.description && { description: opts.description },
+    ...opts.filter && { filter: parseJsonOption(opts.filter, "view filter") },
+    ...opts.sortOrder !== void 0 && { sort_order: opts.sortOrder }
+  };
+}
+async function resolveViewId(id, project) {
+  if (!project) {
+    return id;
+  }
+  const pid = await autoDetectProject(project);
+  const views = await api("GET", `/projects/${pid}/views`);
+  return resolveIdFromItems(id, views, {
+    label: "View",
+    fields: ["id", "slug", "name"],
+    formatter: (view) => `${view.slug}  ${view.id}  ${view.name}`
+  });
+}
+
+// src/commands/notifications.ts
+function registerNotifications(program3) {
+  const notifications = program3.command("notification").alias("notifications").description("Manage user notifications");
+  notifications.command("list").description("List notifications").option("--limit <n>", "Limit results", (value) => parseInteger(value, "limit")).option("--offset <n>", "Offset results", (value) => parseInteger(value, "offset")).option("--json", "JSON output").action(async (opts) => {
+    const params = new URLSearchParams();
+    if (opts.limit !== void 0) params.set("limit", String(opts.limit));
+    if (opts.offset !== void 0) params.set("offset", String(opts.offset));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const data = await api("GET", `/notifications${query}`);
+    if (opts.json) return json(data);
+    table(data, ["id", "title", "type", "read", "created_at"]);
+  });
+  notifications.command("read").description("Mark a notification as read").argument("<id>", "Notification ID").option("--json", "JSON output").action(async (id, opts) => {
+    const data = await api("PATCH", `/notifications/${id}/read`);
+    if (opts.json) return json(data);
+    console.log(`Marked notification as read: ${data.id}`);
+  });
+  notifications.command("read-all").description("Mark all notifications as read").option("--json", "JSON output").action(async (opts) => {
+    const data = await api("POST", "/notifications/read-all");
+    if (opts.json) return json(data);
+    console.log(`Marked ${data.updated} notification(s) as read`);
+  });
+}
+
+// src/commands/wizard.ts
+function registerWizard(program3) {
+  const wizard = program3.command("wizard").description("Manage AI-driven map generation");
+  wizard.command("generate").description("Generate a story map").requiredOption("--project <id>", "Project ID or slug").option("--description <text>", "Project description").option("--audience <text>", "Audience description").option("--capabilities <text>", "Capabilities description").option("--constraints <text>", "Constraints description").option("--source <id>", "Source ID or filename").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const sourceId = opts.source ? await resolveSourceId2(opts.source, pid) : void 0;
+    const body = {
+      ...opts.description && { description: opts.description },
+      ...opts.audience && { audience: opts.audience },
+      ...opts.capabilities && { capabilities: opts.capabilities },
+      ...opts.constraints && { constraints: opts.constraints },
+      ...sourceId && { source_id: sourceId }
+    };
+    const data = await api("POST", `/projects/${pid}/generate-map`, body);
+    if (opts.json) return json(data);
+    console.log(`Started map generation job: ${data.job_id}`);
+  });
+  wizard.command("status").description("Check story map generation status").requiredOption("--project <id>", "Project ID or slug").requiredOption("--job <id>", "Job ID").option("--json", "JSON output").action(async (opts) => {
+    const pid = await autoDetectProject(opts.project);
+    const data = await api("GET", `/projects/${pid}/generate-map/status?job_id=${opts.job}`);
+    if (opts.json) return json(data);
+    console.log(`Status: ${data.status}`);
+    if (data.changeset_id) console.log(`Changeset: ${data.changeset_id}`);
+    if (data.error) console.log(`Error: ${data.error}`);
+  });
+}
+async function resolveSourceId2(id, project) {
+  const sources = await api("GET", `/projects/${project}/sources`);
+  return resolveIdFromItems(id, sources, {
+    label: "Source",
+    fields: ["id", "filename"],
+    formatter: (source) => `${source.filename}  ${source.id}  ${source.status}`
+  });
+}
+
+// src/commands/auth.ts
+function registerAuth(program3) {
+  const auth = program3.command("auth").description("Inspect authentication context");
+  auth.command("me").description("Show the authenticated user identity").option("--json", "JSON output").action(async (opts) => {
+    const data = await api("GET", "/auth/me");
+    if (opts.json) return json(data);
+    console.log(`User: ${data.user_id}`);
+    console.log(`Email: ${data.email}`);
+    console.log(`Org: ${data.org_id}`);
+    console.log(`Role: ${data.role}`);
+    if (Array.isArray(data.memberships) && data.memberships.length > 0) {
+      console.log("Memberships:");
+      for (const membership of data.memberships) {
+        console.log(`  ${membership.org_id}  ${membership.role}`);
+      }
+    }
+  });
+}
+
+// src/commands/health.ts
+function registerHealth(program3) {
+  program3.command("health").description("Check Eden API health").option("--json", "JSON output").action(async (opts) => {
+    const data = await api("GET", "/health");
+    if (opts.json) return json(data);
+    console.log(`Status: ${data.status}`);
+    console.log(`Timestamp: ${data.timestamp}`);
+    console.log(`DB Connected: ${data.db.connected}`);
+    if (data.db.version) console.log(`DB Version: ${data.db.version}`);
+    if (data.db.error) console.log(`DB Error: ${data.db.error}`);
+  });
+}
+
 // src/index.ts
 var program2 = new Command();
 program2.name("eden").description("Eden story map CLI \u2014 agent-friendly interface to the Eden API").version("1.0.0");
@@ -4253,4 +4960,11 @@ registerSteps(program2);
 registerReleases(program2);
 registerAudit(program2);
 registerChat(program2);
+registerMembers(program2);
+registerInvites(program2);
+registerViews(program2);
+registerNotifications(program2);
+registerWizard(program2);
+registerAuth(program2);
+registerHealth(program2);
 program2.parse();

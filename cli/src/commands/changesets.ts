@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
+import { readJsonFile } from '../utils.js';
 import { autoDetectProject } from './projects.js';
 
 interface Changeset {
@@ -12,6 +13,22 @@ interface Changeset {
   created_at: string;
   items?: unknown[];
   warnings?: Array<{ path: string; message: string }>;
+}
+
+interface ReviewDecision {
+  id: string;
+  status: 'accepted' | 'rejected';
+}
+
+interface PendingApprovalItem {
+  id: string;
+  changeset_id: string;
+  entity_type: string;
+  operation: string;
+  description: string | null;
+  display_reference: string | null;
+  approval_status: string;
+  created_at: string;
 }
 
 export function registerChangesets(program: Command): void {
@@ -86,5 +103,57 @@ export function registerChangesets(program: Command): void {
     .action(async (id) => {
       await api('POST', `/changesets/${id}/reject`);
       console.log(`Rejected: ${id}`);
+    });
+
+  cs.command('review')
+    .description('Review a changeset with per-item decisions')
+    .argument('<id>', 'Changeset ID')
+    .requiredOption('--file <path>', 'JSON file with review decisions')
+    .option('--json', 'JSON output')
+    .action(async (id, opts) => {
+      const payload = await readJsonFile<{ decisions?: ReviewDecision[] } | ReviewDecision[]>(opts.file);
+      const decisions = Array.isArray(payload) ? payload : payload.decisions ?? [];
+      const data = await api<Changeset>('POST', `/changesets/${id}/review`, { decisions });
+      if (opts.json) return json(data);
+      console.log(`Reviewed changeset: ${data.id} (${data.status})`);
+    });
+
+  cs.command('pending-approvals')
+    .description('List changeset items awaiting owner approval')
+    .requiredOption('--project <id>', 'Project ID or slug')
+    .option('--json', 'JSON output')
+    .action(async (opts) => {
+      const pid = await autoDetectProject(opts.project);
+      const data = await api<PendingApprovalItem[]>('GET', `/projects/${pid}/pending-approvals`);
+      if (opts.json) return json(data);
+      table(data, ['id', 'changeset_id', 'entity_type', 'operation', 'display_reference', 'created_at']);
+    });
+
+  cs.command('approve-items')
+    .description('Approve pending changeset items')
+    .requiredOption('--project <id>', 'Project ID or slug')
+    .argument('<itemIds...>', 'Changeset item IDs')
+    .option('--json', 'JSON output')
+    .action(async (itemIds: string[], opts) => {
+      const pid = await autoDetectProject(opts.project);
+      const data = await api<{ approved: number }>('POST', `/projects/${pid}/approve-items`, {
+        item_ids: itemIds,
+      });
+      if (opts.json) return json(data);
+      console.log(`Approved ${data.approved} item(s)`);
+    });
+
+  cs.command('reject-items')
+    .description('Reject pending changeset items')
+    .requiredOption('--project <id>', 'Project ID or slug')
+    .argument('<itemIds...>', 'Changeset item IDs')
+    .option('--json', 'JSON output')
+    .action(async (itemIds: string[], opts) => {
+      const pid = await autoDetectProject(opts.project);
+      const data = await api<{ rejected: number }>('POST', `/projects/${pid}/reject-items`, {
+        item_ids: itemIds,
+      });
+      if (opts.json) return json(data);
+      console.log(`Rejected ${data.rejected} item(s)`);
     });
 }

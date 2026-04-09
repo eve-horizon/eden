@@ -14,6 +14,13 @@ import { registerSteps } from './commands/steps.js';
 import { registerReleases } from './commands/releases.js';
 import { registerAudit } from './commands/audit.js';
 import { registerChat } from './commands/chat.js';
+import { registerMembers } from './commands/members.js';
+import { registerInvites } from './commands/invites.js';
+import { registerViews } from './commands/views.js';
+import { registerNotifications } from './commands/notifications.js';
+import { registerWizard } from './commands/wizard.js';
+import { registerAuth } from './commands/auth.js';
+import { registerHealth } from './commands/health.js';
 
 const program = new Command();
 program
@@ -36,5 +43,12 @@ registerSteps(program);
 registerReleases(program);
 registerAudit(program);
 registerChat(program);
+registerMembers(program);
+registerInvites(program);
+registerViews(program);
+registerNotifications(program);
+registerWizard(program);
+registerAuth(program);
+registerHealth(program);
 
 program.parse();
