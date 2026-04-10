@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEV_BROWSER="$ROOT_DIR/private-skills/dev-browser-verification/scripts/dev-browser-workspace"
 PROJECT_URL="${1:-${EDEN_PARITY_URL:-https://eden.eh1.incept5.dev/projects/c9d332fc-be0e-425b-b40f-f4b463da4f75/map}}"
 ORG_ID="${EDEN_ORG_ID:-org_Incept5}"
-BROWSER_NAME="${EDEN_PARITY_BROWSER:-eden-sandbox}"
+BROWSER_NAME="${EDEN_PARITY_BROWSER:-eden-parity-$(date +%s)}"
 PAGE_NAME="${EDEN_PARITY_PAGE:-story-map-parity}"
 TOKEN="$(eve auth token --raw)"
 TOKEN_JSON="$(node -p 'JSON.stringify(process.argv[1])' "$TOKEN")"
@@ -23,13 +23,14 @@ const projectUrl = $PROJECT_URL_JSON;
 const pageName = $PAGE_NAME_JSON;
 
 function fail(message) {
-  console.error(`PARITY CHECK FAILED: ${message}`);
+  console.error('PARITY CHECK FAILED: ' + message);
   throw new Error(message);
 }
 
 async function expectVisible(locator, message) {
-  if (await locator.count() === 0) fail(message);
-  await locator.first().waitFor({ state: 'visible', timeout: 10000 });
+  await locator.first().waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
+    fail(message);
+  });
 }
 
 const page = await browser.getPage(pageName);
@@ -37,6 +38,9 @@ await page.goto('https://eden.eh1.incept5.dev', { waitUntil: 'domcontentloaded' 
 await page.evaluate(({ token, orgId }) => {
   sessionStorage.setItem('eve_access_token', token);
   localStorage.setItem('eve_active_org_id', orgId);
+  localStorage.setItem('eden_walkthrough_owner_complete', 'true');
+  localStorage.setItem('eden_walkthrough_editor_complete', 'true');
+  localStorage.setItem('eden_walkthrough_viewer_complete', 'true');
 }, { token, orgId });
 
 await page.goto(projectUrl, { waitUntil: 'domcontentloaded' });
@@ -58,7 +62,7 @@ const firstDisplayId = firstCardTestId.replace(/^task-card-/, '');
 await expectVisible(firstCard.locator('[data-testid^="task-device-"]'), 'Device badge missing on first task card');
 
 await firstCard.click({ position: { x: 20, y: 20 } });
-const expanded = page.locator(\`[data-testid="task-card-expanded-\${firstDisplayId}"]\`);
+const expanded = page.locator('[data-testid="task-card-expanded-' + firstDisplayId + '"]');
 await expectVisible(expanded, 'Task card did not expand on single click');
 
 const acRows = expanded.locator('[data-testid^="acceptance-criterion-"]');
@@ -68,7 +72,7 @@ const acIds = await acRows.evaluateAll((nodes) =>
   nodes.map((node) => (node.getAttribute('data-testid') || '').replace('acceptance-criterion-', ''))
 );
 
-const roleButtons = page.locator('[data-testid^="role-filter-"]');
+const roleButtons = page.locator('button[data-testid^="role-filter-"]');
 const roleCount = await roleButtons.count();
 let roleCheck = null;
 if (roleCount > 1) {
@@ -105,7 +109,7 @@ if (activityCount > 1) {
     const testId = await button.getAttribute('data-testid');
     if (!testId) continue;
     const displayId = testId.replace('activity-filter-', '');
-    const header = page.locator(\`[data-testid="activity-\${displayId}"]\`);
+    const header = page.locator('[data-testid="activity-' + displayId + '"]');
     const before = await header.evaluate((el) => getComputedStyle(el).opacity);
     await button.click();
     await page.waitForTimeout(300);
