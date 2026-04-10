@@ -1,13 +1,14 @@
 # Agent Instructions
 
-Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + PostgreSQL + 14 Eve Horizon agents. See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams.
+Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + PostgreSQL + Eden CLI + 16 Eve Horizon agents. See [ARCHITECTURE.md](ARCHITECTURE.md) for system diagrams.
 
 ## Project Context
 
-- **API**: `apps/api/` — NestJS 11, 17 modules, PostgreSQL with RLS
-- **Web**: `apps/web/` — React 18, Vite, Tailwind, 8 pages with story map grid
-- **Agents**: `eve/agents.yaml` + `skills/` — 14 agents (coordinator, 7 experts, 6 intelligence)
-- **Database**: `db/migrations/` — 15 tables, never edit existing migrations
+- **API**: `apps/api/` — NestJS 11, 20 domain modules, PostgreSQL with RLS (19 tables)
+- **Web**: `apps/web/` — React 18, Vite, Tailwind, 9 project pages + login
+- **CLI**: `cli/` — 22 command modules wrapping every REST endpoint
+- **Agents**: `eve/agents.yaml` + `skills/` — 16 agents (coordinator, 7 experts, 8 intelligence/wizard)
+- **Database**: `db/migrations/` — 8 migrations, never edit existing migrations
 - **Config**: `.eve/manifest.yaml` — deployment, pipelines, managed Postgres
 
 ## API Access Policy for Agents
@@ -17,6 +18,18 @@ Eden is a full-stack AI-first requirements platform: NestJS API + React SPA + Po
 - Use `eden` (not `./cli/bin/eden`) so path handling remains stable across directories.
 - If an agent needs an API operation the CLI does not expose, add the command in CLI first, then update skills.
 - CLI/API parity is mandatory for every non-webhook REST operation. When adding, changing, or removing a public Eden API route, update the `eden` CLI in the same change and keep docs/tests aligned so agents never need a raw REST fallback.
+
+## Skill Authoring Rules
+
+- **Inline templates only.** Agent SKILL.md files must keep critical structural templates (JSON schemas for changesets, entity shapes) inline in the prompt. Never move them to reference files — agents either skip reading them or read wrong files, resulting in malformed output (missing `display_reference`, `acceptance_criteria`, etc.).
+- **Shared references** are fine for non-critical context in `skills/_references/`, but anything the agent must produce in a specific shape belongs inline in the SKILL.md.
+
+## Changeset Contract Validation
+
+When modifying changeset-related code (contracts, changeset service, skills that create changesets):
+1. Run `./scripts/check-contract-drift.sh` to verify the contract JSON is in sync with the Zod schema
+2. If the contract shape changes, regenerate with `npm run generate:contracts --prefix apps/api`
+3. Update inline templates in affected SKILL.md files to match the new shape
 
 ## CRITICAL: Staging Deployment
 
@@ -53,7 +66,6 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --status in_progress  # Claim work
 bd close <id>         # Complete work
-bd sync               # Sync with git
 ```
 
 ## Landing the Plane (Session Completion)
@@ -62,136 +74,22 @@ bd sync               # Sync with git
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd sync
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-
-
-<!-- BEGIN BEADS INTEGRATION -->
-## Issue Tracking with bd (beads)
-
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
-
-### Why bd?
-
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Dolt-powered version control with native sync
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
-
-### Quick Start
-
-**Check for ready work:**
-
-```bash
-bd ready --json
-```
-
-**Create new issues:**
-
-```bash
-bd create "Issue title" --description="Detailed context" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" --description="What this issue is about" -p 1 --deps discovered-from:bd-123 --json
-```
-
-**Claim and update:**
-
-```bash
-bd update <id> --claim --json
-bd update bd-42 --priority 1 --json
-```
-
-**Complete work:**
-
-```bash
-bd close bd-42 --reason "Completed" --json
-```
-
-### Issue Types
-
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
-
-### Priorities
-
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
-
-### Workflow for AI Agents
-
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task atomically**: `bd update <id> --claim`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" --description="Details about what was found" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
-
-### Auto-Sync
-
-bd automatically syncs via Dolt:
-
-- Each write auto-commits to Dolt history
-- Use `bd dolt push`/`bd dolt pull` for remote sync
-- No manual export/import needed!
-
-### Important Rules
-
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-
-For more details, see README.md and docs/QUICKSTART.md.
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **File issues for remaining work** — Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) — Tests, linters, builds
+3. **Update issue status** — Close finished work, update in-progress items
+4. **PUSH TO REMOTE** — This is MANDATORY:
    ```bash
    git pull --rebase
    bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+5. **Clean up** — Clear stashes, prune remote branches
+6. **Verify** — All changes committed AND pushed
+7. **Hand off** — Provide context for next session
 
 **CRITICAL RULES:**
 - Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
+- NEVER stop before pushing — that leaves work stranded locally
+- NEVER say "ready to push when you are" — YOU must push
 - If push fails, resolve and retry until it succeeds
-
-<!-- END BEADS INTEGRATION -->
