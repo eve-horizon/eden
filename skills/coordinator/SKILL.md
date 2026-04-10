@@ -84,12 +84,15 @@ Decide which path to take:
    ```
    ## Review Request
 
-   **Message**: {user's message}
+   **Message**: {sanitized user intent with routing prefixes removed}
    **Files**: {count} attached
    **Prepared content**: {transcript / extracted text / summary}
 
    Original files available at .eve/attachments/ for direct examination.
    ```
+   Strip transport-only routing metadata such as `@eve pm`, `[eden-project:...]`,
+   `[eden-cli-project:...]`, and other `[eden-*]` tokens before posting. Experts
+   should receive the review brief, not the raw chat envelope.
 6. Return the prepared signal in a fenced code block (the platform extracts status from this exact format):
    ````
    ```json-result
