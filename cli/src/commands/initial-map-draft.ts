@@ -330,7 +330,7 @@ function normalizePersona(
 
   const record = asRecord(raw, `personas[${index}]`);
   const name = requireString(record.name, `personas[${index}].name`);
-  const code = normalizeOptionalString(record.code) ?? derivePersonaCode(name);
+  const code = normalizePersonaCode(record.code) ?? derivePersonaCode(name);
   if (!record.code) {
     warnings.push({
       path: `personas[${index}].code`,
@@ -450,7 +450,7 @@ function resolveTaskPersonaCode(
   path: string,
   warnings: ChangesetWarning[],
 ): string {
-  const explicitCode = normalizeOptionalString(rawCode)?.toUpperCase();
+  const explicitCode = normalizePersonaCode(rawCode);
   if (explicitCode && personaByCode.has(explicitCode)) {
     return explicitCode;
   }
@@ -623,6 +623,11 @@ function normalizeOptionalString(value: unknown): string | undefined {
   }
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function normalizePersonaCode(value: unknown): string | undefined {
+  const normalized = normalizeOptionalString(value);
+  return normalized ? normalized.toUpperCase() : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

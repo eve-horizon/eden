@@ -168,4 +168,54 @@ describe('expandInitialMapDraft', () => {
       ),
     );
   });
+
+  it('normalizes lowercase and hyphenated persona codes consistently', () => {
+    const result = expandInitialMapDraft({
+      personas: [
+        { name: 'Joinery Owner', code: 'owner' },
+        { name: 'Junior Estimator', code: 'junior-estimator' },
+      ],
+      activities: [
+        {
+          name: 'Plan Takeoff',
+          steps: [
+            {
+              name: 'Upload Plans',
+              tasks: [
+                {
+                  title: 'Upload plan files',
+                  persona_code: 'junior-estimator',
+                  user_story:
+                    'As a Junior Estimator, I want to upload plan files, so that I can start my takeoff.',
+                  acceptance_criteria: [
+                    'Given I am on the plan screen, when I upload a PDF, then the file is stored successfully.',
+                    'Given the file is invalid, when I attempt to upload it, then I see a clear error message.',
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      questions: ['Should DWG uploads be supported at launch?'],
+    });
+
+    const personaItems = result.payload.items.filter(
+      (item) => item.entity_type === 'persona',
+    );
+    assert.deepEqual(
+      personaItems.map((item) => item.after_state?.code),
+      ['OWNER', 'JUNIOR-ESTIMATOR'],
+    );
+
+    const taskItem = result.payload.items.find(
+      (item) => item.entity_type === 'task',
+    )!;
+    assert.equal(taskItem.after_state?.persona_code, 'JUNIOR-ESTIMATOR');
+    assert.ok(
+      result.warnings.every((warning) =>
+        !warning.message.includes('Unknown persona_code'),
+      ),
+    );
+  });
 });
