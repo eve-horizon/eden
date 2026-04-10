@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eden.eh1.incept5.dev/schemas/create-changeset.json",
+  "title": "CreateChangesetPayload",
+  "description": "Payload for creating a changeset in Eden. All map mutations go through changesets.",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Changeset title. Auto-generated if omitted."
+    },
+    "reasoning": {
+      "type": "string",
+      "description": "Why this changeset is being proposed."
+    },
+    "source": {
+      "type": "string",
+      "description": "Origin of the changeset (e.g. \"map-generator\", \"synthesis\", \"manual\"). Auto-inferred from agent identity if omitted."
+    },
+    "source_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID of the ingestion source, if this changeset was generated from a document."
+    },
+    "actor": {
+      "type": "string",
+      "description": "Who created this changeset. Auto-inferred if omitted."
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "activity",
+              "persona",
+              "question",
+              "step",
+              "task"
+            ],
+            "description": "Entity type to operate on"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update",
+              "delete"
+            ],
+            "description": "Operation to perform"
+          },
+          "display_reference": {
+            "type": "string",
+            "description": "Human-readable reference (e.g. ACT-1, TSK-1.2.3, Q-5)"
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of the change"
+          },
+          "before_state": {
+            "type": "object",
+            "description": "Previous state (for update operations)"
+          },
+          "after_state": {
+            "type": "object",
+            "description": "Desired state after the operation. Required for create/update."
+          }
+        },
+        "required": [
+          "entity_type",
+          "operation"
+        ]
+      },
+      "minItems": 1,
+      "description": "Array of changeset items. Each item represents one entity mutation."
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "ActivityAfterState": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Activity name (canonical field name)"
+        },
+        "display_id": {
+          "type": "string",
+          "description": "Display ID in ACT-{n} format"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sort_order": {
+          "type": "integer",
+          "description": "Position in the map"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "PersonaAfterState": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Persona name"
+        },
+        "code": {
+          "type": "string",
+          "description": "Short uppercase code (e.g. CUST, DEV)"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Hex color"
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "QuestionAfterState": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "description": "Question text"
+        },
+        "display_id": {
+          "type": "string",
+          "description": "Display ID in Q-{n} format"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "requirements",
+            "technical",
+            "business",
+            "ux",
+            "risk"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string",
+          "description": "Answer text (for question/update)"
+        }
+      },
+      "required": [
+        "question"
+      ]
+    },
+    "StepAfterState": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Step name (canonical field name)"
+        },
+        "display_id": {
+          "type": "string",
+          "description": "Display ID in STP-{a}.{s} format"
+        },
+        "activity_display_id": {
+          "type": "string",
+          "description": "Parent activity reference (e.g. ACT-1)"
+        },
+        "activity_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Parent activity UUID (alternative to display ref)"
+        },
+        "sort_order": {
+          "type": "integer",
+          "description": "Position within the activity"
+        }
+      },
+      "required": [
+        "name",
+        "activity_display_id"
+      ]
+    },
+    "TaskAfterState": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Task title (canonical field name)"
+        },
+        "display_id": {
+          "type": "string",
+          "description": "Display ID in TSK-{a}.{s}.{t} format"
+        },
+        "step_display_id": {
+          "type": "string",
+          "description": "Parent step reference (e.g. STP-1.1)"
+        },
+        "persona_code": {
+          "type": "string",
+          "description": "Persona code for this task"
+        },
+        "user_story": {
+          "type": "string",
+          "description": "User story in \"As a ..., I want to ..., so that ...\" form"
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Optional criterion identifier (e.g. AC-1.1.1a)"
+              },
+              "text": {
+                "type": "string",
+                "description": "Criterion text, ideally in Given/When/Then form"
+              },
+              "done": {
+                "type": "boolean",
+                "description": "Whether this criterion is satisfied"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Acceptance criteria (2-4 entries, Given/When/Then form)",
+          "minItems": 1
+        },
+        "device": {
+          "type": "string",
+          "enum": [
+            "desktop",
+            "mobile",
+            "all"
+          ],
+          "description": "Target device"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "active",
+            "done"
+          ]
+        },
+        "lifecycle": {
+          "type": "string",
+          "enum": [
+            "current",
+            "future",
+            "archived"
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "step_display_id"
+      ]
+    },
+    "AcceptanceCriterion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Optional criterion identifier (e.g. AC-1.1.1a)"
+        },
+        "text": {
+          "type": "string",
+          "description": "Criterion text, ideally in Given/When/Then form"
+        },
+        "done": {
+          "type": "boolean",
+          "description": "Whether this criterion is satisfied"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

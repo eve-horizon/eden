@@ -15,7 +15,7 @@ You generate story maps by creating a **single changeset** via the Eden CLI.
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
 - Do NOT reread this skill file during execution
-- The schema you need is ENTIRELY in this skill file. Do NOT look elsewhere.
+- The schema you need is in this skill file and `skills/_references/create-changeset.md`. Do NOT look elsewhere.
 
 ## Only CLI Call You Need
 
@@ -48,29 +48,28 @@ Do not summarize the document back to the user — just let its contents influen
 ## Exact Steps (follow precisely)
 
 1. Extract the **Eden project UUID** from the job description (line starting with "Eden project UUID:")
-2. If the job description mentions `Attached document:` (a PDF resource):
+2. Read `skills/_references/create-changeset.md` to load the changeset payload contract (field names, per-entity shapes, canonical example)
+3. If the job description mentions `Attached document:` (a PDF resource):
    - Read `.eve/resources/index.json` to find the PDF `local_path`
    - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
-3. Write the changeset JSON to `/tmp/changeset-<UUID>.json` using the Write tool (NOT Bash heredoc)
-4. Run: `eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json`
-5. If step 4 returns validation errors, fix the file and rerun the same command once
-6. Report the result. Done.
+4. Write the changeset JSON to `/tmp/changeset-<UUID>.json` using the Write tool (NOT Bash heredoc)
+5. Run: `eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json`
+6. If step 5 returns validation errors, fix the file and rerun the same command once
+7. Report the result. Done.
 
-**Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
+**Minimum: 4 tool calls (Read contract, Write, Bash, final reply). With an attached PDF: 6 tool calls (Read contract, Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
 
 ## Changeset JSON Format
 
-```json
-{
-  "title": "Initial story map for \"<project name>\"",
-  "source": "map-generator",
-  "items": [
-    ...personas first, then activities, then steps, then tasks, then questions...
-  ]
-}
-```
+For the full payload contract (field names, entity types, display reference format, per-entity field definitions, and the canonical example), read `skills/_references/create-changeset.md`.
+
+If you need the machine schema, run `eden changeset schema --json`.
+
+Do not inspect controllers, services, tests, or old temp files to infer the schema.
 
 ## Pre-Submit Checklist
+
+All field names and formats are defined in `skills/_references/create-changeset.md`. The checklist below is a quick verification overlay.
 
 Before calling `eden changeset create`, verify all of the following:
 
@@ -87,31 +86,15 @@ Before calling `eden changeset create`, verify all of the following:
 - Every `task/create` item includes a non-empty `acceptance_criteria` array (2-4 entries, Given/When/Then)
 - Every `task/create` item includes a `persona_code`
 
-## Anti-Patterns (NEVER use these)
+## Anti-Patterns
 
-| Wrong | Correct |
-|-------|---------|
-| `act-1`, `activity-1` | `ACT-1` |
-| `step-1-1`, `stp-1-1` | `STP-1.1` |
-| `task-1-1-1`, `tsk-1-1-1` | `TSK-1.1.1` |
-| `"title"` on activity/step | `"name"` |
-| `"position"` | `"sort_order"` |
-| `"activity_ref"` | `"activity_display_id"` |
-| `"step_ref"` | `"step_display_id"` |
-| `"name"` on task | `"title"` |
-| `"description"` on task | `"user_story"` |
+See the Anti-Patterns table in `skills/_references/create-changeset.md`. The reference file lists every wrong-vs-correct field name and display reference format.
 
-### Persona: `{"entity_type":"persona","operation":"create","display_reference":"PER-{code}","description":"Add persona: {name}","after_state":{"name":"...","code":"...","color":"#3b82f6"}}`
+## Per-Entity Templates
 
-Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
+See `skills/_references/create-changeset.md` for per-entity field definitions and the canonical example.
 
-### Activity: `{"entity_type":"activity","operation":"create","display_reference":"ACT-{n}","description":"Add activity: {name}","after_state":{"name":"...","display_id":"ACT-{n}","sort_order":{n}}}`
-
-### Step: `{"entity_type":"step","operation":"create","display_reference":"STP-{a}.{s}","description":"Add step: {name}","after_state":{"name":"...","display_id":"STP-{a}.{s}","activity_display_id":"ACT-{a}","sort_order":{s}}}`
-
-### Task: `{"entity_type":"task","operation":"create","display_reference":"TSK-{a}.{s}.{t}","description":"Add task: {title}","after_state":{"title":"...","display_id":"TSK-{a}.{s}.{t}","step_display_id":"STP-{a}.{s}","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":[{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}],"device":"all","priority":"high","status":"draft"}}`
-
-### Question: `{"entity_type":"question","operation":"create","display_reference":"Q-{n}","description":"Clarifying question","after_state":{"question":"...","display_id":"Q-{n}","priority":"medium","category":"requirements","status":"open"}}`
+Persona colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
 
 ## Quantities
 

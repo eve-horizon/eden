@@ -49,18 +49,17 @@ Do NOT create a changeset when the answer:
 - Defers the decision ("not in scope for now")
 - Acknowledges the issue without specifying a change
 
-## Changeset Format
+## Changeset Payload Contract
+
+For the changeset payload contract (field names, entity types, display reference format, examples), read `skills/_references/create-changeset.md`.
+
+If you need the machine schema, run `eden changeset schema --json`.
+
+Do not inspect controllers, services, tests, or old temp files to infer the schema.
+
+Write the JSON payload to a temp file, then submit it:
 
 ```bash
-cat > /tmp/changeset.json << 'PAYLOAD'
-{
-  "title": "Map update from Q-5",
-  "reasoning": "Question: '...' Answer: '...' — this implies...",
-  "source": "question-evolution",
-  "actor": "question-agent",
-  "items": [...]
-}
-PAYLOAD
 eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
 

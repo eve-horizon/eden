@@ -1,4 +1,6 @@
 import { readFile } from 'fs/promises';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
@@ -155,5 +157,26 @@ export function registerChangesets(program: Command): void {
       });
       if (opts.json) return json(data);
       console.log(`Rejected ${data.rejected} item(s)`);
+    });
+
+  cs.command('schema')
+    .description('Show the changeset creation JSON Schema or markdown contract')
+    .option('--json', 'Output raw JSON Schema (default)')
+    .option('--format <format>', 'Output format: json or markdown', 'json')
+    .action(async (opts) => {
+      const __filename = fileURLToPath(import.meta.url);
+      const repoRoot = resolve(dirname(__filename), '..', '..', '..');
+
+      if (opts.format === 'markdown') {
+        const mdPath = resolve(repoRoot, 'skills', '_references', 'create-changeset.md');
+        const content = await readFile(mdPath, 'utf8');
+        console.log(content);
+      } else {
+        const schemaPath = resolve(repoRoot, 'contracts', 'create-changeset.schema.json');
+        const content = await readFile(schemaPath, 'utf8');
+        if (opts.json || opts.format === 'json') {
+          console.log(content);
+        }
+      }
     });
 }

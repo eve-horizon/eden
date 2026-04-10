@@ -2,6 +2,7 @@ import {
   normalizeAcceptanceCriteria,
   normalizeTaskDevice,
 } from '../common/acceptance-criteria.util';
+import { SUPPORTED_ENTITY_OPERATIONS } from '../contracts/create-changeset.contract';
 
 export interface ChangesetValidationIssue {
   path: string;
@@ -41,14 +42,6 @@ export interface NormalizeCreateChangesetResult {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const SUPPORTED_ENTITY_OPERATIONS: Record<string, Set<string>> = {
-  activity: new Set(['create']),
-  persona: new Set(['create']),
-  question: new Set(['create', 'update']),
-  step: new Set(['create']),
-  task: new Set(['create', 'update', 'delete']),
-};
 
 export function isUuid(value: string): boolean {
   return UUID_RE.test(value);

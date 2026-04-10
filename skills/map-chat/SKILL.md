@@ -100,51 +100,19 @@ You can propose changesets with these entity_type/operation pairs:
 | Ask about map | "What happens after registration?" | Reads map, describes flow (no changeset) |
 | Bulk operations | "Move all admin tasks to a new activity" | Multi-item changeset |
 
-## Changeset Format
+## Changeset Payload Contract
+
+For the changeset payload contract (field names, entity types, display reference format, examples), read `skills/_references/create-changeset.md`.
+
+If you need the machine schema, run `eden changeset schema --json`.
+
+Do not inspect controllers, services, tests, or old temp files to infer the schema.
+
+Write the JSON payload to a temp file, then submit it:
 
 ```bash
-cat > /tmp/changeset.json << 'PAYLOAD'
-{
-  "title": "...",
-  "reasoning": "...",
-  "source": "map-chat",
-  "actor": "map-chat-agent",
-  "items": [
-    {
-      "entity_type": "task",
-      "operation": "create",
-      "after_state": { "title": "...", "step_ref": "STP-1.1", "user_story": "As a...", "acceptance_criteria": "..." },
-      "description": "...",
-      "display_reference": "TSK-1.1.1"
-    }
-  ]
-}
-PAYLOAD
 eden changeset create --project $PID --file /tmp/changeset.json --json
 ```
-
-When creating a task under an existing step, set the parent step in `after_state.step_ref` using the step's existing display ID:
-
-```json
-{
-  "entity_type": "task",
-  "operation": "create",
-  "after_state": {
-    "title": "Configure CI/CD pipeline for document processing",
-    "step_ref": "STP-1.1",
-    "user_story": "As a DevOps Engineer, I want ... so that ...",
-    "acceptance_criteria": [
-      { "text": "Given ..." },
-      { "text": "When ..." }
-    ],
-    "priority": "should",
-    "device": "all"
-  },
-  "description": "Add CI/CD automation task under Upload Document"
-}
-```
-
-For new personas, use a `persona/create` item in the same changeset. For new activities or steps, create those items first and then reference their human-readable display target in related descriptions and reasoning.
 
 ## Forbidden Paths
 
