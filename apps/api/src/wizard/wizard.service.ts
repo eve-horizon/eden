@@ -27,6 +27,10 @@ export interface GenerateMapInput {
   source_id?: string;
 }
 
+interface WizardChangesetRef {
+  id: string;
+}
+
 @Injectable()
 export class WizardService {
   private readonly logger = new Logger(WizardService.name);
@@ -217,56 +221,12 @@ export class WizardService {
 
     // Map Eve job phase to wizard status
     if (job.phase === 'done') {
-      // Look for the changeset created by this wizard run.
-      // Use the audit log entry as a lower bound to avoid matching changesets
-      // from a different generation run on the same project.
-      let changeset = await this.db.queryOne<{ id: string }>(
-        ctx,
-        `SELECT c.id FROM changesets c
-         WHERE c.project_id = $1
-           AND c.source = 'map-generator'
-           AND c.created_at >= (
-             SELECT created_at FROM audit_log
-             WHERE project_id = $1
-               AND action = 'generate_map'
-               AND details->>'job_id' = $2
-             LIMIT 1
-           )
-         ORDER BY c.created_at DESC LIMIT 1`,
-        [projectId, jobId],
-      );
-
-      if (!changeset) {
-        // Fall back: find the most recent draft changeset with items created
-        // after the wizard job was triggered
-        changeset = await this.db.queryOne<{ id: string }>(
-          ctx,
-          `SELECT c.id FROM changesets c
-           WHERE c.project_id = $1 AND c.status = 'draft'
-             AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
-             AND c.created_at >= (
-               SELECT created_at FROM audit_log
-               WHERE project_id = $1 AND action = 'generate_map'
-                 AND details->>'job_id' = $2
-               LIMIT 1
-             )
-           ORDER BY c.created_at DESC LIMIT 1`,
-          [projectId, jobId],
-        );
-      }
+      const changeset = await this.findWizardChangeset(ctx, projectId, jobId);
 
       // Auto-accept: user already expressed intent by clicking "Generate"
       if (changeset) {
         try {
-          const detail = await this.changesetsService.findById(ctx, changeset.id);
-          if (detail.status === 'draft') {
-            await this.changesetsService.accept(
-              ctx,
-              changeset.id,
-              projectRole,
-              false,
-            );
-          }
+          await this.acceptWizardChangeset(ctx, changeset.id, projectRole);
         } catch (err) {
           this.logger.error(
             `Auto-accept failed for changeset ${changeset.id}: ${err}`,
@@ -288,50 +248,19 @@ export class WizardService {
       // The agent may have created a changeset before being cancelled (e.g. by
       // watchdog or manual cancellation). Attempt to recover it so the user
       // still gets their map populated.
-      let recoveredChangeset = await this.db.queryOne<{ id: string }>(
+      const recoveredChangeset = await this.findWizardChangeset(
         ctx,
-        `SELECT c.id FROM changesets c
-         WHERE c.project_id = $1
-           AND c.source = 'map-generator'
-           AND c.created_at >= (
-             SELECT created_at FROM audit_log
-             WHERE project_id = $1
-               AND action = 'generate_map'
-               AND details->>'job_id' = $2
-             LIMIT 1
-           )
-         ORDER BY c.created_at DESC LIMIT 1`,
-        [projectId, jobId],
+        projectId,
+        jobId,
       );
-
-      if (!recoveredChangeset) {
-        recoveredChangeset = await this.db.queryOne<{ id: string }>(
-          ctx,
-          `SELECT c.id FROM changesets c
-           WHERE c.project_id = $1 AND c.status = 'draft'
-             AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
-             AND c.created_at >= (
-               SELECT created_at FROM audit_log
-               WHERE project_id = $1 AND action = 'generate_map'
-                 AND details->>'job_id' = $2
-               LIMIT 1
-             )
-           ORDER BY c.created_at DESC LIMIT 1`,
-          [projectId, jobId],
-        );
-      }
 
       if (recoveredChangeset) {
         try {
-          const detail = await this.changesetsService.findById(ctx, recoveredChangeset.id);
-          if (detail.status === 'draft') {
-            await this.changesetsService.accept(
-              ctx,
-              recoveredChangeset.id,
-              projectRole,
-              false,
-            );
-          }
+          await this.acceptWizardChangeset(
+            ctx,
+            recoveredChangeset.id,
+            projectRole,
+          );
           return {
             status: 'complete',
             changeset_id: recoveredChangeset.id,
@@ -358,6 +287,89 @@ export class WizardService {
   // -------------------------------------------------------------------------
   // Eve API helpers
   // -------------------------------------------------------------------------
+
+  private async findWizardChangeset(
+    ctx: DbContext,
+    projectId: string,
+    jobId: string,
+  ): Promise<WizardChangesetRef | null> {
+    // Best case: the generated changeset actor already matches the Eve job id.
+    // This survives auto-accept and avoids any ambiguity across multiple runs.
+    const byActor = await this.db.queryOne<WizardChangesetRef>(
+      ctx,
+      `SELECT c.id FROM changesets c
+       WHERE c.project_id = $1
+         AND c.actor = $2
+         AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
+       ORDER BY c.created_at DESC LIMIT 1`,
+      [projectId, jobId],
+    );
+    if (byActor) {
+      return byActor;
+    }
+
+    // Fall back to the exact generate_map audit record for this job. Bound the
+    // search to the next generate_map trigger on the project, or 15 minutes if
+    // there is no later trigger, so repeated polls keep finding the same
+    // changeset without drifting to unrelated edits on the same project.
+    return this.db.queryOne<WizardChangesetRef>(
+      ctx,
+      `WITH trigger AS (
+         SELECT created_at
+         FROM audit_log
+         WHERE project_id = $1
+           AND action = 'generate_map'
+           AND details->>'job_id' = $2
+         ORDER BY created_at DESC
+         LIMIT 1
+       ),
+       next_trigger AS (
+         SELECT a.created_at
+         FROM audit_log a
+         JOIN trigger t ON true
+         WHERE a.project_id = $1
+           AND a.action = 'generate_map'
+           AND a.created_at > t.created_at
+         ORDER BY a.created_at ASC
+         LIMIT 1
+       )
+       SELECT c.id
+       FROM changesets c
+       JOIN trigger t ON true
+       LEFT JOIN next_trigger nt ON true
+       WHERE c.project_id = $1
+         AND EXISTS (SELECT 1 FROM changeset_items WHERE changeset_id = c.id)
+         AND c.created_at >= t.created_at
+         AND c.created_at < COALESCE(
+           nt.created_at,
+           t.created_at + interval '15 minutes'
+         )
+       ORDER BY
+         CASE WHEN c.actor = $2 THEN 0 ELSE 1 END,
+         CASE WHEN c.source IN ('map-generator', 'document') THEN 0 ELSE 1 END,
+         c.created_at DESC
+       LIMIT 1`,
+      [projectId, jobId],
+    );
+  }
+
+  private async acceptWizardChangeset(
+    ctx: DbContext,
+    changesetId: string,
+    projectRole?: string | null,
+  ): Promise<void> {
+    const detail = await this.changesetsService.findById(ctx, changesetId);
+    if (detail.status !== 'draft') {
+      return;
+    }
+
+    await this.changesetsService.accept(
+      ctx,
+      changesetId,
+      projectRole,
+      false,
+    );
+  }
 
   private get available(): boolean {
     return Boolean(this.eveApiUrl && this.eveProjectId);

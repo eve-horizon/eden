@@ -140,8 +140,8 @@ And **not** an `Attached document excerpt:` block. The prompt stays short; the c
 
 ```bash
 for i in $(seq 1 60); do
-    STATUS=$(api "$EDEN_API/projects/$PDF_PROJECT_ID/generate-map/status?job_id=$PDF_JOB_ID" \
-        -H "Authorization: Bearer $OWNER_TOKEN" | jq -r '.status')
+    RESULT=$(eden wizard status --project "$PDF_PROJECT_ID" --job "$PDF_JOB_ID" --json)
+    STATUS=$(echo "$RESULT" | jq -r '.status')
     echo "Attempt $i: $STATUS"
     [ "$STATUS" = "complete" ] && break
     [ "$STATUS" = "failed" ] && { echo "FAILED — check agent logs"; break; }
@@ -222,18 +222,15 @@ Do not require the raw job log to contain the exact `eden changeset create --ini
 
 ### 8. Verify Auto-Accept + Populated Map
 
-The status endpoint only returns `changeset_id` on the first poll that observes `phase: "done"` (known limitation — the subsequent lookup filters on `status = 'draft'` and misses the now-accepted row). Fall back to querying changesets by the wizard's job id as the actor, which survives re-polling.
-
 ```bash
-# Preferred: grab the id from the first complete response captured above.
-# Fallback: look up the wizard changeset by the job id as actor.
-CS_ID=$(api "$EDEN_API/projects/$PDF_PROJECT_ID/changesets" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | \
-    jq -r --arg jid "$PDF_JOB_ID" '.[] | select(.actor == $jid) | .id')
+CS_ID=$(echo "$RESULT" | jq -r '.changeset_id')
 echo "Changeset: $CS_ID"
 
-api "$EDEN_API/changesets/$CS_ID" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | jq '{
+RECHECK=$(eden wizard status --project "$PDF_PROJECT_ID" --job "$PDF_JOB_ID" --json)
+echo "$RECHECK" | jq '{status, changeset_id}'
+test "$(echo "$RECHECK" | jq -r '.changeset_id')" = "$CS_ID"
+
+eden changeset show "$CS_ID" --json | jq '{
     status: .status,
     title: .title,
     source: .source,
@@ -244,9 +241,10 @@ api "$EDEN_API/changesets/$CS_ID" \
 ```
 
 **Expected:**
+- repeated `eden wizard status` polls keep returning the same non-empty `changeset_id`
 - `status: "accepted"` (wizard auto-accepted — no manual Accept click needed)
 - `source: "document"` (wizard prompt + CLI preserve document provenance when a `source_id` is present)
-- `actor: "<job_id>"` (matches `$PDF_JOB_ID`)
+- `actor` often matches `$PDF_JOB_ID`, but status polling no longer depends on that implementation detail
 - `accepted_items ≥ 40` (full map: personas + activities + steps + tasks + questions)
 - `draft_items == 0`
 

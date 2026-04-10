@@ -77,8 +77,7 @@ echo "Job: $JOB_ID"
 
 ```bash
 for i in $(seq 1 60); do
-    RESULT=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/generate-map/status?job_id=$JOB_ID" \
-        -H "Authorization: Bearer $OWNER_TOKEN")
+    RESULT=$(eden wizard status --project "$WIZARD_PROJECT_ID" --job "$JOB_ID" --json)
     STATUS=$(echo "$RESULT" | jq -r '.status')
     echo "Attempt $i: $STATUS"
     [ "$STATUS" = "complete" ] && break
@@ -119,15 +118,14 @@ Do not require the raw job log to contain the exact `eden changeset create --ini
 ### 5. Retrieve Generated Changeset
 
 ```bash
-# Preferred: use the first complete response if it contained changeset_id.
-# Fallback: look up the wizard changeset by actor == job id.
-WIZARD_CS_ID=$(api "$EDEN_API/projects/$WIZARD_PROJECT_ID/changesets" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | \
-    jq -r --arg jid "$JOB_ID" '.[] | select(.actor == $jid) | .id')
+WIZARD_CS_ID=$(echo "$RESULT" | jq -r '.changeset_id')
 echo "Changeset: $WIZARD_CS_ID"
 
-api "$EDEN_API/changesets/$WIZARD_CS_ID" \
-    -H "Authorization: Bearer $OWNER_TOKEN" | jq '{
+RECHECK=$(eden wizard status --project "$WIZARD_PROJECT_ID" --job "$JOB_ID" --json)
+echo "$RECHECK" | jq '{status, changeset_id}'
+test "$(echo "$RECHECK" | jq -r '.changeset_id')" = "$WIZARD_CS_ID"
+
+eden changeset show "$WIZARD_CS_ID" --json | jq '{
     status: .status,
     title: .title,
     item_count: (.items | length),
@@ -136,6 +134,7 @@ api "$EDEN_API/changesets/$WIZARD_CS_ID" \
 ```
 
 **Expected:** Changeset with items covering:
+- repeated `eden wizard status` polls keep returning the same non-empty `changeset_id`
 - non-empty `title` (ideally `Initial story map for "Wizard Test Project"`)
 - `status = "accepted"` because wizard completion auto-applies the generated changeset
 - `persona`: ≥3 personas
