@@ -86,15 +86,36 @@ Before calling `eden changeset create`, verify all of the following:
 - Every `task/create` item includes a non-empty `acceptance_criteria` array (2-4 entries, Given/When/Then)
 - Every `task/create` item includes a `persona_code`
 
-## Anti-Patterns
+## Anti-Patterns (NEVER use these)
 
-See the Anti-Patterns table in `skills/_references/create-changeset.md`. The reference file lists every wrong-vs-correct field name and display reference format.
+| Wrong | Correct |
+|-------|---------|
+| `act-1`, `activity-1` | `ACT-1` |
+| `step-1-1`, `stp-1-1` | `STP-1.1` |
+| `task-1-1-1`, `tsk-1-1-1` | `TSK-1.1.1` |
+| `"title"` on activity/step | `"name"` |
+| `"position"` | `"sort_order"` |
+| `"activity_ref"` | `"activity_display_id"` |
+| `"step_ref"` | `"step_display_id"` |
+| `"name"` on task | `"title"` |
+| `"description"` on task | `"user_story"` |
+| `acceptance_criteria: []` | 2-4 Given/When/Then entries |
 
 ## Per-Entity Templates
 
-See `skills/_references/create-changeset.md` for per-entity field definitions and the canonical example.
+Use these exact shapes. Full contract details are in `skills/_references/create-changeset.md`.
 
-Persona colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
+### Persona: `{"entity_type":"persona","operation":"create","display_reference":"PER-{CODE}","description":"Add persona: {name}","after_state":{"name":"...","code":"...","color":"#3b82f6"}}`
+
+Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
+
+### Activity: `{"entity_type":"activity","operation":"create","display_reference":"ACT-{n}","description":"Add activity: {name}","after_state":{"name":"...","display_id":"ACT-{n}","sort_order":{n}}}`
+
+### Step: `{"entity_type":"step","operation":"create","display_reference":"STP-{a}.{s}","description":"Add step: {name}","after_state":{"name":"...","display_id":"STP-{a}.{s}","activity_display_id":"ACT-{a}","sort_order":{s}}}`
+
+### Task: `{"entity_type":"task","operation":"create","display_reference":"TSK-{a}.{s}.{t}","description":"Add task: {title}","after_state":{"title":"...","display_id":"TSK-{a}.{s}.{t}","step_display_id":"STP-{a}.{s}","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":[{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}],"device":"all","priority":"high","status":"draft"}}`
+
+### Question: `{"entity_type":"question","operation":"create","display_reference":"Q-{n}","description":"Clarifying question","after_state":{"question":"...","display_id":"Q-{n}","priority":"medium","category":"requirements","status":"open"}}`
 
 ## Quantities
 
