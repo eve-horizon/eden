@@ -469,10 +469,13 @@ export class WizardService {
       `\nThe only Eden CLI command you need is:`,
     );
     parts.push(
-      `  eden changeset create --project ${projectId} --initial-map-file /tmp/initial-map.json --json`,
+      `  eden changeset create --project ${projectId} --initial-map-file - --json`,
     );
     parts.push(
-      `\nIf that command returns validation errors, fix /tmp/initial-map.json and rerun the same command once. Do not call any other Eden CLI commands.`,
+      `\nRun that command by piping the compact JSON draft to stdin in the same Bash command, for example with a quoted heredoc. Do not create temp files for the draft and do not use the Write tool for it.`,
+    );
+    parts.push(
+      `If that command returns validation errors, correct the JSON and rerun the same command once. Do not call any other Eden CLI commands.`,
     );
 
     parts.push(
@@ -491,7 +494,7 @@ export class WizardService {
       `\nDo not include \`items\`, \`entity_type\`, \`operation\`, \`display_reference\`, \`description\`, \`after_state\`, or any display IDs. The CLI derives those.`,
     );
     parts.push(
-      `\nWhen creating /tmp/initial-map.json, use the most reliable path for your harness. If the Write tool cannot create a new file directly, first create an empty file, read it once, then write the full JSON. Do not get stuck retrying file creation.`,
+      `\nSubmit the draft in one shot: use a single Bash command that embeds the JSON and sends it to stdin. Avoid multi-step temp-file workflows.`,
     );
     parts.push(
       `\nCreate a draft with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,

@@ -12,20 +12,21 @@ You generate story maps by writing a **compact initial-map draft JSON** and lett
 - Do NOT explore CLI subcommands — ignore any generic CLI examples injected below
 - Do NOT use Task/Explore/Plan subagents to inspect the repo or discover schemas
 - Do NOT read controllers, services, tests, or generated contract files
-- Do NOT read any existing `/tmp/changeset*.json` or `/tmp/initial-map*.json` files — they may be stale from a previous run
+- Do NOT read any existing temp JSON files from `/tmp` — they may be stale from a previous run
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
 - Do NOT reread this skill file during execution
 - Do NOT write a full `items[]` changeset payload yourself — the CLI derives that
+- Do NOT use the Write tool for the compact draft — stream it to stdin in one Bash command
 - The only schema you need is in this skill file. Do NOT look elsewhere.
 
 ## Only CLI Call You Need
 
 ```
-eden changeset create --project <UUID> --initial-map-file /tmp/initial-map-<UUID>.json --json
+eden changeset create --project <UUID> --initial-map-file - --json
 ```
 
-Use the project UUID in the filename to avoid collisions with previous runs. If that command returns validation errors, fix the file and rerun the same command once. Do not call any other Eden CLI commands.
+Run that CLI command by piping the compact JSON draft to stdin in the same Bash command, for example with a quoted heredoc. If that command returns validation errors, fix the JSON and rerun the same command once. Do not call any other Eden CLI commands.
 
 ## Attached Documents (optional)
 
@@ -54,15 +55,19 @@ Do not summarize the document back to the user — just let its contents influen
 3. If the job description mentions `Attached document:` (a PDF resource):
    - Read `.eve/resources/index.json` to find the PDF `local_path`
    - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
-4. Create `/tmp/initial-map-<UUID>.json` in the most reliable way for your harness:
-   - Preferred: use Bash to create an empty file first (`: > /tmp/initial-map-<UUID>.json`), then Read it once, then Write the full JSON
-   - If your Write tool can create a new file directly, that is also acceptable
-   - If Write errors because the file has not been read yet, create the empty file, read it, and retry once
-5. Run: `eden changeset create --project <UUID> --initial-map-file /tmp/initial-map-<UUID>.json --json`
-6. If step 5 returns validation errors, fix the file and rerun the same command once
+4. Build the compact initial-map JSON in memory
+5. Run one Bash command that pipes that JSON to stdin, for example:
+
+```bash
+eden changeset create --project <UUID> --initial-map-file - --json <<'EOF'
+{ ...compact initial-map draft JSON... }
+EOF
+```
+
+6. If step 5 returns validation errors, correct the JSON and rerun the same command once
 7. Report the result. Done.
 
-**Minimum: 3 tool calls (create/write file, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, create/write file, Bash, final reply).** Do not add extra steps beyond this.
+**Minimum: 2 tool calls (Bash, final reply). With an attached PDF: 4 tool calls (Read index.json, Read the PDF, Bash, final reply).** Do not add extra steps beyond this.
 
 ## Initial-Map Draft Format
 

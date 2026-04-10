@@ -96,13 +96,15 @@ eve job logs "$JOB_ID" 2>&1 | tee "$WIZARD_LOG"
 HELP_CALLS=$(rg -c 'eden --help' "$WIZARD_LOG" || true)
 CREATE_CALLS=$(rg -c 'eden changeset create' "$WIZARD_LOG" || true)
 INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file' "$WIZARD_LOG" || true)
+STDIN_INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file -' "$WIZARD_LOG" || true)
 SCHEMA_EXPLORATION=$(rg -c 'Explore changeset schema|create-changeset-input\\.util\\.ts|contracts/create-changeset\\.schema\\.json' "$WIZARD_LOG" || true)
-echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION"
+WRITE_STALLS=$(rg -c 'File has not been read yet\\. Read it first before writing to it\\.' "$WIZARD_LOG" || true)
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS stdin_initial_map_calls=$STDIN_INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION write_stalls=$WRITE_STALLS"
 echo "Potential log problems (should print nothing):"
-rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' "$WIZARD_LOG" || true
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)|File has not been read yet\\. Read it first before writing to it\\.' "$WIZARD_LOG" || true
 ```
 
-**Expected:** No `eden --help` calls, at least one `eden changeset create` call, at least one `--initial-map-file` call, `schema_exploration=0`, and no `invalid_changeset`, DB-constraint, approval, or server-side failures in the wizard job log.
+**Expected:** No `eden --help` calls, at least one `eden changeset create` call, at least one `--initial-map-file` call, at least one `--initial-map-file -` call, `schema_exploration=0`, `write_stalls=0`, and no `invalid_changeset`, DB-constraint, approval, write-tool, or server-side failures in the wizard job log.
 
 ### 5. Retrieve Generated Changeset
 

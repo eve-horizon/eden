@@ -204,14 +204,19 @@ describe('expandInitialMapDraft', () => {
       (item) => item.entity_type === 'persona',
     );
     assert.deepEqual(
-      personaItems.map((item) => item.after_state?.code),
+      personaItems.map(
+        (item) => (item.after_state as Record<string, unknown> | undefined)?.code,
+      ),
       ['OWNER', 'JUNIOR-ESTIMATOR'],
     );
 
     const taskItem = result.payload.items.find(
       (item) => item.entity_type === 'task',
     )!;
-    assert.equal(taskItem.after_state?.persona_code, 'JUNIOR-ESTIMATOR');
+    assert.equal(
+      (taskItem.after_state as Record<string, unknown> | undefined)?.persona_code,
+      'JUNIOR-ESTIMATOR',
+    );
     assert.ok(
       result.warnings.every((warning) =>
         !warning.message.includes('Unknown persona_code'),

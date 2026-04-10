@@ -131,7 +131,7 @@ And also contains:
 ```
 Source record UUID: <SOURCE_ID>
 The only Eden CLI command you need is:
-  eden changeset create --project <PROJECT_ID> --initial-map-file /tmp/initial-map.json --json
+  eden changeset create --project <PROJECT_ID> --initial-map-file - --json
 ```
 
 And **not** an `Attached document excerpt:` block. The prompt stays short; the content lives in the materialized file.
@@ -212,13 +212,14 @@ grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | \
 HELP_CALLS=$(rg -c 'eden --help' /tmp/wizard-pdf-log.txt || true)
 CREATE_CALLS=$(rg -c 'eden changeset create' /tmp/wizard-pdf-log.txt || true)
 INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file' /tmp/wizard-pdf-log.txt || true)
+STDIN_INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file -' /tmp/wizard-pdf-log.txt || true)
 SCHEMA_EXPLORATION=$(rg -c 'Explore changeset schema|create-changeset-input\\.util\\.ts|contracts/create-changeset\\.schema\\.json' /tmp/wizard-pdf-log.txt || true)
 WRITE_STALLS=$(rg -c 'File has not been read yet\\. Read it first before writing to it\\.' /tmp/wizard-pdf-log.txt || true)
-echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION write_stalls=$WRITE_STALLS"
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS stdin_initial_map_calls=$STDIN_INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION write_stalls=$WRITE_STALLS"
 rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)|File has not been read yet\\. Read it first before writing to it\\.' /tmp/wizard-pdf-log.txt || true
 ```
 
-**Expected:** `help_calls=0`, `create_calls>=1`, `initial_map_calls>=1`, `schema_exploration=0`, `write_stalls=0`, and no `invalid_changeset`, DB-constraint, write-tool, approval, or server-side failure signals in the log.
+**Expected:** `help_calls=0`, `create_calls>=1`, `initial_map_calls>=1`, `stdin_initial_map_calls>=1`, `schema_exploration=0`, `write_stalls=0`, and no `invalid_changeset`, DB-constraint, write-tool, approval, or server-side failure signals in the log.
 
 ### 8. Verify Auto-Accept + Populated Map
 

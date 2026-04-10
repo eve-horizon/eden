@@ -27,6 +27,31 @@ export async function readJsonFile<T>(filePath: string): Promise<T> {
   }
 }
 
+async function readStream(stream: NodeJS.ReadableStream): Promise<string> {
+  let content = '';
+  for await (const chunk of stream) {
+    content += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+  }
+  return content;
+}
+
+export async function readJsonInput<T>(
+  inputPath: string,
+  stdin: NodeJS.ReadableStream = process.stdin,
+): Promise<T> {
+  const source = inputPath === '-' ? 'stdin' : inputPath;
+
+  try {
+    const content =
+      inputPath === '-' ? await readStream(stdin) : await readFile(inputPath, 'utf8');
+    return JSON.parse(content) as T;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to read JSON from ${source}: ${message}`);
+    process.exit(1);
+  }
+}
+
 export function parseJsonOption<T>(value: string, label: string): T {
   try {
     return JSON.parse(value) as T;

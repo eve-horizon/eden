@@ -3477,6 +3477,24 @@ async function readJsonFile(filePath) {
     process.exit(1);
   }
 }
+async function readStream(stream) {
+  let content = "";
+  for await (const chunk of stream) {
+    content += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+  }
+  return content;
+}
+async function readJsonInput(inputPath, stdin = process.stdin) {
+  const source = inputPath === "-" ? "stdin" : inputPath;
+  try {
+    const content = inputPath === "-" ? await readStream(stdin) : await (0, import_promises.readFile)(inputPath, "utf8");
+    return JSON.parse(content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed to read JSON from ${source}: ${message}`);
+    process.exit(1);
+  }
+}
 function parseJsonOption(value, label) {
   try {
     return JSON.parse(value);
@@ -4094,9 +4112,9 @@ function registerChangesets(program3) {
     if (opts.json) return json(data);
     table(data, ["id", "title", "status", "source", "created_at"]);
   });
-  cs.command("create").description("Create a changeset from canonical JSON or a compact initial-map draft").option("--project <id>", "Project ID or slug").option("--file <path>", "Canonical changeset JSON file").option(
+  cs.command("create").description("Create a changeset from canonical JSON or a compact initial-map draft").option("--project <id>", "Project ID or slug").option("--file <path>", 'Canonical changeset JSON file (or "-" for stdin)').option(
     "--initial-map-file <path>",
-    "Compact initial story map draft JSON file"
+    'Compact initial story map draft JSON file (or "-" for stdin)'
   ).option("--json", "JSON output").action(async (opts) => {
     if (opts.file && opts.initialMapFile || !opts.file && !opts.initialMapFile) {
       console.error("Provide exactly one of --file or --initial-map-file");
@@ -4106,12 +4124,12 @@ function registerChangesets(program3) {
     let body;
     let localWarnings = [];
     if (opts.initialMapFile) {
-      const draft = await readJsonFile(opts.initialMapFile);
+      const draft = await readJsonInput(opts.initialMapFile);
       const expanded = expandInitialMapDraft(draft);
       body = expanded.payload;
       localWarnings = expanded.warnings;
     } else {
-      body = JSON.parse(await (0, import_promises2.readFile)(opts.file, "utf8"));
+      body = await readJsonInput(opts.file);
     }
     const result = await api("POST", `/projects/${pid}/changesets`, body);
     if (localWarnings.length > 0) {

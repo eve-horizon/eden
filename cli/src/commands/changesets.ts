@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import { api } from '../client.js';
 import { json, table } from '../output.js';
-import { readJsonFile } from '../utils.js';
+import { readJsonFile, readJsonInput } from '../utils.js';
 import { autoDetectProject } from './projects.js';
 import { expandInitialMapDraft } from './initial-map-draft.js';
 
@@ -54,10 +54,10 @@ export function registerChangesets(program: Command): void {
   cs.command('create')
     .description('Create a changeset from canonical JSON or a compact initial-map draft')
     .option('--project <id>', 'Project ID or slug')
-    .option('--file <path>', 'Canonical changeset JSON file')
+    .option('--file <path>', 'Canonical changeset JSON file (or "-" for stdin)')
     .option(
       '--initial-map-file <path>',
-      'Compact initial story map draft JSON file',
+      'Compact initial story map draft JSON file (or "-" for stdin)',
     )
     .option('--json', 'JSON output')
     .action(async (opts) => {
@@ -71,12 +71,12 @@ export function registerChangesets(program: Command): void {
       let localWarnings: Array<{ path: string; message: string }> = [];
 
       if (opts.initialMapFile) {
-        const draft = await readJsonFile<unknown>(opts.initialMapFile);
+        const draft = await readJsonInput<unknown>(opts.initialMapFile);
         const expanded = expandInitialMapDraft(draft);
         body = expanded.payload;
         localWarnings = expanded.warnings;
       } else {
-        body = JSON.parse(await readFile(opts.file, 'utf8'));
+        body = await readJsonInput<unknown>(opts.file);
       }
 
       const result = await api<Changeset>('POST', `/projects/${pid}/changesets`, body);
