@@ -54,12 +54,15 @@ Do not summarize the document back to the user — just let its contents influen
 3. If the job description mentions `Attached document:` (a PDF resource):
    - Read `.eve/resources/index.json` to find the PDF `local_path`
    - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
-4. Write the compact initial-map draft JSON to `/tmp/initial-map-<UUID>.json` using the Write tool (NOT Bash heredoc)
+4. Create `/tmp/initial-map-<UUID>.json` in the most reliable way for your harness:
+   - Preferred: use Bash to create an empty file first (`: > /tmp/initial-map-<UUID>.json`), then Read it once, then Write the full JSON
+   - If your Write tool can create a new file directly, that is also acceptable
+   - If Write errors because the file has not been read yet, create the empty file, read it, and retry once
 5. Run: `eden changeset create --project <UUID> --initial-map-file /tmp/initial-map-<UUID>.json --json`
 6. If step 5 returns validation errors, fix the file and rerun the same command once
 7. Report the result. Done.
 
-**Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
+**Minimum: 3 tool calls (create/write file, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, create/write file, Bash, final reply).** Do not add extra steps beyond this.
 
 ## Initial-Map Draft Format
 

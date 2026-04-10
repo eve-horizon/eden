@@ -491,6 +491,9 @@ export class WizardService {
       `\nDo not include \`items\`, \`entity_type\`, \`operation\`, \`display_reference\`, \`description\`, \`after_state\`, or any display IDs. The CLI derives those.`,
     );
     parts.push(
+      `\nWhen creating /tmp/initial-map.json, use the most reliable path for your harness. If the Write tool cannot create a new file directly, first create an empty file, read it once, then write the full JSON. Do not get stuck retrying file creation.`,
+    );
+    parts.push(
       `\nCreate a draft with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,
     );
     parts.push(

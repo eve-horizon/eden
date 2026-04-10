@@ -208,16 +208,17 @@ grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | \
 ```bash
 # 7f. Changeset hardening checks — the wizard should create the changeset
 #     cleanly via the compact initial-map path, without schema exploration,
-#     validation, or server-side failures.
+#     write-tool stalls, validation, or server-side failures.
 HELP_CALLS=$(rg -c 'eden --help' /tmp/wizard-pdf-log.txt || true)
 CREATE_CALLS=$(rg -c 'eden changeset create' /tmp/wizard-pdf-log.txt || true)
 INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file' /tmp/wizard-pdf-log.txt || true)
 SCHEMA_EXPLORATION=$(rg -c 'Explore changeset schema|create-changeset-input\\.util\\.ts|contracts/create-changeset\\.schema\\.json' /tmp/wizard-pdf-log.txt || true)
-echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION"
-rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' /tmp/wizard-pdf-log.txt || true
+WRITE_STALLS=$(rg -c 'File has not been read yet\\. Read it first before writing to it\\.' /tmp/wizard-pdf-log.txt || true)
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION write_stalls=$WRITE_STALLS"
+rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)|File has not been read yet\\. Read it first before writing to it\\.' /tmp/wizard-pdf-log.txt || true
 ```
 
-**Expected:** `help_calls=0`, `create_calls>=1`, `initial_map_calls>=1`, `schema_exploration=0`, and no `invalid_changeset`, DB-constraint, approval, or server-side failure signals in the log.
+**Expected:** `help_calls=0`, `create_calls>=1`, `initial_map_calls>=1`, `schema_exploration=0`, `write_stalls=0`, and no `invalid_changeset`, DB-constraint, write-tool, approval, or server-side failure signals in the log.
 
 ### 8. Verify Auto-Accept + Populated Map
 
