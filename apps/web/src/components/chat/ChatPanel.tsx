@@ -3,6 +3,8 @@ import { api } from '../../api/client';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { TypingIndicator } from './TypingIndicator';
+import { extractDisplayIds } from './referenceTokens';
+import type { MentionItem } from '../../hooks/useMentionAutocomplete';
 
 // ---------------------------------------------------------------------------
 // Types — mapped from Eve's thread/message API
@@ -28,6 +30,12 @@ interface SimulateResponse {
   job_ids: string[];
 }
 
+interface ChatRoutingMetadata {
+  intent: 'edit' | 'question' | 'analysis' | 'other';
+  references: string[];
+  surface: 'map-chat';
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -41,6 +49,8 @@ interface ChatPanelProps {
   open: boolean;
   onClose: () => void;
   onReviewChangeset?: (changesetId: string) => void;
+  onReferenceClick?: (displayId: string) => void;
+  mentionItems?: MentionItem[];
 }
 
 /** Strip the "@eve pm [eden-*:...] " routing prefixes the gateway prepends */
@@ -64,12 +74,20 @@ function toMessages(msgs: EveMessage[]): Message[] {
 // ChatPanel
 // ---------------------------------------------------------------------------
 
-export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatPanelProps) {
+export function ChatPanel({
+  projectId,
+  open,
+  onClose,
+  onReviewChangeset,
+  onReferenceClick,
+  mentionItems = [],
+}: ChatPanelProps) {
   const [_threads, setThreads] = useState<EveThread[]>([]);
   const [activeThread, setActiveThread] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [polling, setPolling] = useState(false);
+  const [pollingStartedAt, setPollingStartedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [forceNew, setForceNew] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -108,6 +126,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
   const startPolling = useCallback((threadId: string, knownCount: number) => {
     if (pollRef.current) clearInterval(pollRef.current);
     setPolling(true);
+    setPollingStartedAt(Date.now());
 
     let attempts = 0;
     const maxAttempts = 60; // 5 minutes max polling
@@ -120,6 +139,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
         if (converted.length > knownCount) {
           setMessages(converted);
           setPolling(false);
+          setPollingStartedAt(null);
           if (pollRef.current) clearInterval(pollRef.current);
         }
       } catch {
@@ -128,6 +148,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
 
       if (attempts >= maxAttempts) {
         setPolling(false);
+        setPollingStartedAt(null);
         if (pollRef.current) clearInterval(pollRef.current);
       }
     }, 5000);
@@ -145,6 +166,7 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
 
     setError(null);
     setLoading(true);
+    const metadata = deriveRoutingMetadata(message);
 
     try {
       // Optimistically add user message
@@ -159,7 +181,11 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
         // Create new thread (pass new_thread flag if user explicitly clicked "New thread")
         const result = await api.post<SimulateResponse>(
           `/projects/${projectId}/chat/threads`,
-          { message, new_thread: forceNew || undefined },
+          {
+            message,
+            metadata,
+            new_thread: forceNew || undefined,
+          },
         );
         setActiveThread(result.thread_id);
         setForceNew(false);
@@ -168,7 +194,11 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
       } else {
         // Send to existing thread
         setMessages((prev) => [...prev, userMsg]);
-        await api.post(`/chat/threads/${activeThread}/messages`, { message, projectId });
+        await api.post(`/chat/threads/${activeThread}/messages`, {
+          message,
+          metadata,
+          projectId,
+        });
         startPolling(activeThread, messages.length + 1); // Poll for response
       }
     } catch {
@@ -182,8 +212,17 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
     setActiveThread(null);
     setMessages([]);
     setPolling(false);
+    setPollingStartedAt(null);
     setForceNew(true);
     if (pollRef.current) clearInterval(pollRef.current);
+  };
+
+  const handleClearHistory = () => {
+    if (!window.confirm('Clear all messages in this thread?')) {
+      return;
+    }
+
+    handleNewThread();
   };
 
   const handleChangesetClick = (changesetId: string) => {
@@ -222,6 +261,14 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
               <PlusIcon className="w-4 h-4" />
             </button>
             <button
+              onClick={handleClearHistory}
+              className="p-1.5 rounded-lg text-eden-text-2 hover:bg-eden-bg hover:text-eden-text transition-colors"
+              title="Clear history"
+              aria-label="Clear chat history"
+            >
+              <TrashIcon className="w-4 h-4" />
+            </button>
+            <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-eden-text-2 hover:bg-eden-bg hover:text-eden-text transition-colors"
               title="Close"
@@ -246,10 +293,10 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
               <div className="text-center">
                 <ChatBubbleIcon className="w-12 h-12 text-eden-text-2/30 mx-auto mb-3" />
                 <p className="text-sm text-eden-text-2">
-                  Ask me to edit the story map
+                  Ask Eve to edit the story map
                 </p>
                 <p className="text-xs text-eden-text-2/60 mt-1">
-                  "Add an admin approval step" or "What tasks are in onboarding?"
+                  Use @mentions to reference items, like "@ACT-1 add an admin approval step"
                 </p>
               </div>
             </div>
@@ -262,10 +309,11 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
               content={msg.content}
               metadata={msg.metadata}
               onChangesetClick={handleChangesetClick}
+              onReferenceClick={onReferenceClick}
             />
           ))}
 
-          {polling && <TypingIndicator />}
+          {polling && <TypingIndicator startTime={pollingStartedAt} />}
 
           <div ref={messagesEndRef} />
         </div>
@@ -274,11 +322,41 @@ export function ChatPanel({ projectId, open, onClose, onReviewChangeset }: ChatP
         <ChatInput
           onSend={handleSend}
           disabled={loading || polling}
+          mentionItems={mentionItems}
           data-testid="chat-input"
         />
       </div>
     </div>
   );
+}
+
+function deriveRoutingMetadata(message: string): ChatRoutingMetadata {
+  const trimmed = message.trim();
+  const editIntent =
+    /\b(add|create|update|change|edit|remove|delete|move|rename|reorder|split|merge|mark|set|turn|convert)\b/i.test(
+      trimmed,
+    );
+  const questionIntent =
+    trimmed.endsWith('?') ||
+    /^(what|why|how|where|when|who|which|can|could|should|is|are|do|does|did)\b/i.test(
+      trimmed,
+    );
+  const analysisIntent =
+    /\b(analy[sz]e|summari[sz]e|review|compare|assess|identify|explain|inspect|audit)\b/i.test(
+      trimmed,
+    );
+
+  return {
+    intent: editIntent
+      ? 'edit'
+      : questionIntent
+        ? 'question'
+        : analysisIntent
+          ? 'analysis'
+          : 'other',
+    references: extractDisplayIds(trimmed),
+    surface: 'map-chat',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +402,27 @@ function CloseIcon({ className }: { className?: string }) {
       aria-hidden="true"
     >
       <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
     </svg>
   );
 }

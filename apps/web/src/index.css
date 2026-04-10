@@ -78,6 +78,31 @@
     animation: flash-glow 2s ease-out forwards;
   }
 
+  .eden-reference {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    padding: 0;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .eden-reference:hover {
+    color: var(--accent-dark);
+  }
+
+  .eden-reference-user {
+    color: rgba(255, 255, 255, 0.92);
+  }
+
+  .eden-reference-user:hover {
+    color: #ffffff;
+  }
+
   /* Phase 6a: approval flash and preview border */
   @keyframes flash-accept {
     0% { box-shadow: 0 0 0 4px #f97316; }

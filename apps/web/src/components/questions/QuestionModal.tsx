@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../api/client';
 import { AnswerProgress } from './AnswerProgress';
+import { MentionDropdown } from '../mentions/MentionDropdown';
+import type { MentionItem } from '../../hooks/useMentionAutocomplete';
+import { useMentionAutocomplete } from '../../hooks/useMentionAutocomplete';
 
 // ---------------------------------------------------------------------------
 // QuestionModal — full-detail view for a single question
@@ -40,12 +43,14 @@ interface QuestionModalProps {
   questionId: string | null;
   onClose: () => void;
   onReferenceClick?: (displayId: string) => void;
+  mentionItems?: MentionItem[];
 }
 
 export function QuestionModal({
   questionId,
   onClose,
   onReferenceClick,
+  mentionItems = [],
 }: QuestionModalProps) {
   const [detail, setDetail] = useState<QuestionDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +65,7 @@ export function QuestionModal({
     answered: 0,
   });
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!questionId) return;
@@ -115,6 +121,24 @@ export function QuestionModal({
     },
     [questionId, detail],
   );
+
+  const {
+    ariaProps,
+    dropdownId,
+    filteredMentions,
+    handleCaretChange,
+    handleInputChange,
+    handleMentionKeyDown,
+    highlightedIndex,
+    insertMention,
+    isMentionOpen,
+    setHighlightedIndex,
+  } = useMentionAutocomplete({
+    items: mentionItems,
+    value: answer,
+    onValueChange: handleAnswerChange,
+    textareaRef,
+  });
 
   const handleEvolve = async () => {
     if (!questionId || !answer.trim()) return;
@@ -263,16 +287,32 @@ export function QuestionModal({
                       : '.'}
                 </span>
               </div>
-              <textarea
-                value={answer}
-                onChange={(e) => handleAnswerChange(e.target.value)}
-                placeholder="Type your answer..."
-                rows={6}
-                className="w-full rounded-xl border border-eden-border bg-eden-bg px-4 py-3
-                           text-sm text-eden-text placeholder:text-eden-text-2/40
-                           focus:outline-none focus:ring-2 focus:ring-eden-accent/30 focus:border-eden-accent
-                           resize-y"
-              />
+              <div className="relative">
+                {isMentionOpen && (
+                  <MentionDropdown
+                    dropdownId={dropdownId}
+                    items={filteredMentions}
+                    highlightedIndex={highlightedIndex}
+                    onHover={setHighlightedIndex}
+                    onSelect={insertMention}
+                  />
+                )}
+                <textarea
+                  ref={textareaRef}
+                  value={answer}
+                  onChange={handleInputChange}
+                  onKeyDown={handleMentionKeyDown}
+                  onClick={handleCaretChange}
+                  onKeyUp={handleCaretChange}
+                  onSelect={handleCaretChange}
+                  placeholder="Type your answer. Use @mentions to reference related items."
+                  rows={6}
+                  className="w-full resize-y rounded-xl border border-eden-border bg-eden-bg px-4 py-3
+                             text-sm text-eden-text placeholder:text-eden-text-2/40
+                             focus:outline-none focus:ring-2 focus:ring-eden-accent/30 focus:border-eden-accent"
+                  {...ariaProps}
+                />
+              </div>
             </div>
 
             {/* Footer */}

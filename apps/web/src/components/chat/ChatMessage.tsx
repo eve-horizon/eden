@@ -1,3 +1,5 @@
+import { linkifyDisplayIds } from './referenceTokens';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -7,13 +9,20 @@ interface ChatMessageProps {
   content: string;
   metadata?: { changeset_id?: string };
   onChangesetClick?: (changesetId: string) => void;
+  onReferenceClick?: (displayId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
 // ChatMessage
 // ---------------------------------------------------------------------------
 
-export function ChatMessage({ role, content, metadata, onChangesetClick }: ChatMessageProps) {
+export function ChatMessage({
+  role,
+  content,
+  metadata,
+  onChangesetClick,
+  onReferenceClick,
+}: ChatMessageProps) {
   const isUser = role === 'user';
 
   // Detect changeset references in content (e.g. "Changeset #abc123")
@@ -33,10 +42,17 @@ export function ChatMessage({ role, content, metadata, onChangesetClick }: ChatM
         }`}
       >
         {isUser ? (
-          <p className="text-sm whitespace-pre-wrap">{content}</p>
+          <LinkifiedPlainText
+            content={content}
+            isUser={isUser}
+            onReferenceClick={onReferenceClick}
+          />
         ) : (
           <div className="text-sm prose prose-sm max-w-none prose-headings:text-[1em] prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-code:text-xs prose-code:bg-black/[0.06] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-pre:bg-black/[0.06] prose-pre:text-xs prose-pre:rounded-lg prose-table:text-[11px] prose-table:border-collapse prose-blockquote:border-l-[3px] prose-blockquote:border-eden-text-2/30 prose-blockquote:text-eden-text-2">
-            <MarkdownContent content={content} />
+            <MarkdownContent
+              content={content}
+              onReferenceClick={onReferenceClick}
+            />
           </div>
         )}
 
@@ -63,12 +79,31 @@ export function ChatMessage({ role, content, metadata, onChangesetClick }: ChatM
 // MarkdownContent — lightweight markdown to HTML for assistant messages
 // ---------------------------------------------------------------------------
 
-function MarkdownContent({ content }: { content: string }) {
-  const html = content
-    // Code blocks (must be before inline code)
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
+function MarkdownContent({
+  content,
+  onReferenceClick,
+}: {
+  content: string;
+  onReferenceClick?: (displayId: string) => void;
+}) {
+  const codeBlocks: string[] = [];
+  const inlineCodes: string[] = [];
+
+  const withPlaceholders = content
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, language: string, code: string) => {
+      const placeholder = `__EDEN_CODE_BLOCK_${codeBlocks.length}__`;
+      codeBlocks.push(
+        `<pre><code class="language-${language}">${escapeHtml(code)}</code></pre>`,
+      );
+      return placeholder;
+    })
+    .replace(/`([^`]+)`/g, (_, code: string) => {
+      const placeholder = `__EDEN_INLINE_CODE_${inlineCodes.length}__`;
+      inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
+      return placeholder;
+    });
+
+  let html = withPlaceholders
     // Bold
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     // Italic
@@ -87,7 +122,72 @@ function MarkdownContent({ content }: { content: string }) {
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>');
 
-  return <div dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }} />;
+  html = linkifyDisplayIds(html, 'eden-reference');
+  html = restorePlaceholders(html, codeBlocks, '__EDEN_CODE_BLOCK_');
+  html = restorePlaceholders(html, inlineCodes, '__EDEN_INLINE_CODE_');
+
+  return (
+    <div
+      onClick={(event) => handleReferenceClick(event, onReferenceClick)}
+      dangerouslySetInnerHTML={{ __html: `<p>${html}</p>` }}
+    />
+  );
+}
+
+function LinkifiedPlainText({
+  content,
+  isUser,
+  onReferenceClick,
+}: {
+  content: string;
+  isUser: boolean;
+  onReferenceClick?: (displayId: string) => void;
+}) {
+  const html = linkifyDisplayIds(
+    escapeHtml(content).replace(/\n/g, '<br/>'),
+    isUser ? 'eden-reference eden-reference-user' : 'eden-reference',
+  );
+
+  return (
+    <p
+      className="text-sm whitespace-pre-wrap"
+      onClick={(event) => handleReferenceClick(event, onReferenceClick)}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
+function handleReferenceClick(
+  event: React.MouseEvent<HTMLElement>,
+  onReferenceClick?: (displayId: string) => void,
+) {
+  const target = event.target as HTMLElement | null;
+  const referenceTarget = target?.closest<HTMLElement>('[data-display-id]');
+  const displayId = referenceTarget?.dataset.displayId;
+  if (!displayId) return;
+
+  event.preventDefault();
+  onReferenceClick?.(displayId);
+}
+
+function restorePlaceholders(
+  html: string,
+  values: string[],
+  prefix: string,
+): string {
+  return values.reduce(
+    (current, value, index) => current.replace(`${prefix}${index}__`, value),
+    html,
+  );
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ---------------------------------------------------------------------------

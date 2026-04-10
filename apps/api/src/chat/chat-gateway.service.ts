@@ -38,6 +38,12 @@ export interface EveThread {
   updated_at: string;
 }
 
+export interface ChatRoutingMetadata {
+  intent?: 'edit' | 'question' | 'analysis' | 'other';
+  references?: string[];
+  surface?: string;
+}
+
 @Injectable()
 export class ChatGatewayService {
   private readonly logger = new Logger(ChatGatewayService.name);
@@ -119,14 +125,10 @@ export class ChatGatewayService {
     email?: string,
     token?: string,
     edenProjectId?: string,
+    metadata?: ChatRoutingMetadata,
     forceNewThread?: boolean,
   ): Promise<SimulateResponse> {
-    // Include explicit machine-readable Eden context so generic agent runtimes
-    // can recover the target project and the changeset-only mutation contract
-    // even when custom skills are unavailable.
-    const context = edenProjectId
-      ? `[eden-project:${edenProjectId}] [eden-cli-project:${edenProjectId}] [eden-map-mutations:changeset-create-only] [eden-changeset-review:human-only] `
-      : '';
+    const prefix = this.buildPromptPrefix(edenProjectId, metadata);
 
     // Channel ID scopes threads per Eden project. When forceNewThread is set,
     // append a timestamp to create a genuinely new thread (different key).
@@ -138,7 +140,7 @@ export class ChatGatewayService {
       'POST',
       `/projects/${this.eveProjectId}/chat/simulate`,
       {
-        text: `@eve pm ${context}${message}`,
+        text: `@eve pm ${prefix}${message}`,
         team_id: 'eden-web',
         provider: 'api',
         user_id: userId,
@@ -170,15 +172,14 @@ export class ChatGatewayService {
     email?: string,
     token?: string,
     edenProjectId?: string,
+    metadata?: ChatRoutingMetadata,
   ): Promise<SimulateResponse> {
-    const context = edenProjectId
-      ? `[eden-project:${edenProjectId}] [eden-cli-project:${edenProjectId}] [eden-map-mutations:changeset-create-only] [eden-changeset-review:human-only] `
-      : '';
+    const prefix = this.buildPromptPrefix(edenProjectId, metadata);
     return this.proxy<SimulateResponse>(
       'POST',
       `/projects/${this.eveProjectId}/chat/simulate`,
       {
-        text: `@eve pm ${context}${message}`,
+        text: `@eve pm ${prefix}${message}`,
         team_id: 'eden-web',
         provider: 'api',
         user_id: userId,
@@ -188,6 +189,36 @@ export class ChatGatewayService {
       },
       token,
     );
+  }
+
+  private buildPromptPrefix(
+    edenProjectId?: string,
+    metadata?: ChatRoutingMetadata,
+  ): string {
+    const tokens: string[] = [];
+
+    if (edenProjectId) {
+      tokens.push(
+        `[eden-project:${edenProjectId}]`,
+        `[eden-cli-project:${edenProjectId}]`,
+        '[eden-map-mutations:changeset-create-only]',
+        '[eden-changeset-review:human-only]',
+      );
+    }
+
+    if (metadata?.surface) {
+      tokens.push(`[eden-surface:${metadata.surface}]`);
+    }
+
+    if (metadata?.intent) {
+      tokens.push(`[eden-intent:${metadata.intent}]`);
+    }
+
+    if (metadata?.references?.length) {
+      tokens.push(`[eden-refs:${metadata.references.join(',')}]`);
+    }
+
+    return tokens.length > 0 ? `${tokens.join(' ')} ` : '';
   }
 
   // -------------------------------------------------------------------------

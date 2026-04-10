@@ -12,7 +12,10 @@ import {
 import { AuthGuard } from '../common/auth.guard';
 import { EditorGuard } from '../common/editor.guard';
 import { dbContext } from '../common/request.util';
-import { ChatGatewayService } from './chat-gateway.service';
+import {
+  ChatGatewayService,
+  type ChatRoutingMetadata,
+} from './chat-gateway.service';
 
 import type { Request } from 'express';
 
@@ -37,7 +40,11 @@ export class ChatController {
   createThread(
     @Req() req: Request,
     @Param('projectId') projectId: string,
-    @Body() body: { message: string; new_thread?: boolean },
+    @Body() body: {
+      message: string;
+      metadata?: ChatRoutingMetadata;
+      new_thread?: boolean;
+    },
   ) {
     const ctx = dbContext(req);
     const user = (req as any).user;
@@ -47,6 +54,7 @@ export class ChatController {
       user?.email,
       bearerToken(req),
       projectId,
+      body.metadata,
       body.new_thread,
     );
   }
@@ -65,7 +73,11 @@ export class ChatController {
   sendMessage(
     @Req() req: Request,
     @Param('threadId') threadId: string,
-    @Body() body: { message: string; projectId?: string },
+    @Body() body: {
+      message: string;
+      metadata?: ChatRoutingMetadata;
+      projectId?: string;
+    },
   ) {
     const ctx = dbContext(req);
     const user = (req as any).user;
@@ -76,6 +88,7 @@ export class ChatController {
       user?.email,
       bearerToken(req),
       body.projectId,
+      body.metadata,
     );
   }
 

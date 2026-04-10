@@ -19,6 +19,7 @@ interface StepHeaderProps {
 export function StepHeader({ step, primaryPersonaColor, canEdit, onRename }: StepHeaderProps) {
   return (
     <div
+      data-display-id={step.display_id}
       style={{
         backgroundColor: '#e65100',
         color: '#fff',

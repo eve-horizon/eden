@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { StoryMap } from '../components/map/StoryMap';
@@ -12,6 +12,11 @@ import { PersonaTabs } from '../components/map/PersonaTabs';
 import { RoleFilterPills } from '../components/map/RoleFilterPills';
 import { useProjectRole } from '../hooks/useProjectRole';
 import { usePendingApprovals } from '../hooks/usePendingApprovals';
+import type { MapResponse } from '../components/map/types';
+import {
+  buildMentionItems,
+  type MentionQuestion,
+} from '../hooks/useMentionAutocomplete';
 
 // ---------------------------------------------------------------------------
 // MapPage — renders the full story map grid with Phase 3 intelligence panels
@@ -26,6 +31,14 @@ interface ChangesetDetail {
   status: string;
   created_at: string;
   items: any[];
+}
+
+interface ProjectQuestionReference extends MentionQuestion {
+  answer: string | null;
+  status: string;
+  priority: string;
+  category: string | null;
+  is_cross_cutting?: boolean;
 }
 
 export function MapPage() {
@@ -72,18 +85,22 @@ export function MapPage() {
     acceptance_criteria_count: number; question_count: number;
     answered_question_count: number; persona_counts: Record<string, number>;
   } | null>(null);
+  const [mapData, setMapData] = useState<MapResponse | null>(null);
   const [mapActivities, setMapActivities] = useState<{ id: string; display_id: string; name: string }[]>([]);
   const [mapPersonas, setMapPersonas] = useState<{ id: string; code: string; name: string; color: string }[]>([]);
+  const [projectQuestions, setProjectQuestions] = useState<ProjectQuestionReference[]>([]);
 
   // Filter state for activity and role (managed here, applied via URL params)
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [roleHighlight, setRoleHighlight] = useState<string | null>(null);
 
   const handleDataReady = useCallback((data: {
+    map: MapResponse;
     stats: typeof mapStats extends infer T ? NonNullable<T> : never;
     activities: typeof mapActivities;
     personas: typeof mapPersonas;
   }) => {
+    setMapData(data.map);
     setMapStats(data.stats);
     setMapActivities(data.activities);
     setMapPersonas(data.personas);
@@ -97,6 +114,20 @@ export function MapPage() {
       return next.size > 0 ? next : new Set(data.activities.map((a) => a.id));
     });
   }, []);
+
+  useEffect(() => {
+    if (!projectId) return;
+
+    api
+      .get<ProjectQuestionReference[]>(`/projects/${projectId}/questions`)
+      .then(setProjectQuestions)
+      .catch(() => setProjectQuestions([]));
+  }, [projectId]);
+
+  const mentionItems = useMemo(
+    () => buildMentionItems(mapData, projectQuestions),
+    [mapData, projectQuestions],
+  );
 
   const activePersona = searchParams.get('persona');
   const filterActive =
@@ -176,20 +207,33 @@ export function MapPage() {
 
       // Refresh map
       setMapRefreshKey(prev => prev + 1);
+
+      if (projectId) {
+        const questions = await api.get<ProjectQuestionReference[]>(
+          `/projects/${projectId}/questions`,
+        );
+        setProjectQuestions(questions);
+      }
     } catch {
       // Keep current state
     }
-  }, [reviewingChangeset, aiModifiedEntities, aiAddedEntities]);
+  }, [reviewingChangeset, aiModifiedEntities, aiAddedEntities, projectId]);
 
   // Flash navigation — scroll to entity and highlight
   const handleReferenceClick = useCallback((displayId: string) => {
+    const question = projectQuestions.find((item) => item.display_id === displayId);
+    if (question) {
+      setQuestionModalId(question.id);
+      return;
+    }
+
     const el = document.querySelector(`[data-display-id="${displayId}"]`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('flash-highlight');
       setTimeout(() => el.classList.remove('flash-highlight'), 2000);
     }
-  }, []);
+  }, [projectQuestions]);
 
   // Export JSON — fetches map data and downloads as .json
   const handleExportJson = useCallback(async () => {
@@ -485,6 +529,8 @@ export function MapPage() {
         open={chatOpen}
         onClose={() => setChatOpen(false)}
         onReviewChangeset={handleReviewChangeset}
+        onReferenceClick={handleReferenceClick}
+        mentionItems={mentionItems}
       />
 
       {/* Cross-Cutting Questions Panel */}
@@ -501,6 +547,7 @@ export function MapPage() {
         questionId={questionModalId}
         onClose={() => setQuestionModalId(null)}
         onReferenceClick={handleReferenceClick}
+        mentionItems={mentionItems}
       />
 
       {/* Changeset Review Modal */}

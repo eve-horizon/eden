@@ -43,7 +43,12 @@ interface StoryMapProps {
   expandAll?: boolean;
   questionsOnly?: boolean;
   /** Callback when map data loads — passes stats, activities, personas for toolbar display */
-  onDataReady?: (data: { stats: MapStats; activities: { id: string; display_id: string; name: string }[]; personas: { id: string; code: string; name: string; color: string }[] }) => void;
+  onDataReady?: (data: {
+    map: MapResponse;
+    stats: MapStats;
+    activities: { id: string; display_id: string; name: string }[];
+    personas: { id: string; code: string; name: string; color: string }[];
+  }) => void;
 }
 
 export function StoryMap({
@@ -92,6 +97,7 @@ export function StoryMap({
       );
       setData(resp);
       onDataReady?.({
+        map: resp,
         stats: resp.stats,
         activities: resp.activities.map(a => ({ id: a.id, display_id: a.display_id, name: a.name })),
         personas: resp.personas.map(p => ({ id: p.id, code: p.code, name: p.name, color: p.color })),
@@ -458,6 +464,7 @@ function ActivityHeader({
   return (
     <div
       data-testid={`activity-${activity.display_id}`}
+      data-display-id={activity.display_id}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
