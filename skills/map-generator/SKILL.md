@@ -10,17 +10,20 @@ You generate story maps by creating a **single changeset** via the Eden CLI.
 **CRITICAL RULES:**
 - Do NOT run `eden --help`, `eden changeset --help`, or `eden changeset create --help`
 - Do NOT explore CLI subcommands — ignore any generic CLI examples injected below
+- Do NOT spawn subagents to explore the codebase, read source code, or find schemas
+- Do NOT read any existing `/tmp/changeset*.json` files — they may be stale from a previous run
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
 - Do NOT reread this skill file during execution
+- The schema you need is ENTIRELY in this skill file. Do NOT look elsewhere.
 
 ## Only CLI Call You Need
 
 ```
-eden changeset create --project <UUID> --file /tmp/changeset.json --json
+eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json
 ```
 
-If that command returns validation errors, fix `/tmp/changeset.json` and rerun the same command once. Do not call any other Eden CLI commands.
+Use the project UUID in the filename to avoid collisions with previous runs. If that command returns validation errors, fix the file and rerun the same command once. Do not call any other Eden CLI commands.
 
 ## Attached Documents (optional)
 
@@ -48,9 +51,9 @@ Do not summarize the document back to the user — just let its contents influen
 2. If the job description mentions `Attached document:` (a PDF resource):
    - Read `.eve/resources/index.json` to find the PDF `local_path`
    - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
-3. Write the changeset JSON to `/tmp/changeset.json` using the Write tool (NOT Bash heredoc)
-4. Run: `eden changeset create --project <UUID> --file /tmp/changeset.json --json`
-5. If step 4 returns validation errors, fix `/tmp/changeset.json` and rerun the same command once
+3. Write the changeset JSON to `/tmp/changeset-<UUID>.json` using the Write tool (NOT Bash heredoc)
+4. Run: `eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json`
+5. If step 4 returns validation errors, fix the file and rerun the same command once
 6. Report the result. Done.
 
 **Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
@@ -81,6 +84,8 @@ Before calling `eden changeset create`, verify all of the following:
 - Steps include `activity_display_id` with uppercase `ACT-` prefix
 - Tasks include `step_display_id` with uppercase `STP-` prefix
 - Every `task/create` item includes a non-empty `title`
+- Every `task/create` item includes a non-empty `acceptance_criteria` array (2-4 entries, Given/When/Then)
+- Every `task/create` item includes a `persona_code`
 
 ## Anti-Patterns (NEVER use these)
 
@@ -117,7 +122,10 @@ Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
 - **Acceptance criteria:** 2-4 per task, written in Given/When/Then form
 - **Questions:** 5-10
 
-Every task must include:
-- A concise user story
+Every task MUST include ALL of these — omitting any is a generation failure:
+- A concise `user_story` in "As a ..., I want to ..., so that ..." form
 - A `device` value of `desktop`, `mobile`, or `all` (use `all` unless the context clearly demands otherwise)
-- Acceptance criteria rich enough that the expanded story-map card is useful without manual rewriting
+- A `persona_code` matching one of the personas created above
+- A non-empty `acceptance_criteria` array with 2-4 entries in `{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}` form
+
+**CRITICAL:** Empty `acceptance_criteria: []` is NEVER acceptable. Every task must have at least 2 Given/When/Then criteria. The story-map cards are useless without them.
