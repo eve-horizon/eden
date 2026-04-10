@@ -5,22 +5,24 @@ description: Generates initial story map structures from project descriptions an
 
 # Map Generator
 
-You generate story maps by creating a **single changeset** via the Eden CLI.
+You generate story maps by writing a **compact initial-map draft JSON** and letting the Eden CLI expand it into a single changeset.
 
 **CRITICAL RULES:**
 - Do NOT run `eden --help`, `eden changeset --help`, or `eden changeset create --help`
 - Do NOT explore CLI subcommands — ignore any generic CLI examples injected below
-- Do NOT spawn subagents to explore the codebase, read source code, or find schemas
-- Do NOT read any existing `/tmp/changeset*.json` files — they may be stale from a previous run
+- Do NOT use Task/Explore/Plan subagents to inspect the repo or discover schemas
+- Do NOT read controllers, services, tests, or generated contract files
+- Do NOT read any existing `/tmp/changeset*.json` or `/tmp/initial-map*.json` files — they may be stale from a previous run
 - Do NOT call `eden changeset accept` or `eden changeset reject`
 - Do NOT call any endpoint directly — use only the commands below
 - Do NOT reread this skill file during execution
-- The schema you need is in this skill file and `skills/_references/create-changeset.md`. Do NOT look elsewhere.
+- Do NOT write a full `items[]` changeset payload yourself — the CLI derives that
+- The only schema you need is in this skill file. Do NOT look elsewhere.
 
 ## Only CLI Call You Need
 
 ```
-eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json
+eden changeset create --project <UUID> --initial-map-file /tmp/initial-map-<UUID>.json --json
 ```
 
 Use the project UUID in the filename to avoid collisions with previous runs. If that command returns validation errors, fix the file and rerun the same command once. Do not call any other Eden CLI commands.
@@ -29,7 +31,7 @@ Use the project UUID in the filename to avoid collisions with previous runs. If 
 
 The user may have attached a document to the wizard. It reaches you via one of two paths:
 
-1. **PDFs** — the platform materializes the PDF into your workspace. If the job description contains a line starting with `Attached document:`, there is a PDF at `.eve/resources/`. Before writing the changeset:
+1. **PDFs** — the platform materializes the PDF into your workspace. If the job description contains a line starting with `Attached document:`, there is a PDF at `.eve/resources/`. Before writing the draft:
    - Read `.eve/resources/index.json` to find the `local_path` for any entries with `status: "resolved"`
    - Read the PDF using **explicit `pages` ranges only** — never request more than 20 pages per Read call
    - Use contiguous windows: `pages: "1-20"`, `pages: "21-40"`, `pages: "41-60"`, then the remainder
@@ -38,7 +40,7 @@ The user may have attached a document to the wizard. It reaches you via one of t
    - Let the document content inform personas, activities, capabilities, constraints, and questions alongside the user's text fields
 2. **Non-PDF documents** (`.md`, `.txt`, `.docx`) — already inlined into the job description as an `Attached document excerpt:` block. Use that excerpt the same way.
 
-Do not summarize the document back to the user — just let its contents influence the changeset you produce. If neither a resolved PDF nor an inline excerpt is present, proceed using only the text fields in the job description.
+Do not summarize the document back to the user — just let its contents influence the map draft you produce. If neither a resolved PDF nor an inline excerpt is present, proceed using only the text fields in the job description.
 
 **Do NOT:**
 - Make HTTP calls to fetch any document yourself
@@ -48,74 +50,119 @@ Do not summarize the document back to the user — just let its contents influen
 ## Exact Steps (follow precisely)
 
 1. Extract the **Eden project UUID** from the job description (line starting with "Eden project UUID:")
-2. Read `skills/_references/create-changeset.md` to load the changeset payload contract (field names, per-entity shapes, canonical example)
+2. If the job description includes `Source record UUID:`, set the draft's top-level `source` to `document` and include that `source_id`. Otherwise set `source` to `map-generator`.
 3. If the job description mentions `Attached document:` (a PDF resource):
    - Read `.eve/resources/index.json` to find the PDF `local_path`
    - Read the PDF in bounded page windows (`pages: "1-20"`, then `"21-40"`, etc.) — never omit the `pages` parameter
-4. Write the changeset JSON to `/tmp/changeset-<UUID>.json` using the Write tool (NOT Bash heredoc)
-5. Run: `eden changeset create --project <UUID> --file /tmp/changeset-<UUID>.json --json`
+4. Write the compact initial-map draft JSON to `/tmp/initial-map-<UUID>.json` using the Write tool (NOT Bash heredoc)
+5. Run: `eden changeset create --project <UUID> --initial-map-file /tmp/initial-map-<UUID>.json --json`
 6. If step 5 returns validation errors, fix the file and rerun the same command once
 7. Report the result. Done.
 
-**Minimum: 4 tool calls (Read contract, Write, Bash, final reply). With an attached PDF: 6 tool calls (Read contract, Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
+**Minimum: 3 tool calls (Write, Bash, final reply). With an attached PDF: 5 tool calls (Read index.json, Read the PDF, Write, Bash, final reply).** Do not add extra steps beyond this.
 
-## Changeset JSON Format
+## Initial-Map Draft Format
 
-For the full payload contract (field names, entity types, display reference format, per-entity field definitions, and the canonical example), read `skills/_references/create-changeset.md`.
+Write this compact structure. The CLI expands it into canonical `items[]` changeset JSON with `entity_type`, `operation`, `display_reference`, `description`, `after_state`, sort orders, persona colors, and IDs.
 
-If you need the machine schema, run `eden changeset schema --json`.
+```json
+{
+  "title": "Initial story map for \"Project Name\"",
+  "source": "map-generator",
+  "source_id": "optional-document-uuid",
+  "personas": [
+    { "name": "Estimator", "code": "EST" },
+    { "name": "Project Manager", "code": "PM" }
+  ],
+  "activities": [
+    {
+      "name": "Plan Takeoff",
+      "steps": [
+        {
+          "name": "Upload Plans",
+          "tasks": [
+            {
+              "title": "Upload plan files",
+              "persona_code": "EST",
+              "user_story": "As an Estimator, I want to upload plan files, so that I can start my takeoff.",
+              "acceptance_criteria": [
+                "Given I am on the plan screen, when I upload a valid PDF, then the file is stored successfully.",
+                "Given the file is invalid, when I attempt to upload it, then I see a clear error message."
+              ],
+              "device": "desktop"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "questions": [
+    "Should DWG uploads be supported at launch?",
+    {
+      "question": "Do estimators need offline access on site?",
+      "priority": "high",
+      "category": "requirements"
+    }
+  ]
+}
+```
 
-Do not inspect controllers, services, tests, or old temp files to infer the schema.
+## What The CLI Derives
+
+You do **not** need to write any of these:
+
+- `items[]`
+- `entity_type`
+- `operation`
+- `display_reference`
+- `description`
+- `after_state`
+- `display_id`
+- `sort_order`
+- persona `color`
+
+The CLI also backfills missing task detail if needed:
+
+- `persona_code` defaults to the first persona
+- `user_story` gets a deterministic fallback
+- `acceptance_criteria` gets 2 default Given/When/Then entries
+- `device`, `priority`, `status`, and `lifecycle` get defaults
 
 ## Pre-Submit Checklist
 
-All field names and formats are defined in `skills/_references/create-changeset.md`. The checklist below is a quick verification overlay.
-
-Before calling `eden changeset create`, verify all of the following:
-
 - `title` exists and is non-empty
-- `source` is set to `map-generator`
-- `items` exists and `items.length > 0`
-- Every item has `entity_type` and `operation`
-- Every `display_reference` uses uppercase canonical format: `ACT-{n}`, `STP-{a}.{s}`, `TSK-{a}.{s}.{t}`, `PER-{CODE}`, `Q-{n}`
-- Every `after_state.display_id` matches the item's `display_reference`
-- Activities use `name` (not `title`) and `sort_order` (not `position`)
-- Steps include `activity_display_id` with uppercase `ACT-` prefix
-- Tasks include `step_display_id` with uppercase `STP-` prefix
-- Every `task/create` item includes a non-empty `title`
-- Every `task/create` item includes a non-empty `acceptance_criteria` array (2-4 entries, Given/When/Then)
-- Every `task/create` item includes a `persona_code`
+- `source` is `document` when `Source record UUID:` is present, otherwise `map-generator`
+- `personas` exists and has 3-5 entries
+- `activities` exists and has 4-6 entries
+- Every activity has 2-3 steps
+- Every step has 2-3 tasks
+- Every task has a non-empty `title`
+- Every task includes `persona_code`, `user_story`, and 2-4 Given/When/Then `acceptance_criteria` entries when you can infer them
+- `questions` has 5-10 useful clarifying questions
 
 ## Anti-Patterns (NEVER use these)
 
 | Wrong | Correct |
 |-------|---------|
-| `act-1`, `activity-1` | `ACT-1` |
-| `step-1-1`, `stp-1-1` | `STP-1.1` |
-| `task-1-1-1`, `tsk-1-1-1` | `TSK-1.1.1` |
-| `"title"` on activity/step | `"name"` |
-| `"position"` | `"sort_order"` |
-| `"activity_ref"` | `"activity_display_id"` |
-| `"step_ref"` | `"step_display_id"` |
-| `"name"` on task | `"title"` |
-| `"description"` on task | `"user_story"` |
-| `acceptance_criteria: []` | 2-4 Given/When/Then entries |
+| Full changeset payload with `items[]`, `entity_type`, `operation`, `after_state` | Compact draft with `personas`, `activities`, `steps`, `tasks`, `questions` |
+| Writing `ACT-1`, `STP-1.1`, `TSK-1.1.1`, `Q-1` yourself | Omit display refs entirely; the CLI assigns them |
+| Per-item `description` fields | Omit descriptions; the CLI synthesizes them |
+| Persona/task/step/activity `display_id` fields | Omit them; the CLI derives them |
+| Acceptance criteria as empty array | 2-4 Given/When/Then strings |
 
 ## Per-Entity Templates
 
-Use these exact shapes. Full contract details are in `skills/_references/create-changeset.md`.
+Use these exact shapes.
 
-### Persona: `{"entity_type":"persona","operation":"create","display_reference":"PER-{CODE}","description":"Add persona: {name}","after_state":{"name":"...","code":"...","color":"#3b82f6"}}`
+### Persona: `{"name":"Estimator","code":"EST"}`
 
-Colors: `#3b82f6` `#ef4444` `#10b981` `#f59e0b` `#8b5cf6` `#ec4899`
+### Activity: `{"name":"Plan Takeoff","steps":[...]}`
 
-### Activity: `{"entity_type":"activity","operation":"create","display_reference":"ACT-{n}","description":"Add activity: {name}","after_state":{"name":"...","display_id":"ACT-{n}","sort_order":{n}}}`
+### Step: `{"name":"Upload Plans","tasks":[...]}`
 
-### Step: `{"entity_type":"step","operation":"create","display_reference":"STP-{a}.{s}","description":"Add step: {name}","after_state":{"name":"...","display_id":"STP-{a}.{s}","activity_display_id":"ACT-{a}","sort_order":{s}}}`
+### Task: `{"title":"Upload plan files","persona_code":"EST","user_story":"As an Estimator, I want to upload plan files, so that I can start my takeoff.","acceptance_criteria":["Given ...","Given ..."],"device":"all"}`
 
-### Task: `{"entity_type":"task","operation":"create","display_reference":"TSK-{a}.{s}.{t}","description":"Add task: {title}","after_state":{"title":"...","display_id":"TSK-{a}.{s}.{t}","step_display_id":"STP-{a}.{s}","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":[{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}],"device":"all","priority":"high","status":"draft"}}`
-
-### Question: `{"entity_type":"question","operation":"create","display_reference":"Q-{n}","description":"Clarifying question","after_state":{"question":"...","display_id":"Q-{n}","priority":"medium","category":"requirements","status":"open"}}`
+### Question: `"Should DWG uploads be supported at launch?"` or `{"question":"Do estimators need offline access?","priority":"high","category":"requirements"}`
 
 ## Quantities
 
@@ -130,6 +177,6 @@ Every task MUST include ALL of these — omitting any is a generation failure:
 - A concise `user_story` in "As a ..., I want to ..., so that ..." form
 - A `device` value of `desktop`, `mobile`, or `all` (use `all` unless the context clearly demands otherwise)
 - A `persona_code` matching one of the personas created above
-- A non-empty `acceptance_criteria` array with 2-4 entries in `{"id":"AC-{a}.{s}.{t}a","text":"Given ... when ... then ..."}` form
+- A non-empty `acceptance_criteria` array with 2-4 Given/When/Then strings
 
 **CRITICAL:** Empty `acceptance_criteria: []` is NEVER acceptable. Every task must have at least 2 Given/When/Then criteria. The story-map cards are useless without them.

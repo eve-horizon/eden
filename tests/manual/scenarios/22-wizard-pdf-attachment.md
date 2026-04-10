@@ -123,7 +123,15 @@ eve job show $PDF_JOB_ID | sed -n '1,40p'
 **Expected:** the job description contains a line like:
 
 ```
-Attached document: Estm8_Strategic_Brief.pdf (materialized at .eve/resources/ — read .eve/resources/index.json, then Read the local_path to load its contents before writing the changeset).
+Attached document: Estm8_Strategic_Brief.pdf (materialized at .eve/resources/ — read .eve/resources/index.json, then Read the local_path using explicit page ranges: pages "1-20", "21-40", etc. Never request more than 20 pages per Read call. Do not attempt a whole-document read.).
+```
+
+And also contains:
+
+```
+Source record UUID: <SOURCE_ID>
+The only Eden CLI command you need is:
+  eden changeset create --project <PROJECT_ID> --initial-map-file /tmp/initial-map.json --json
 ```
 
 And **not** an `Attached document excerpt:` block. The prompt stays short; the content lives in the materialized file.
@@ -199,14 +207,17 @@ grep -B2 -A2 'Estm8_Strategic_Brief' /tmp/wizard-pdf-log.txt | \
 
 ```bash
 # 7f. Changeset hardening checks — the wizard should create the changeset
-#     cleanly without validation or server-side failures.
+#     cleanly via the compact initial-map path, without schema exploration,
+#     validation, or server-side failures.
 HELP_CALLS=$(rg -c 'eden --help' /tmp/wizard-pdf-log.txt || true)
 CREATE_CALLS=$(rg -c 'eden changeset create' /tmp/wizard-pdf-log.txt || true)
-echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS"
+INITIAL_MAP_CALLS=$(rg -c 'eden changeset create .*--initial-map-file' /tmp/wizard-pdf-log.txt || true)
+SCHEMA_EXPLORATION=$(rg -c 'Explore changeset schema|create-changeset-input\\.util\\.ts|contracts/create-changeset\\.schema\\.json' /tmp/wizard-pdf-log.txt || true)
+echo "help_calls=$HELP_CALLS create_calls=$CREATE_CALLS initial_map_calls=$INITIAL_MAP_CALLS schema_exploration=$SCHEMA_EXPLORATION"
 rg -n -i 'invalid_changeset|violates not-null|internal server error|requires approval|POST .*/changesets -> (400|500)' /tmp/wizard-pdf-log.txt || true
 ```
 
-**Expected:** `help_calls=0`, `create_calls>=1`, and no `invalid_changeset`, DB-constraint, approval, or server-side failure signals in the log.
+**Expected:** `help_calls=0`, `create_calls>=1`, `initial_map_calls>=1`, `schema_exploration=0`, and no `invalid_changeset`, DB-constraint, approval, or server-side failure signals in the log.
 
 ### 8. Verify Auto-Accept + Populated Map
 
@@ -233,7 +244,7 @@ api "$EDEN_API/changesets/$CS_ID" \
 
 **Expected:**
 - `status: "accepted"` (wizard auto-accepted — no manual Accept click needed)
-- `source: "document"` (the agent sets this when invoked with a source_id)
+- `source: "document"` (wizard prompt + CLI preserve document provenance when a `source_id` is present)
 - `actor: "<job_id>"` (matches `$PDF_JOB_ID`)
 - `accepted_items ≥ 40` (full map: personas + activities + steps + tasks + questions)
 - `draft_items == 0`

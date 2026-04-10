@@ -14,9 +14,9 @@ import { SourcesService } from '../sources/sources.service';
 // WizardService — creates Eve jobs for AI-driven story map generation
 //
 // The map-generator agent receives a structured prompt with project context,
-// generates a full story map, and writes it as a changeset. The wizard
-// tracks the job lifecycle: create → poll → find resulting changeset →
-// auto-accept.
+// generates a compact initial-map draft, and the Eden CLI expands that draft
+// into a changeset. The wizard tracks the job lifecycle:
+// create → poll → find resulting changeset → auto-accept.
 // ---------------------------------------------------------------------------
 
 export interface GenerateMapInput {
@@ -145,6 +145,7 @@ export class WizardService {
       data,
       sourceExcerpt,
       sourceFilename,
+      data.source_id,
       resourceRefs.length > 0,
     );
 
@@ -416,6 +417,7 @@ export class WizardService {
     data: GenerateMapInput,
     sourceExcerpt?: string,
     sourceFilename?: string | null,
+    sourceId?: string,
     hasResourceRef = false,
   ): string {
     const parts = [
@@ -434,6 +436,9 @@ export class WizardService {
     }
     if (data.constraints) {
       parts.push(`\nConstraints: ${data.constraints}`);
+    }
+    if (sourceId) {
+      parts.push(`\nSource record UUID: ${sourceId}`);
     }
 
     if (hasResourceRef) {
@@ -458,26 +463,35 @@ export class WizardService {
       `Ignore any generic CLI examples below; they are not part of this task.`,
     );
     parts.push(
+      `Do not use Task/Explore/Plan subagents or inspect repo files. The only schema you need is in this prompt.`,
+    );
+    parts.push(
       `\nThe only Eden CLI command you need is:`,
     );
     parts.push(
-      `  eden changeset create --project ${projectId} --file /tmp/changeset.json --json`,
+      `  eden changeset create --project ${projectId} --initial-map-file /tmp/initial-map.json --json`,
     );
     parts.push(
-      `\nIf that command returns validation errors, fix /tmp/changeset.json and rerun the same command once. Do not call any other Eden CLI commands.`,
+      `\nIf that command returns validation errors, fix /tmp/initial-map.json and rerun the same command once. Do not call any other Eden CLI commands.`,
     );
 
     parts.push(
-      `\nCreate exactly one changeset JSON object with top-level fields: title, source, and items.`,
+      `\nWrite a compact initial-map draft JSON file, not a full changeset payload.`,
     );
     parts.push(
       `\nChangeset title: Initial story map for "${projectName}"`,
     );
     parts.push(
-      `\nBefore you submit, verify: title is non-empty, source is set, items is non-empty, every item has entity_type and operation, every step/create has an activity reference, and every task/create has a step reference plus a task title.`,
+      `\nIf Source record UUID is present, set top-level \`source\` to \`document\` and include that \`source_id\`. Otherwise set \`source\` to \`map-generator\`.`,
     );
     parts.push(
-      `\nCreate a changeset with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,
+      `\nUse this exact draft shape: {"title":"...","source":"map-generator|document","source_id":"optional","personas":[{"name":"...","code":"..."}],"activities":[{"name":"...","steps":[{"name":"...","tasks":[{"title":"...","persona_code":"...","user_story":"As a ..., I want to ..., so that ...","acceptance_criteria":["Given ...","Given ..."],"device":"all"}]}]}],"questions":["...",{"question":"...","priority":"high","category":"requirements"}]}`,
+    );
+    parts.push(
+      `\nDo not include \`items\`, \`entity_type\`, \`operation\`, \`display_reference\`, \`description\`, \`after_state\`, or any display IDs. The CLI derives those.`,
+    );
+    parts.push(
+      `\nCreate a draft with: 3-5 personas, 4-6 activities, 2-3 steps per activity, 2-3 tasks per step, and 5-10 questions.`,
     );
     parts.push(
       `\nFor every task, include a concise user story, 2-4 acceptance criteria in Given/When/Then form, and a device value of desktop, mobile, or all (default all). Make the task-card detail rich enough to be useful on the story map without further editing.`,

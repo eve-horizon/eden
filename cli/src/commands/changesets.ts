@@ -6,6 +6,7 @@ import { api } from '../client.js';
 import { json, table } from '../output.js';
 import { readJsonFile } from '../utils.js';
 import { autoDetectProject } from './projects.js';
+import { expandInitialMapDraft } from './initial-map-draft.js';
 
 interface Changeset {
   id: string;
@@ -51,14 +52,37 @@ export function registerChangesets(program: Command): void {
     });
 
   cs.command('create')
-    .description('Create a changeset from a JSON file')
+    .description('Create a changeset from canonical JSON or a compact initial-map draft')
     .option('--project <id>', 'Project ID or slug')
-    .requiredOption('--file <path>', 'JSON file with changeset data')
+    .option('--file <path>', 'Canonical changeset JSON file')
+    .option(
+      '--initial-map-file <path>',
+      'Compact initial story map draft JSON file',
+    )
     .option('--json', 'JSON output')
     .action(async (opts) => {
+      if ((opts.file && opts.initialMapFile) || (!opts.file && !opts.initialMapFile)) {
+        console.error('Provide exactly one of --file or --initial-map-file');
+        process.exit(1);
+      }
+
       const pid = await autoDetectProject(opts.project);
-      const body = JSON.parse(await readFile(opts.file, 'utf8'));
+      let body: unknown;
+      let localWarnings: Array<{ path: string; message: string }> = [];
+
+      if (opts.initialMapFile) {
+        const draft = await readJsonFile<unknown>(opts.initialMapFile);
+        const expanded = expandInitialMapDraft(draft);
+        body = expanded.payload;
+        localWarnings = expanded.warnings;
+      } else {
+        body = JSON.parse(await readFile(opts.file, 'utf8'));
+      }
+
       const result = await api<Changeset>('POST', `/projects/${pid}/changesets`, body);
+      if (localWarnings.length > 0) {
+        result.warnings = [...localWarnings, ...(result.warnings ?? [])];
+      }
       if (opts.json) return json(result);
       console.log(`Created changeset: ${result.id} (${result.status})`);
       for (const warning of result.warnings ?? []) {
