@@ -264,6 +264,7 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
                 value={task.title}
                 onSave={(title) => onRenameTask(task.id, title)}
                 disabled={!canEdit}
+                editTrigger="doubleClick"
                 style={{
                   fontSize: '13px',
                   fontWeight: 700,
@@ -335,7 +336,10 @@ export function TaskCard({ task, dimmed, aiStatus, onQuestionClick, forceExpande
 
       {/* Expanded detail */}
       {expanded && (
-        <div style={{ padding: '0 14px 12px', fontSize: '11px' }}>
+        <div
+          data-testid={`task-card-expanded-${task.display_id}`}
+          style={{ padding: '0 14px 12px', fontSize: '11px' }}
+        >
           <TaskCardExpanded
             taskDisplayId={task.display_id}
             userStory={task.user_story}
@@ -381,10 +385,15 @@ function SourceBadge({ sourceType }: { sourceType: string }) {
 // DeviceBadge
 // ---------------------------------------------------------------------------
 
-function DeviceBadge({ device }: { device: string }) {
+function DeviceBadge({
+  device,
+}: {
+  device: string;
+}) {
   const style = DEVICE_STYLES[device] ?? { bg: '#f3f4f6', color: '#6b7280' };
   return (
     <span
+      data-testid={`task-device-${device}`}
       style={{
         fontSize: '8px',
         fontWeight: 600,

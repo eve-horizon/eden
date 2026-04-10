@@ -31,6 +31,7 @@ export function RoleFilterPills({
 
   return (
     <div
+      data-testid="role-filter-pills"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -56,6 +57,7 @@ export function RoleFilterPills({
           <button
             key={p.id}
             onClick={() => onToggle(isActive ? null : p.code)}
+            data-testid={`role-filter-${p.code}`}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium
               transition-all duration-150 hover:-translate-y-px"
             style={{
@@ -79,6 +81,7 @@ export function RoleFilterPills({
       {active && (
         <button
           onClick={() => onToggle(null)}
+          data-testid="role-filter-clear"
           className="text-xs text-eden-text-2 hover:text-eden-text transition-colors ml-1"
         >
           Clear

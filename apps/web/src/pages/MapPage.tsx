@@ -340,12 +340,14 @@ export function MapPage() {
                       label="All Activities"
                       active={selectedActivities.size === mapActivities.length}
                       onClick={() => setSelectedActivities(new Set(mapActivities.map(a => a.id)))}
+                      data-testid="activity-filter-all"
                     />
                     {mapActivities.map((a, i) => (
                       <DropdownItem
                         key={a.id}
                         label={`${i + 1}. ${a.name}`}
                         active={selectedActivities.has(a.id)}
+                        data-testid={`activity-filter-${a.display_id}`}
                         onClick={() => {
                           const next = new Set(selectedActivities);
                           if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
@@ -683,6 +685,7 @@ function DropdownItem({
 function StoryMapLegend() {
   return (
     <div
+      data-testid="story-map-legend"
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -50,6 +50,7 @@ export function TaskCardExpanded({
       {/* User story */}
       {userStory && (
         <div
+          data-testid={`user-story-${taskDisplayId}`}
           style={{
             background: '#f8fafc',
             borderLeft: '3px solid #e65100',
@@ -94,6 +95,7 @@ export function TaskCardExpanded({
               return (
                 <div
                   key={displayId}
+                  data-testid={`acceptance-criterion-${displayId}`}
                   style={{
                     display: 'flex',
                     gap: '5px',

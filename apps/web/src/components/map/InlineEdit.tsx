@@ -4,6 +4,7 @@ interface InlineEditProps {
   value: string;
   onSave: (value: string) => Promise<void>;
   disabled?: boolean;
+  editTrigger?: 'click' | 'doubleClick';
   className?: string;
   inputClassName?: string;
   style?: React.CSSProperties;
@@ -15,6 +16,7 @@ export function InlineEdit({
   value,
   onSave,
   disabled = false,
+  editTrigger = 'click',
   className = '',
   inputClassName = '',
   style,
@@ -88,6 +90,8 @@ export function InlineEdit({
         type="text"
         value={editValue}
         onChange={(e) => setEditValue(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
         onBlur={save}
         onKeyDown={handleKeyDown}
         disabled={saving}
@@ -110,7 +114,16 @@ export function InlineEdit({
 
   return (
     <span
-      onClick={(e) => { e.stopPropagation(); startEdit(); }}
+      onClick={(e) => {
+        if (editTrigger !== 'click') return;
+        e.stopPropagation();
+        startEdit();
+      }}
+      onDoubleClick={(e) => {
+        if (editTrigger !== 'doubleClick') return;
+        e.stopPropagation();
+        startEdit();
+      }}
       className={className}
       style={{
         ...style,
@@ -126,7 +139,13 @@ export function InlineEdit({
       onMouseLeave={(e) => {
         (e.currentTarget as HTMLElement).style.background = '';
       }}
-      title={disabled ? undefined : 'Click to edit'}
+      title={
+        disabled
+          ? undefined
+          : editTrigger === 'doubleClick'
+            ? 'Double-click to edit'
+            : 'Click to edit'
+      }
     >
       {value}
     </span>
